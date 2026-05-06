@@ -1,15 +1,14 @@
 from fastapi import FastAPI
 
-# DB 세션 의존성 주입 예시:
-# from fastapi import Depends
-# from sqlalchemy.ext.asyncio import AsyncSession
-# from app.database import get_db
-#
-# @router.get("/items")
-# async def list_items(db: AsyncSession = Depends(get_db)):
-#     ...
+from app.routes.ai import router as ai_router
+from app.routes.auth import router as auth_router
+from app.routes.trips import router as trips_router
 
 app = FastAPI(title="Triple Clone Backend", version="0.1.0")
+
+app.include_router(auth_router)
+app.include_router(trips_router)
+app.include_router(ai_router)
 
 
 @app.get("/health")

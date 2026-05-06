@@ -12,6 +12,11 @@ class Settings(BaseSettings):
     # AI
     gemini_api_key: str = ""
 
+    # Auth (JWT)
+    jwt_secret: str = "change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 60 * 24 * 30  # 30일
+
     # App
     app_env: str = "development"
     log_level: str = "INFO"

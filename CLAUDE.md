@@ -30,8 +30,8 @@
 - **캐싱**: Redis (선택사항)
 
 ### 개발 도구
-- **패키지 관리**: pip (backend), npm/yarn (mobile)
-- **환경 변수**: .env (python-dotenv)
+- **패키지 관리**: uv (backend), npm (mobile)
+- **환경 변수**: .env (pydantic-settings)
 - **버전 제어**: Git (branch: main, develop, feature/*)
 - **배포**: TBD (Docker, K8s, Vercel, Heroku 등)
 
@@ -379,21 +379,24 @@ const handleTrip = (trip: Trip) => {};
 ### 백엔드 (Python/FastAPI)
 ```bash
 # 의존성 설치
-pip install -r requirements.txt
+uv sync
+
+# 패키지 추가
+uv add <package>
 
 # 개발 서버 실행
-uvicorn app.main:app --reload
+uv run uvicorn app.main:app --reload
 
 # DB 마이그레이션 (Alembic)
-alembic upgrade head
-alembic revision --autogenerate -m "add new table"
+uv run alembic upgrade head
+uv run alembic revision --autogenerate -m "add new table"
 
 # 테스트
-pytest -v
+uv run pytest -v
 
-# 린트
-ruff check .
-black .
+# 린트 & 포맷
+uv run ruff check .
+uv run ruff format .
 ```
 
 ### 프론트엔드 (React Native/Expo)
@@ -442,7 +445,7 @@ triple-clone/
 ├── backend/
 │   ├── app/
 │   ├── tests/
-│   ├── requirements.txt
+│   ├── pyproject.toml
 │   └── .env.example
 ├── mobile/
 │   ├── app/
