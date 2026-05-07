@@ -48,73 +48,94 @@ export default function LoginScreen() {
 
   return (
     <KeyboardAvoidingView
-      className="flex-1 bg-white"
+      className="flex-1 bg-bg-base"
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
       <ScrollView
         contentContainerClassName="flex-grow"
-        keyboardShouldPersistTaps="handled">
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}>
         <View
           className="flex-1 px-6 justify-center"
-          style={{ paddingTop: insets.top + 32, paddingBottom: insets.bottom + 24 }}>
-          {/* 로고 / 타이틀 */}
-          <View className="items-center mb-10">
-            <Text className="text-5xl mb-3">✈️</Text>
-            <Text className="text-3xl font-bold text-gray-900">트리플</Text>
-            <Text className="text-sm text-gray-400 mt-1">AI 여행 플래너</Text>
+          style={{ paddingTop: insets.top + 48, paddingBottom: insets.bottom + 32 }}>
+
+          {/* ── 로고 ── */}
+          <View className="items-center mb-12">
+            <View className="w-16 h-16 rounded-2xl bg-triple-blue items-center justify-center mb-4 shadow-sm">
+              <Text className="text-white text-3xl font-bold">T</Text>
+            </View>
+            <Text className="text-2xl font-bold text-tx-primary tracking-tight">트리플</Text>
+            <Text className="text-sm text-tx-tertiary mt-1">AI 여행 플래너</Text>
           </View>
 
-          {/* 폼 */}
+          {/* ── 입력 폼 ── */}
           <View className="gap-3">
-            <TextInput
-              className="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-4 text-base text-gray-900"
-              placeholder="이메일"
-              placeholderTextColor="#9ca3af"
-              autoCapitalize="none"
-              keyboardType="email-address"
-              autoComplete="email"
-              value={email}
-              onChangeText={setEmail}
-            />
-            <TextInput
-              className="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-4 text-base text-gray-900"
-              placeholder="비밀번호"
-              placeholderTextColor="#9ca3af"
-              secureTextEntry
-              autoComplete="password"
-              value={password}
-              onChangeText={setPassword}
-              onSubmitEditing={handleLogin}
-              returnKeyType="done"
-            />
+            {/* 이메일 */}
+            <View>
+              <Text className="text-xs font-semibold text-tx-secondary mb-1.5 ml-1">이메일</Text>
+              <TextInput
+                className="bg-bg-surface border border-line-default rounded-xl px-4 py-3.5 text-base text-tx-primary"
+                placeholder="example@email.com"
+                placeholderTextColor="#9BA7B5"
+                autoCapitalize="none"
+                keyboardType="email-address"
+                autoComplete="email"
+                value={email}
+                onChangeText={(t) => { setEmail(t); if (error) setError(''); }}
+              />
+            </View>
+
+            {/* 비밀번호 */}
+            <View>
+              <Text className="text-xs font-semibold text-tx-secondary mb-1.5 ml-1">비밀번호</Text>
+              <TextInput
+                className="bg-bg-surface border border-line-default rounded-xl px-4 py-3.5 text-base text-tx-primary"
+                placeholder="비밀번호를 입력해주세요"
+                placeholderTextColor="#9BA7B5"
+                secureTextEntry
+                autoComplete="password"
+                value={password}
+                onChangeText={(t) => { setPassword(t); if (error) setError(''); }}
+                onSubmitEditing={handleLogin}
+                returnKeyType="done"
+              />
+            </View>
           </View>
 
-          {/* 에러 메시지 */}
+          {/* 에러 */}
           {error ? (
-            <Text className="text-red-500 text-sm mt-3 text-center">{error}</Text>
+            <View className="mt-3 px-3 py-2 bg-red-50 rounded-lg border border-red-100">
+              <Text className="text-negative text-sm text-center">{error}</Text>
+            </View>
           ) : null}
 
           {/* 로그인 버튼 */}
           <TouchableOpacity
-            className="mt-6 bg-blue-500 rounded-2xl py-4 items-center"
+            className="mt-6 bg-triple-blue rounded-xl py-4 items-center"
             onPress={handleLogin}
             disabled={loading}
             activeOpacity={0.85}>
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text className="text-white font-bold text-base">로그인</Text>
+              <Text className="text-tx-inverse font-bold text-base">로그인</Text>
             )}
           </TouchableOpacity>
 
-          {/* 회원가입 링크 */}
-          <View className="flex-row justify-center mt-5 gap-1">
-            <Text className="text-gray-400 text-sm">아직 계정이 없으신가요?</Text>
-            <Link href="/auth/register" asChild>
-              <TouchableOpacity>
-                <Text className="text-blue-500 text-sm font-semibold">회원가입</Text>
-              </TouchableOpacity>
-            </Link>
+          {/* 구분선 */}
+          <View className="flex-row items-center my-6 gap-3">
+            <View className="flex-1 h-px bg-line-default" />
+            <Text className="text-tx-tertiary text-xs">또는</Text>
+            <View className="flex-1 h-px bg-line-default" />
           </View>
+
+          {/* 회원가입 버튼 */}
+          <Link href="/auth/register" asChild>
+            <TouchableOpacity
+              className="rounded-xl py-4 items-center border border-line-strong"
+              activeOpacity={0.85}>
+              <Text className="text-tx-primary font-semibold text-base">새 계정 만들기</Text>
+            </TouchableOpacity>
+          </Link>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>

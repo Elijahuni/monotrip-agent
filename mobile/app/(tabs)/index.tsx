@@ -35,25 +35,34 @@ interface TripCardProps {
 function TripCard({ trip, onPress }: TripCardProps) {
   return (
     <TouchableOpacity
-      className="bg-white mx-4 mb-3 rounded-2xl p-4 shadow-sm border border-gray-100"
+      className="bg-bg-base mx-4 mb-3 rounded-2xl overflow-hidden"
+      style={{ shadowColor: '#1A2E44', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 }}
       onPress={onPress}
       activeOpacity={0.8}>
-      <View className="flex-row items-center">
-        <View className="w-1 self-stretch bg-blue-400 rounded-full mr-3" />
-        <View className="flex-1">
-          <Text className="text-base font-bold text-gray-900" numberOfLines={1}>
-            {trip.title}
-          </Text>
-          <Text className="text-xs text-gray-400 mt-0.5">
+      {/* 상단 블루 배너 */}
+      <View className="h-1.5 bg-triple-blue" />
+      <View className="px-4 py-4">
+        <Text className="text-base font-bold text-tx-primary" numberOfLines={1}>
+          {trip.title}
+        </Text>
+        <View className="flex-row items-center mt-1.5 gap-1">
+          <Text className="text-xs text-tx-tertiary">📅</Text>
+          <Text className="text-xs text-tx-tertiary">
             {formatDateRange(trip.start_date, trip.end_date)}
           </Text>
-          {trip.description ? (
-            <Text className="text-sm text-gray-500 mt-1.5" numberOfLines={2}>
-              {trip.description}
-            </Text>
-          ) : null}
         </View>
-        <Text className="text-gray-300 text-2xl ml-2">›</Text>
+        {trip.description ? (
+          <Text className="text-sm text-tx-secondary mt-2 leading-relaxed" numberOfLines={2}>
+            {trip.description}
+          </Text>
+        ) : null}
+        {/* 하단 화살표 */}
+        <View className="flex-row justify-end mt-3">
+          <View className="flex-row items-center gap-1">
+            <Text className="text-xs text-triple-blue font-semibold">자세히 보기</Text>
+            <Text className="text-triple-blue text-xs">›</Text>
+          </View>
+        </View>
       </View>
     </TouchableOpacity>
   );
@@ -63,11 +72,13 @@ function TripCard({ trip, onPress }: TripCardProps) {
 
 function EmptyState() {
   return (
-    <View className="flex-1 items-center justify-center gap-3 pb-20">
-      <Text className="text-6xl">✈️</Text>
-      <Text className="text-lg font-semibold text-gray-700 mt-2">아직 여행이 없어요</Text>
-      <Text className="text-sm text-gray-400 text-center px-8">
-        + 버튼을 눌러 첫 여행을 시작해보세요
+    <View className="flex-1 items-center justify-center gap-3 pb-24">
+      <View className="w-24 h-24 rounded-full bg-bg-subtle items-center justify-center mb-2">
+        <Text className="text-5xl">✈️</Text>
+      </View>
+      <Text className="text-lg font-bold text-tx-primary">아직 여행이 없어요</Text>
+      <Text className="text-sm text-tx-tertiary text-center px-8 leading-relaxed">
+        + 버튼을 눌러{'\n'}첫 번째 여행을 시작해보세요
       </Text>
     </View>
   );
@@ -108,35 +119,31 @@ function CreateTripModal({ visible, onClose, onCreated }: CreateTripModalProps) 
   }
 
   function handleClose() {
-    if (!loading) {
-      setTitle('');
-      onClose();
-    }
+    if (!loading) { setTitle(''); onClose(); }
   }
 
   const canSubmit = title.trim().length > 0 && !loading;
 
   return (
     <Modal visible={visible} transparent animationType="slide" onRequestClose={handleClose}>
-      {/* 백드롭: 탭하면 닫힘 */}
       <TouchableOpacity
         className="flex-1 bg-black/40 justify-end"
         activeOpacity={1}
         onPress={handleClose}>
-        {/* 시트 영역: onStartShouldSetResponder로 터치 전파 차단 */}
         <View
           onStartShouldSetResponder={() => true}
-          className="bg-white rounded-t-3xl px-6 pt-5"
+          className="bg-bg-base rounded-t-3xl px-6 pt-5"
           style={{ paddingBottom: Math.max(insets.bottom, 16) + 16 }}>
-          {/* 드래그 핸들 */}
-          <View className="w-10 h-1 bg-gray-200 rounded-full self-center mb-5" />
+          {/* 핸들 */}
+          <View className="w-10 h-1 bg-line-strong rounded-full self-center mb-5" />
 
-          <Text className="text-lg font-bold text-gray-900 mb-4">새 여행 만들기</Text>
+          <Text className="text-lg font-bold text-tx-primary mb-1">새 여행 만들기</Text>
+          <Text className="text-sm text-tx-tertiary mb-4">여행 제목을 입력해주세요</Text>
 
           <TextInput
-            className="bg-gray-50 border border-gray-200 rounded-2xl px-4 py-4 text-base text-gray-900 mb-4"
-            placeholder="여행 제목 (예: 도쿄 봄 여행)"
-            placeholderTextColor="#9ca3af"
+            className="bg-bg-surface border border-line-default rounded-xl px-4 py-3.5 text-base text-tx-primary mb-4"
+            placeholder="예: 도쿄 봄 여행 🌸"
+            placeholderTextColor="#9BA7B5"
             value={title}
             onChangeText={setTitle}
             autoFocus
@@ -145,14 +152,14 @@ function CreateTripModal({ visible, onClose, onCreated }: CreateTripModalProps) 
           />
 
           <TouchableOpacity
-            className={`rounded-2xl py-4 items-center ${canSubmit ? 'bg-blue-500' : 'bg-gray-100'}`}
+            className={`rounded-xl py-4 items-center ${canSubmit ? 'bg-triple-blue' : 'bg-bg-subtle'}`}
             onPress={handleCreate}
             disabled={!canSubmit}
             activeOpacity={0.85}>
             {loading ? (
               <ActivityIndicator color="#fff" />
             ) : (
-              <Text className={`font-bold text-base ${canSubmit ? 'text-white' : 'text-gray-400'}`}>
+              <Text className={`font-bold text-base ${canSubmit ? 'text-tx-inverse' : 'text-tx-disabled'}`}>
                 만들기
               </Text>
             )}
@@ -169,17 +176,15 @@ export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const [trips, setTrips] = useState<Trip[]>([]);
-  const [loading, setLoading] = useState(true);   // SQLite 초기 로드 완료 전
-  const [syncing, setSyncing] = useState(false);  // 백엔드 API 동기화 중
+  const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
   const [showCreate, setShowCreate] = useState(false);
 
-  // 1단계: 로컬 DB에서 먼저 읽기
   const loadLocal = useCallback(async () => {
     const local = await getTrips();
     setTrips(local);
   }, []);
 
-  // 2단계: 백엔드와 동기화 (오프라인이면 조용히 실패)
   const syncRemote = useCallback(async () => {
     setSyncing(true);
     try {
@@ -187,7 +192,7 @@ export default function HomeScreen() {
       await syncTrips(remote);
       setTrips(remote);
     } catch {
-      // 오프라인이거나 인증 만료 → 로컬 데이터 유지
+      // 오프라인 or 인증 만료 → 로컬 유지
     } finally {
       setSyncing(false);
     }
@@ -196,21 +201,29 @@ export default function HomeScreen() {
   useEffect(() => {
     async function init() {
       await loadLocal();
-      setLoading(false); // 이 시점부터 EmptyState 표시 가능
-      syncRemote();      // 백그라운드 동기화 (await 없이)
+      setLoading(false);
+      syncRemote();
     }
     init();
   }, []);
 
   return (
-    <View className="flex-1 bg-gray-50" style={{ paddingTop: insets.top }}>
-      {/* 헤더 */}
-      <View className="bg-white px-5 py-4 border-b border-gray-100 flex-row items-center justify-between">
-        <Text className="text-2xl font-bold text-gray-900">내 여행</Text>
-        {syncing && <ActivityIndicator size="small" color="#60a5fa" />}
+    <View className="flex-1 bg-bg-surface" style={{ paddingTop: insets.top }}>
+      {/* ── 헤더 ── */}
+      <View className="bg-bg-base px-5 pt-4 pb-4 border-b border-line-default flex-row items-center justify-between">
+        <View>
+          <Text className="text-xl font-bold text-tx-primary">내 여행</Text>
+          <Text className="text-xs text-tx-tertiary mt-0.5">나만의 여행을 계획해보세요</Text>
+        </View>
+        <View className="flex-row items-center gap-2">
+          {syncing && <ActivityIndicator size="small" color="#3DC3EE" />}
+          <View className="w-8 h-8 rounded-full bg-triple-blue items-center justify-center">
+            <Text className="text-tx-inverse text-sm font-bold">T</Text>
+          </View>
+        </View>
       </View>
 
-      {/* 여행 목록 */}
+      {/* ── 여행 목록 ── */}
       <FlatList
         data={trips}
         keyExtractor={(item) => String(item.id)}
@@ -220,7 +233,6 @@ export default function HomeScreen() {
             onPress={() => router.push(`/trips/${item.id}` as never)}
           />
         )}
-        // SQLite 로드 전에는 EmptyState 숨김 (깜빡임 방지)
         ListEmptyComponent={loading ? null : <EmptyState />}
         ListHeaderComponent={<View className="h-4" />}
         ListFooterComponent={<View style={{ height: insets.bottom + 96 }} />}
@@ -228,16 +240,23 @@ export default function HomeScreen() {
         contentContainerStyle={{ flexGrow: 1 }}
       />
 
-      {/* FAB */}
+      {/* ── FAB ── */}
       <TouchableOpacity
-        className="absolute right-6 w-14 h-14 rounded-full bg-blue-500 items-center justify-center shadow-lg"
-        style={{ bottom: insets.bottom + 24 }}
+        className="absolute right-5 w-14 h-14 rounded-full bg-triple-blue items-center justify-center"
+        style={{
+          bottom: insets.bottom + 20,
+          shadowColor: '#3DC3EE',
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.4,
+          shadowRadius: 10,
+          elevation: 6,
+        }}
         onPress={() => setShowCreate(true)}
         activeOpacity={0.85}>
-        <Text className="text-white text-3xl font-light leading-none mb-0.5">+</Text>
+        <Text className="text-tx-inverse text-3xl font-light leading-none mb-0.5">+</Text>
       </TouchableOpacity>
 
-      {/* 새 여행 생성 모달 */}
+      {/* ── 새 여행 모달 ── */}
       <CreateTripModal
         visible={showCreate}
         onClose={() => setShowCreate(false)}
