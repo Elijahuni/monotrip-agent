@@ -4,7 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.trip_repository import TripRepository
-from app.schemas.trip import TripCreate, TripResponse, TripSummary, TripUpdate
+from app.schemas.trip import LocationCreate, LocationResponse, LocationUpdate, TripCreate, TripResponse, TripSummary, TripUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +43,50 @@ class TripService:
         self._assert_accessible(trip, trip_id, user_id)
         await self.repo.delete(db, trip)
         logger.info("Trip deleted: id=%s user_id=%s", trip_id, user_id)
+
+    # ── Location 메서드 ────────────────────────────────────────────────────────
+
+    async def add_location(
+        self, db: AsyncSession, trip_id: int, user_id: int, data: LocationCreate
+    ) -> LocationResponse:
+        trip = await self.repo.get_by_id(db, trip_id)
+        self._assert_accessible(trip, trip_id, user_id)
+        location = await self.repo.create_location(db, trip_id, data)
+        logger.info("Location added: id=%s trip_id=%s", location.id, trip_id)
+        return LocationResponse.model_validate(location)
+
+    async def update_location(
+        self,
+        db: AsyncSession,
+        trip_id: int,
+        location_id: int,
+        user_id: int,
+        data: LocationUpdate,
+    ) -> LocationResponse:
+        trip = await self.repo.get_by_id(db, trip_id)
+        self._assert_accessible(trip, trip_id, user_id)
+        location = await self.repo.get_location(db, location_id)
+        if location is None or location.trip_id != trip_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"장소({location_id})를 찾을 수 없습니다.",
+            )
+        updated = await self.repo.update_location(db, location, data)
+        return LocationResponse.model_validate(updated)
+
+    async def delete_location(
+        self, db: AsyncSession, trip_id: int, location_id: int, user_id: int
+    ) -> None:
+        trip = await self.repo.get_by_id(db, trip_id)
+        self._assert_accessible(trip, trip_id, user_id)
+        location = await self.repo.get_location(db, location_id)
+        if location is None or location.trip_id != trip_id:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"장소({location_id})를 찾을 수 없습니다.",
+            )
+        await self.repo.delete_location(db, location)
+        logger.info("Location deleted: id=%s trip_id=%s", location_id, trip_id)
 
     @staticmethod
     def _assert_accessible(trip: object | None, trip_id: int, user_id: int) -> None:

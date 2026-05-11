@@ -1,5 +1,6 @@
 from fastapi import APIRouter
 
+from app.dependencies.auth import CurrentUser
 from app.dependencies.db import DbSession
 from app.schemas.common import ApiResponse
 from app.schemas.user import TokenResponse, UserCreate, UserLogin, UserResponse
@@ -20,3 +21,8 @@ async def register(body: UserCreate, db: DbSession) -> ApiResponse[UserResponse]
 async def login(body: UserLogin, db: DbSession) -> ApiResponse[TokenResponse]:
     token = await _service.login(db, body)
     return ApiResponse(data=token)
+
+
+@router.get("/me", response_model=ApiResponse[UserResponse])
+async def get_me(current_user: CurrentUser) -> ApiResponse[UserResponse]:
+    return ApiResponse(data=UserResponse.model_validate(current_user))
