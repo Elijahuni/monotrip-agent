@@ -1,9 +1,10 @@
 import { AxiosError } from 'axios';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Dimensions,
   FlatList,
   Modal,
   ScrollView,
@@ -12,11 +13,15 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import MapView, { Callout, Marker, type MapViewProps } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { api } from '@/lib/api';
 import { deleteTrip, saveTrip } from '@/lib/local-trips';
 import type { Location, Trip } from '@/lib/types';
+
+const SCREEN_WIDTH = Dimensions.get('window').width;
+const MAP_HEIGHT = 200;
 
 // ─── 카테고리 ──────────────────────────────────────────────────────────────────
 
@@ -219,6 +224,65 @@ function AddLocationModal({ visible, tripId, nextOrder, onClose, onAdded }: AddL
   );
 }
 
+// ─── 지도 컴포넌트 ─────────────────────────────────────────────────────────────
+
+function TripMap({ locations }: { locations: Location[] }) {
+  const mapRef = useRef<MapView>(null);
+  const validLocs = locations.filter((l) => l.latitude !== 0 && l.longitude !== 0);
+
+  // 지도 로드 후 모든 마커가 보이도록 자동 조정
+  function onMapReady() {
+    if (validLocs.length === 0) return;
+    if (validLocs.length === 1) {
+      mapRef.current?.animateToRegion({
+        latitude: validLocs[0].latitude,
+        longitude: validLocs[0].longitude,
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      }, 300);
+      return;
+    }
+    mapRef.current?.fitToCoordinates(
+      validLocs.map((l) => ({ latitude: l.latitude, longitude: l.longitude })),
+      { edgePadding: { top: 32, right: 32, bottom: 32, left: 32 }, animated: true },
+    );
+  }
+
+  if (validLocs.length === 0) return null;
+
+  return (
+    <View
+      className="mx-4 mb-1 rounded-2xl overflow-hidden border border-line-default"
+      style={{ height: MAP_HEIGHT }}>
+      <MapView
+        ref={mapRef}
+        style={{ width: '100%', height: MAP_HEIGHT }}
+        onMapReady={onMapReady}
+        showsUserLocation={false}
+        showsCompass={false}
+        toolbarEnabled={false}>
+        {validLocs.map((loc, i) => (
+          <Marker
+            key={loc.id}
+            coordinate={{ latitude: loc.latitude, longitude: loc.longitude }}
+            pinColor="#3DC3EE">
+            <Callout>
+              <View style={{ paddingHorizontal: 8, paddingVertical: 4, maxWidth: 160 }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: '#1A2E44' }}>
+                  {loc.visit_order || i + 1}. {loc.name}
+                </Text>
+                <Text style={{ fontSize: 10, color: '#9BA7B5', marginTop: 2 }} numberOfLines={1}>
+                  {loc.category}
+                </Text>
+              </View>
+            </Callout>
+          </Marker>
+        ))}
+      </MapView>
+    </View>
+  );
+}
+
 // ─── 여행 상세 화면 ────────────────────────────────────────────────────────────
 
 export default function TripDetailScreen() {
@@ -318,14 +382,6 @@ export default function TripDetailScreen() {
         ) : null}
       </View>
 
-      {/* ── 장소 섹션 헤더 ── */}
-      <View className="flex-row items-center justify-between px-5 pt-5 pb-3">
-        <View>
-          <Text className="text-base font-bold text-tx-primary">방문 장소</Text>
-          <Text className="text-xs text-tx-tertiary mt-0.5">총 {locations.length}곳</Text>
-        </View>
-      </View>
-
       {/* ── 장소 목록 ── */}
       <FlatList
         data={locations}
@@ -333,7 +389,21 @@ export default function TripDetailScreen() {
         renderItem={({ item, index }) => (
           <LocationCard loc={item} index={index} onDelete={handleDeleteLocation} />
         )}
-        ListHeaderComponent={<View />}
+        ListHeaderComponent={
+          <View>
+            {/* 지도 뷰 — 유효 좌표가 있는 장소만 표시 */}
+            <View className="pt-4">
+              <TripMap locations={locations} />
+            </View>
+            {/* 장소 섹션 헤더 */}
+            <View className="flex-row items-center justify-between px-5 pt-4 pb-3">
+              <View>
+                <Text className="text-base font-bold text-tx-primary">방문 장소</Text>
+                <Text className="text-xs text-tx-tertiary mt-0.5">총 {locations.length}곳</Text>
+              </View>
+            </View>
+          </View>
+        }
         ListEmptyComponent={
           <View className="items-center py-12 gap-2">
             <Text className="text-4xl">📍</Text>
