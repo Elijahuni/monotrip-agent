@@ -1,13 +1,16 @@
 import { HapticTab } from '@/components/haptic-tab';
+import { OfflineBanner } from '@/components/offline-banner';
 import { IconSymbol } from '@/components/ui/icon-symbol';
-import { Colors } from '@/constants/theme';
 import { useColorScheme } from '@/hooks/use-color-scheme';
 import { getStoredToken } from '@/lib/api';
+import { useNetworkSync } from '@/lib/sync';
 import { Redirect, Tabs } from 'expo-router';
 import { useEffect, useState } from 'react';
+import { View } from 'react-native';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  const isOnline = useNetworkSync();
   // undefined = 확인 중 | null = 미로그인 | string = 로그인됨
   const [token, setToken] = useState<string | null | undefined>(undefined);
 
@@ -19,11 +22,13 @@ export default function TabLayout() {
   if (token === undefined) return null;
 
   // 토큰 없으면 로그인 화면으로 리다이렉트
-  // Redirect는 라우트 컴포넌트 내부에서 호출되므로 네비게이터가 이미 초기화된 상태
   if (token === null) return <Redirect href="/auth/login" />;
 
   return (
-    <Tabs
+    <View style={{ flex: 1 }}>
+      {/* 오프라인 배너 — Tabs 위, safe area 아래에 고정 */}
+      <OfflineBanner isOnline={isOnline} />
+      <Tabs
       screenOptions={{
         tabBarActiveTintColor: '#3DC3EE',
         tabBarInactiveTintColor: '#9BA7B5',
@@ -64,5 +69,6 @@ export default function TabLayout() {
         }}
       />
     </Tabs>
+    </View>
   );
 }
