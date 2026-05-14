@@ -2,6 +2,7 @@ import { HapticTab } from '@/components/haptic-tab';
 import { OfflineBanner } from '@/components/offline-banner';
 import { IconSymbol } from '@/components/ui/icon-symbol';
 import { useThemedColors } from '@/lib/design-tokens';
+import { useSettings } from '@/lib/settings-context';
 import { useAuthStore, useIsOnline } from '@/store';
 import { Redirect, Tabs } from 'expo-router';
 import { View } from 'react-native';
@@ -10,6 +11,7 @@ export default function TabLayout() {
   const status = useAuthStore((s) => s.status);
   const isOnline = useIsOnline();
   const colors = useThemedColors();
+  const { t } = useSettings();
 
   // 부팅 직후엔 status='loading' — 스플래시 유지
   if (status === 'loading') return null;
@@ -37,21 +39,28 @@ export default function TabLayout() {
         <Tabs.Screen
           name="index"
           options={{
-            title: '내 여행',
+            title: t('tabs', 'home'),
             tabBarIcon: ({ color }) => <IconSymbol size={24} name="house.fill" color={color} />,
           }}
         />
         <Tabs.Screen
           name="explore"
           options={{
-            title: 'AI 추천',
+            title: t('tabs', 'explore'),
             tabBarIcon: ({ color }) => <IconSymbol size={24} name="sparkles" color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="saved"
+          options={{
+            title: t('tabs', 'saved'),
+            tabBarIcon: ({ color }) => <IconSymbol size={24} name="heart.fill" color={color} />,
           }}
         />
         <Tabs.Screen
           name="profile"
           options={{
-            title: '프로필',
+            title: t('tabs', 'profile'),
             tabBarIcon: ({ color }) => <IconSymbol size={24} name="person.fill" color={color} />,
           }}
         />

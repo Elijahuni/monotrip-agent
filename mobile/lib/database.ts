@@ -18,28 +18,40 @@ export async function getDB(): Promise<SQLite.SQLiteDatabase> {
 export async function createTables(db: SQLite.SQLiteDatabase): Promise<void> {
   await db.execAsync(`
     CREATE TABLE IF NOT EXISTS trips (
-      id           INTEGER PRIMARY KEY,
-      user_id      INTEGER NOT NULL,
-      title        TEXT    NOT NULL,
-      description  TEXT,
-      start_date   TEXT,
-      end_date     TEXT,
+      id            INTEGER PRIMARY KEY,
+      user_id       INTEGER NOT NULL,
+      title         TEXT    NOT NULL,
+      description   TEXT,
+      start_date    TEXT,
+      end_date      TEXT,
       thumbnail_url TEXT,
-      created_at   TEXT    NOT NULL,
-      updated_at   TEXT    NOT NULL
+      total_budget  INTEGER,
+      group_size    INTEGER NOT NULL DEFAULT 1,
+      share_token   TEXT,
+      created_at    TEXT    NOT NULL,
+      updated_at    TEXT    NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS locations (
-      id           INTEGER PRIMARY KEY,
-      trip_id      INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
-      name         TEXT    NOT NULL,
-      address      TEXT    NOT NULL,
-      latitude     REAL    NOT NULL,
-      longitude    REAL    NOT NULL,
-      category     TEXT    NOT NULL,
-      visit_order  INTEGER NOT NULL DEFAULT 0,
-      notes        TEXT,
-      created_at   TEXT    NOT NULL
+      id                 INTEGER PRIMARY KEY,
+      trip_id            INTEGER NOT NULL REFERENCES trips(id) ON DELETE CASCADE,
+      name               TEXT    NOT NULL,
+      address            TEXT    NOT NULL,
+      latitude           REAL    NOT NULL,
+      longitude          REAL    NOT NULL,
+      category           TEXT    NOT NULL,
+      visit_order        INTEGER NOT NULL DEFAULT 0,
+      day_index          INTEGER NOT NULL DEFAULT 1,
+      notes              TEXT,
+      phone              TEXT,
+      opening_hours      TEXT,
+      estimated_minutes  INTEGER,
+      budget_per_person  INTEGER,
+      website            TEXT,
+      rating             REAL,
+      images             TEXT,
+      google_place_id    TEXT,
+      created_at         TEXT    NOT NULL
     );
 
     CREATE TABLE IF NOT EXISTS users_cache (
@@ -51,9 +63,54 @@ export async function createTables(db: SQLite.SQLiteDatabase): Promise<void> {
       updated_at   TEXT    NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS destination_guides (
+      destination  TEXT    PRIMARY KEY,
+      data         TEXT    NOT NULL,
+      cached_at    TEXT    NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS saved_places (
+      id                 INTEGER PRIMARY KEY,
+      user_id            INTEGER NOT NULL,
+      name               TEXT    NOT NULL,
+      address            TEXT    NOT NULL,
+      latitude           REAL    NOT NULL,
+      longitude          REAL    NOT NULL,
+      category           TEXT    NOT NULL DEFAULT '관광지',
+      notes              TEXT,
+      google_place_id    TEXT,
+      rating             REAL,
+      images             TEXT,
+      website            TEXT,
+      phone              TEXT,
+      estimated_minutes  INTEGER,
+      created_at         TEXT    NOT NULL
+    );
+
     -- 검색·정렬 성능 향상 인덱스
     CREATE INDEX IF NOT EXISTS idx_trips_created  ON trips(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_trips_user     ON trips(user_id);
     CREATE INDEX IF NOT EXISTS idx_locations_trip ON locations(trip_id);
+    CREATE INDEX IF NOT EXISTS idx_locations_day  ON locations(trip_id, day_index);
+    CREATE INDEX IF NOT EXISTS idx_saved_user     ON saved_places(user_id);
   `);
+
+  // 기존 DB 마이그레이션: 누락 컬럼 추가 (이미 있으면 에러 무시)
+  const migrations = [
+    "ALTER TABLE trips ADD COLUMN total_budget INTEGER",
+    "ALTER TABLE trips ADD COLUMN group_size INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE trips ADD COLUMN share_token TEXT",
+    "ALTER TABLE locations ADD COLUMN day_index INTEGER NOT NULL DEFAULT 1",
+    "ALTER TABLE locations ADD COLUMN phone TEXT",
+    "ALTER TABLE locations ADD COLUMN opening_hours TEXT",
+    "ALTER TABLE locations ADD COLUMN estimated_minutes INTEGER",
+    "ALTER TABLE locations ADD COLUMN budget_per_person INTEGER",
+    "ALTER TABLE locations ADD COLUMN website TEXT",
+    "ALTER TABLE locations ADD COLUMN rating REAL",
+    "ALTER TABLE locations ADD COLUMN images TEXT",
+    "ALTER TABLE locations ADD COLUMN google_place_id TEXT",
+  ];
+  for (const sql of migrations) {
+    try { await db.execAsync(sql); } catch { /* 컬럼이 이미 있으면 무시 */ }
+  }
 }

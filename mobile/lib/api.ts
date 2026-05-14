@@ -12,7 +12,7 @@ import {
   userSchema,
   type PlaceSearchResult,
 } from '@/lib/schemas';
-import type { Location, Trip, UserCache } from '@/lib/types';
+import type { ChecklistItem, Location, SavedPlace, Trip, UserCache } from '@/lib/types';
 import { z } from 'zod';
 
 // ─── 환경 변수 ────────────────────────────────────────────────────────────────
@@ -71,6 +71,8 @@ export interface TripCreateRequest {
   start_date?: string | null;
   end_date?: string | null;
   thumbnail_url?: string | null;
+  total_budget?: number | null;
+  group_size?: number;
   /** AI 빌더 등에서 trip + locations를 한 번에 생성할 때 사용 */
   locations?: TripLocationCreateRequest[];
 }
@@ -265,6 +267,69 @@ export const api = {
       });
       const parsed = parseResp(placeSearchResponseSchema, res.data.data, 'places.search');
       return parsed.results;
+    },
+  },
+
+  // ─── UP-6: 체크리스트 ────────────────────────────────────────────────────────
+  checklist: {
+    async getAll(tripId: number): Promise<ChecklistItem[]> {
+      const res = await client.get<ApiResponse<ChecklistItem[]>>(`/trips/${tripId}/checklist`);
+      return res.data.data ?? [];
+    },
+    async add(tripId: number, body: { category: string; text: string }): Promise<ChecklistItem> {
+      const res = await client.post<ApiResponse<ChecklistItem>>(`/trips/${tripId}/checklist`, body);
+      return res.data.data;
+    },
+    async toggle(tripId: number, itemId: number, is_checked: boolean): Promise<ChecklistItem> {
+      const res = await client.patch<ApiResponse<ChecklistItem>>(
+        `/trips/${tripId}/checklist/${itemId}`,
+        { is_checked },
+      );
+      return res.data.data;
+    },
+    async remove(tripId: number, itemId: number): Promise<void> {
+      await client.delete(`/trips/${tripId}/checklist/${itemId}`);
+    },
+  },
+
+  // ─── UP-3: 보관함 (찜한 장소) ────────────────────────────────────────────────
+  saved_places: {
+    async getAll(): Promise<SavedPlace[]> {
+      const res = await client.get<ApiResponse<SavedPlace[]>>('/saved-places');
+      return res.data.data ?? [];
+    },
+    async save(body: Omit<SavedPlace, 'id' | 'user_id' | 'created_at'>): Promise<SavedPlace> {
+      const res = await client.post<ApiResponse<SavedPlace>>('/saved-places', body);
+      return res.data.data;
+    },
+    async remove(savedPlaceId: number): Promise<void> {
+      await client.delete(`/saved-places/${savedPlaceId}`);
+    },
+    async addToTrip(
+      savedPlaceId: number,
+      body: { trip_id: number; day_index: number; visit_order: number },
+    ): Promise<Location> {
+      const res = await client.post<ApiResponse<Location>>(
+        `/saved-places/${savedPlaceId}/add-to-trip`,
+        body,
+      );
+      return res.data.data;
+    },
+  },
+
+  // ─── UP-7: 여행 공유 ──────────────────────────────────────────────────────────
+  trips_share: {
+    async create(tripId: number): Promise<{ share_token: string; share_url: string }> {
+      const res = await client.post<ApiResponse<{ share_token: string; share_url: string }>>(
+        `/trips/${tripId}/share`,
+      );
+      return res.data.data;
+    },
+    async getShared(shareToken: string): Promise<{ trip: Trip; locations: Location[] }> {
+      const res = await client.get<ApiResponse<{ trip: Trip; locations: Location[] }>>(
+        `/trips/shared/${shareToken}`,
+      );
+      return res.data.data;
     },
   },
 } as const;
