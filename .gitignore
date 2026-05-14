@@ -1,0 +1,131 @@
+# ============================================================
+# Triple Clone Monorepo .gitignore
+# ============================================================
+
+# ---------- OS / IDE ----------
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.vscode/
+.idea/
+*.iml
+
+# ---------- Environment Variables (NEVER COMMIT) ----------
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# ---------- Logs ----------
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ============================================================
+# Python / FastAPI / uv (backend/)
+# ============================================================
+
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging (Python — backend 한정. mobile/lib는 제외)
+backend/build/
+backend/develop-eggs/
+backend/dist/
+backend/downloads/
+backend/eggs/
+backend/.eggs/
+backend/lib/
+backend/lib64/
+backend/parts/
+backend/sdist/
+backend/var/
+backend/wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# uv (lockfile is committed; cache is not)
+.uv/
+
+# Testing / coverage
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+.pytest_cache/
+htmlcov/
+.hypothesis/
+
+# Linters / type checkers
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+
+# Jupyter
+.ipynb_checkpoints
+
+# ============================================================
+# Node / Expo / React Native (mobile/)
+# ============================================================
+
+# Dependencies
+node_modules/
+
+# Expo
+.expo/
+.expo-shared/
+dist/
+web-build/
+
+# Native build artifacts
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro
+.metro-health-check*
+
+# iOS / Xcode
+ios/Pods/
+ios/build/
+ios/*.xcworkspace/xcuserdata/
+*.xcuserstate
+
+# Android
+android/app/build/
+android/build/
+android/.gradle/
+android/local.properties
+*.apk
+*.aab
+
+# ============================================================
+# Misc
+# ============================================================
+
+# Claude Code worktrees / local config
+.claude/
+
+# Database dumps
+*.sqlite
+*.sqlite3
+*.db

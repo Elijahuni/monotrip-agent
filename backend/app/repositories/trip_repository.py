@@ -1,0 +1,104 @@
+from sqlalchemy import func, select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
+
+from app.models.location import Location
+from app.models.trip import Trip
+from app.schemas.trip import LocationCreate, LocationUpdate, TripCreate, TripUpdate
+
+
+class TripRepository:
+    async def get_by_id(self, db: AsyncSession, trip_id: int) -> Trip | None:
+        stmt = select(Trip).where(Trip.id == trip_id)
+        result = await db.execute(stmt)
+        return result.scalars().first()
+
+    async def get_by_id_with_locations(self, db: AsyncSession, trip_id: int) -> Trip | None:
+        stmt = select(Trip).where(Trip.id == trip_id).options(selectinload(Trip.locations))
+        result = await db.execute(stmt)
+        return result.scalars().first()
+
+    async def get_all_by_user(self, db: AsyncSession, user_id: int) -> list[Trip]:
+        stmt = select(Trip).where(Trip.user_id == user_id).order_by(Trip.created_at.desc())
+        result = await db.execute(stmt)
+        return list(result.scalars().all())
+
+    async def create(self, db: AsyncSession, user_id: int, data: TripCreate) -> Trip:
+        # locations는 별도 단계에서 일괄 생성 (create_locations_bulk)
+        trip = Trip(user_id=user_id, **data.model_dump(exclude={"locations"}))
+        db.add(trip)
+        await db.flush()
+        await db.refresh(trip)
+        return trip
+
+    async def create_locations_bulk(
+        self, db: AsyncSession, trip_id: int, items: list[LocationCreate]
+    ) -> list[Location]:
+        """여러 장소를 한 번의 flush로 추가."""
+        objs = [Location(trip_id=trip_id, **item.model_dump()) for item in items]
+        db.add_all(objs)
+        await db.flush()
+        for obj in objs:
+            await db.refresh(obj)
+        return objs
+
+    async def update(self, db: AsyncSession, trip: Trip, data: TripUpdate) -> Trip:
+        for field, value in data.model_dump(exclude_unset=True).items():
+            setattr(trip, field, value)
+        db.add(trip)
+        await db.flush()
+        await db.refresh(trip)
+        return trip
+
+    async def delete(self, db: AsyncSession, trip: Trip) -> None:
+        await db.delete(trip)
+        await db.flush()
+
+    # ── Location CRUD ──────────────────────────────────────────────────────────
+
+    async def get_location(
+        self, db: AsyncSession, location_id: int
+    ) -> Location | None:
+        stmt = select(Location).where(Location.id == location_id)
+        result = await db.execute(stmt)
+        return result.scalars().first()
+
+    async def create_location(
+        self, db: AsyncSession, trip_id: int, data: LocationCreate
+    ) -> Location:
+        location = Location(trip_id=trip_id, **data.model_dump())
+        db.add(location)
+        await db.flush()
+        await db.refresh(location)
+        return location
+
+    async def update_location(
+        self, db: AsyncSession, location: Location, data: LocationUpdate
+    ) -> Location:
+        for field, value in data.model_dump(exclude_unset=True).items():
+            setattr(location, field, value)
+        db.add(location)
+        await db.flush()
+        await db.refresh(location)
+        return location
+
+    async def delete_location(self, db: AsyncSession, location: Location) -> None:
+        await db.delete(location)
+        await db.flush()
+
+    # ── 사용자 선호 추정 ───────────────────────────────────────────────────────
+
+    async def get_top_categories(
+        self, db: AsyncSession, user_id: int, limit: int = 3
+    ) -> list[str]:
+        """사용자가 과거 등록한 장소의 카테고리 상위 N개. AI 프롬프트 보강용."""
+        stmt = (
+            select(Location.category, func.count(Location.id).label("cnt"))
+            .join(Trip, Trip.id == Location.trip_id)
+            .where(Trip.user_id == user_id)
+            .group_by(Location.category)
+            .order_by(func.count(Location.id).desc())
+            .limit(limit)
+        )
+        result = await db.execute(stmt)
+        return [row[0] for row in result.all()]
