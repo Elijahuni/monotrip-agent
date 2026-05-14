@@ -214,8 +214,9 @@ export const api = {
       destination: string;
       days: number;
       preferences?: string;
+      travel_style?: string;
     }): Promise<{ title: string; description: string; locations: Location[] }> {
-      const res = await client.get('/ai/recommend', { params });
+      const res = await client.get('/ai/recommend', { params: { ...params, travel_style: params.travel_style } });
       return parseResp(aiTripPlanSchema, res.data.data, 'ai.recommend') as {
         title: string;
         description: string;
