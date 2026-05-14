@@ -2,22 +2,23 @@ import { AxiosError } from 'axios';
 import { Link, useRouter } from 'expo-router';
 import { useState } from 'react';
 import {
-  ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
   Text,
-  TextInput,
-  TouchableOpacity,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { api, saveToken } from '@/lib/api';
+import { Button, TextField } from '@/components/ui';
+import { api } from '@/lib/api';
+import { shadow } from '@/lib/design-tokens';
+import { useAuthStore } from '@/store';
 
 export default function LoginScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const login = useAuthStore((s) => s.login);
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -33,13 +34,12 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const token = await api.auth.login({ email: email.trim(), password });
-      await saveToken(token.access_token);
+      await login(token.access_token);
       router.replace('/(tabs)');
     } catch (e) {
-      const msg =
-        e instanceof AxiosError
-          ? (e.response?.data?.detail ?? '로그인에 실패했습니다.')
-          : '네트워크 오류가 발생했습니다.';
+      const msg = e instanceof AxiosError
+        ? (e.response?.data?.detail ?? '로그인에 실패했습니다.')
+        : '네트워크 오류가 발생했습니다.';
       setError(msg);
     } finally {
       setLoading(false);
@@ -60,7 +60,9 @@ export default function LoginScreen() {
 
           {/* ── 로고 ── */}
           <View className="items-center mb-12">
-            <View className="w-16 h-16 rounded-2xl bg-triple-blue items-center justify-center mb-4 shadow-sm">
+            <View
+              className="w-16 h-16 rounded-2xl bg-brand-primary items-center justify-center mb-4"
+              style={shadow.fab}>
               <Text className="text-white text-3xl font-bold">T</Text>
             </View>
             <Text className="text-2xl font-bold text-tx-primary tracking-tight">트리플</Text>
@@ -69,57 +71,36 @@ export default function LoginScreen() {
 
           {/* ── 입력 폼 ── */}
           <View className="gap-3">
-            {/* 이메일 */}
-            <View>
-              <Text className="text-xs font-semibold text-tx-secondary mb-1.5 ml-1">이메일</Text>
-              <TextInput
-                className="bg-bg-surface border border-line-default rounded-xl px-4 py-3.5 text-base text-tx-primary"
-                placeholder="example@email.com"
-                placeholderTextColor="#9BA7B5"
-                autoCapitalize="none"
-                keyboardType="email-address"
-                autoComplete="email"
-                value={email}
-                onChangeText={(t) => { setEmail(t); if (error) setError(''); }}
-              />
-            </View>
-
-            {/* 비밀번호 */}
-            <View>
-              <Text className="text-xs font-semibold text-tx-secondary mb-1.5 ml-1">비밀번호</Text>
-              <TextInput
-                className="bg-bg-surface border border-line-default rounded-xl px-4 py-3.5 text-base text-tx-primary"
-                placeholder="비밀번호를 입력해주세요"
-                placeholderTextColor="#9BA7B5"
-                secureTextEntry
-                autoComplete="password"
-                value={password}
-                onChangeText={(t) => { setPassword(t); if (error) setError(''); }}
-                onSubmitEditing={handleLogin}
-                returnKeyType="done"
-              />
-            </View>
+            <TextField
+              label="이메일"
+              placeholder="example@email.com"
+              autoCapitalize="none"
+              keyboardType="email-address"
+              autoComplete="email"
+              value={email}
+              onChangeText={(t) => { setEmail(t); if (error) setError(''); }}
+            />
+            <TextField
+              label="비밀번호"
+              placeholder="비밀번호를 입력해주세요"
+              secureTextEntry
+              autoComplete="password"
+              value={password}
+              onChangeText={(t) => { setPassword(t); if (error) setError(''); }}
+              onSubmitEditing={handleLogin}
+              returnKeyType="done"
+            />
           </View>
 
-          {/* 에러 */}
           {error ? (
             <View className="mt-3 px-3 py-2 bg-red-50 rounded-lg border border-red-100">
-              <Text className="text-negative text-sm text-center">{error}</Text>
+              <Text className="text-state-danger text-sm text-center">{error}</Text>
             </View>
           ) : null}
 
-          {/* 로그인 버튼 */}
-          <TouchableOpacity
-            className="mt-6 bg-triple-blue rounded-xl py-4 items-center"
-            onPress={handleLogin}
-            disabled={loading}
-            activeOpacity={0.85}>
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <Text className="text-tx-inverse font-bold text-base">로그인</Text>
-            )}
-          </TouchableOpacity>
+          <View className="mt-6">
+            <Button label="로그인" onPress={handleLogin} loading={loading} />
+          </View>
 
           {/* 구분선 */}
           <View className="flex-row items-center my-6 gap-3">
@@ -130,11 +111,9 @@ export default function LoginScreen() {
 
           {/* 회원가입 버튼 */}
           <Link href="/auth/register" asChild>
-            <TouchableOpacity
-              className="rounded-xl py-4 items-center border border-line-strong"
-              activeOpacity={0.85}>
-              <Text className="text-tx-primary font-semibold text-base">새 계정 만들기</Text>
-            </TouchableOpacity>
+            <View>
+              <Button label="새 계정 만들기" variant="secondary" onPress={() => router.push('/auth/register')} />
+            </View>
           </Link>
         </View>
       </ScrollView>
