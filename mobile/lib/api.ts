@@ -96,12 +96,28 @@ client.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   return config;
 });
 
-// 응답 인터셉터: 401이면 저장된 토큰 삭제 (자동 로그아웃)
+// 응답 인터셉터: 401이면 authStore.logout() → status='guest'로 전환되어
+// (tabs) layout이 자동으로 /auth/login으로 redirect.
+//
+// 인증 자체가 필요 없는 엔드포인트(/auth/login, /auth/register)에서 발생한
+// 401(예: 잘못된 비밀번호)은 로그아웃 처리하지 않고 호출자에게 그대로 전달.
+//
+// store ← api 순환 import를 피하기 위해 dynamic import 사용.
 client.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     if (error.response?.status === 401) {
-      await AsyncStorage.removeItem(TOKEN_KEY);
+      const url = error.config?.url ?? '';
+      const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register');
+      if (!isAuthEndpoint) {
+        try {
+          const { useAuthStore } = await import('@/store');
+          await useAuthStore.getState().logout();
+        } catch {
+          // store 초기화 실패 시 토큰만이라도 정리
+          await AsyncStorage.removeItem(TOKEN_KEY);
+        }
+      }
     }
     return Promise.reject(error);
   },
