@@ -10,7 +10,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -32,11 +32,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { api } from '@/lib/api';
 import { palette } from '@/lib/design-tokens';
-import { geocodeAddress } from '@/lib/geocoding';
 import { queryKeys } from '@/lib/queries/client';
 import { useDeleteLocation, useDeleteTrip, useTrip } from '@/lib/queries';
 import { useSettings } from '@/lib/settings-context';
 import type { ChecklistItem, Location, Trip } from '@/lib/types';
+import type { PlaceSearchResult } from '@/lib/schemas';
 
 // ─── 상수 & 유틸 ─────────────────────────────────────────────────────────────
 
@@ -417,7 +417,7 @@ function ChecklistSection({ tripId, isDark, lang }: { tripId: number; isDark: bo
   );
 }
 
-// ─── 장소 추가/편집 모달 ──────────────────────────────────────────────────────
+// ─── 장소 추가/편집 모달 (검색 → 지도 미리보기) ───────────────────────────────
 
 interface LocForm {
   name: string; address: string; latitude: number; longitude: number;
@@ -440,8 +440,12 @@ function AddLocationModal({
     category: '관광지', day_index: defaultDay,
     notes: '', estimated_minutes: '', budget_per_person: '',
   });
-  const [saving, setSaving] = useState(false);
-  const [coordOk, setCoordOk] = useState(false);
+  const [saving, setSaving]       = useState(false);
+  const [searchQ, setSearchQ]     = useState('');
+  const [results, setResults]     = useState<PlaceSearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [placeSelected, setPlaceSelected] = useState(false); // 장소 선택 완료 여부
+  const searchTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     if (!visible) return;
@@ -457,41 +461,71 @@ function AddLocationModal({
         estimated_minutes: initialValues.estimated_minutes ?? '',
         budget_per_person: initialValues.budget_per_person ?? '',
       });
-      setCoordOk((initialValues.latitude ?? 0) !== 0);
+      setPlaceSelected((initialValues.latitude ?? 0) !== 0);
+      setSearchQ('');
+      setResults([]);
     } else {
-      setForm((f) => ({ ...f, day_index: defaultDay, name: '', address: '', notes: '', estimated_minutes: '', budget_per_person: '' }));
-      setCoordOk(false);
+      setForm({ name: '', address: '', latitude: 0, longitude: 0, category: '관광지', day_index: defaultDay, notes: '', estimated_minutes: '', budget_per_person: '' });
+      setPlaceSelected(false);
+      setSearchQ('');
+      setResults([]);
     }
   }, [visible, defaultDay, isEdit]);
+
+  // 검색어 디바운스
+  useEffect(() => {
+    if (!searchQ.trim() || searchQ.length < 2) { setResults([]); return; }
+    if (searchTimer.current) clearTimeout(searchTimer.current);
+    searchTimer.current = setTimeout(async () => {
+      setSearching(true);
+      try {
+        const res = await api.places.search({ query: searchQ });
+        setResults(res);
+      } catch { setResults([]); }
+      finally { setSearching(false); }
+    }, 500);
+    return () => { if (searchTimer.current) clearTimeout(searchTimer.current); };
+  }, [searchQ]);
+
+  function selectPlace(p: PlaceSearchResult) {
+    setForm((f) => ({
+      ...f,
+      name: p.name,
+      address: p.address,
+      latitude: p.latitude,
+      longitude: p.longitude,
+      category: f.category, // 기존 카테고리 유지
+    }));
+    setPlaceSelected(true);
+    setSearchQ('');
+    setResults([]);
+  }
+
+  function resetPlace() {
+    setPlaceSelected(false);
+    setForm((f) => ({ ...f, name: '', address: '', latitude: 0, longitude: 0 }));
+  }
+
+  function setField<K extends keyof LocForm>(k: K, v: LocForm[K]) {
+    setForm((p) => ({ ...p, [k]: v }));
+  }
+
+  async function handleSave() {
+    if (!form.name.trim()) { Alert.alert(lang === 'ko' ? '장소를 검색해서 선택해주세요' : 'Search and select a place'); return; }
+    setSaving(true);
+    try {
+      if (isEdit && onUpdate) { await onUpdate(form); }
+      else if (onSave) { await onSave(form); }
+      onClose();
+    } catch { Alert.alert(lang === 'ko' ? '저장 실패' : 'Save failed'); }
+    finally { setSaving(false); }
+  }
 
   const bgBase = isDark ? '#0D0D18' : '#FFFFFF';
   const bgSurf = isDark ? '#141420' : '#F7F9FC';
   const txP    = isDark ? '#ECEDEE' : '#1A1A1A';
   const txSc   = isDark ? '#9BA7B5' : '#5A6474';
   const bord   = isDark ? '#2A2A3E' : '#E8ECF2';
-
-  function setField<K extends keyof LocForm>(k: K, v: LocForm[K]) {
-    setForm((p) => ({ ...p, [k]: v }));
-  }
-
-  async function handleAddrBlur() {
-    if (!form.address || coordOk) return;
-    const c = await geocodeAddress(form.address);
-    if (c) { setField('latitude', c.lat); setField('longitude', c.lng); setCoordOk(true); }
-  }
-
-  async function handleSave() {
-    if (!form.name.trim()) { Alert.alert(lang === 'ko' ? '장소명을 입력해주세요' : 'Enter place name'); return; }
-    if (!form.address.trim()) { Alert.alert(lang === 'ko' ? '주소를 입력해주세요' : 'Enter address'); return; }
-    setSaving(true);
-    try {
-      if (isEdit && onUpdate) { await onUpdate(form); }
-      else if (onSave) { await onSave(form); }
-      setCoordOk(false);
-      onClose();
-    } catch { Alert.alert(lang === 'ko' ? '저장 실패' : 'Save failed'); }
-    finally { setSaving(false); }
-  }
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -504,30 +538,107 @@ function AddLocationModal({
               {isEdit ? (lang === 'ko' ? '장소 편집' : 'Edit Place') : (lang === 'ko' ? '장소 추가' : 'Add Place')}
             </Text>
 
-            <Text style={[S.lbl, { color: txSc }]}>{lang === 'ko' ? '장소명 *' : 'Place Name *'}</Text>
-            <TextInput
-              style={[S.inp, { backgroundColor: bgSurf, borderColor: bord, color: txP }]}
-              placeholder={lang === 'ko' ? '예: 에펠탑' : 'e.g. Eiffel Tower'} placeholderTextColor={txSc}
-              value={form.name} onChangeText={(v) => setField('name', v)} />
+            {/* ── 장소 검색 영역 ── */}
+            {!placeSelected ? (
+              <>
+                <Text style={[S.lbl, { color: txSc }]}>{lang === 'ko' ? '장소 검색' : 'Search Place'}</Text>
+                <View style={{ position: 'relative', marginBottom: 4 }}>
+                  <View style={[S.searchRow, { backgroundColor: bgSurf, borderColor: bord }]}>
+                    <Ionicons name="search" size={16} color={txSc} />
+                    <TextInput
+                      style={[S.searchInp, { color: txP }]}
+                      placeholder={lang === 'ko' ? '예: 도쿄 타워, 에펠탑...' : 'e.g. Tokyo Tower, Eiffel Tower...'}
+                      placeholderTextColor={txSc}
+                      value={searchQ} onChangeText={setSearchQ}
+                      returnKeyType="search" autoFocus={!isEdit} />
+                    {searching && <ActivityIndicator size="small" color={palette.coral500} />}
+                    {searchQ.length > 0 && !searching && (
+                      <TouchableOpacity onPress={() => { setSearchQ(''); setResults([]); }}>
+                        <Ionicons name="close-circle" size={16} color={txSc} />
+                      </TouchableOpacity>
+                    )}
+                  </View>
 
-            <Text style={[S.lbl, { color: txSc }]}>{lang === 'ko' ? '주소 *' : 'Address *'}</Text>
-            <TextInput
-              style={[S.inp, { backgroundColor: bgSurf, borderColor: bord, color: txP }]}
-              placeholder={lang === 'ko' ? '주소 입력 (자동 좌표 변환)' : 'Address (auto geocode)'} placeholderTextColor={txSc}
-              value={form.address}
-              onChangeText={(v) => { setField('address', v); setCoordOk(false); }}
-              onBlur={handleAddrBlur} />
-            {coordOk && (
-              <View style={S.coordRow}>
-                <Ionicons name="checkmark-circle" size={14} color="#27AE60" />
-                <Text style={{ color: '#27AE60', fontSize: 12, marginLeft: 4 }}>
-                  {lang === 'ko' ? '좌표 확인' : 'Coords confirmed'} ({form.latitude.toFixed(4)}, {form.longitude.toFixed(4)})
-                </Text>
-              </View>
+                  {/* 검색 결과 드롭다운 */}
+                  {results.length > 0 && (
+                    <View style={[S.dropdown, { backgroundColor: bgBase, borderColor: bord }]}>
+                      {results.map((p) => (
+                        <TouchableOpacity
+                          key={p.place_id} onPress={() => selectPlace(p)}
+                          style={[S.dropItem, { borderBottomColor: bord }]}>
+                          <View style={[S.placeIcon, { backgroundColor: palette.coral500 + '20' }]}>
+                            <Ionicons name="location" size={14} color={palette.coral500} />
+                          </View>
+                          <View style={{ flex: 1 }}>
+                            <Text style={{ color: txP, fontSize: 14, fontWeight: '600' }} numberOfLines={1}>{p.name}</Text>
+                            <Text style={{ color: txSc, fontSize: 12, marginTop: 2 }} numberOfLines={1}>{p.address}</Text>
+                          </View>
+                          {p.rating && (
+                            <Text style={{ color: '#F39C12', fontSize: 12, fontWeight: '700' }}>★{p.rating.toFixed(1)}</Text>
+                          )}
+                        </TouchableOpacity>
+                      ))}
+                    </View>
+                  )}
+                </View>
+
+                {/* 검색 없을 때 직접입력 안내 */}
+                {results.length === 0 && !searching && searchQ.length === 0 && (
+                  <Text style={{ color: txSc, fontSize: 12, marginBottom: 12 }}>
+                    {lang === 'ko' ? '장소명을 입력하면 자동으로 주소와 지도를 찾아드려요' : 'Type a place name to auto-fill address & show map'}
+                  </Text>
+                )}
+                {results.length === 0 && !searching && searchQ.length >= 2 && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setPlaceSelected(true);
+                      setForm((f) => ({ ...f, name: searchQ, address: '' }));
+                      setSearchQ('');
+                    }}
+                    style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12, paddingVertical: 6 }}>
+                    <Ionicons name="add-circle-outline" size={16} color={palette.coral500} />
+                    <Text style={{ color: palette.coral500, fontSize: 13 }}>
+                      "{searchQ}" {lang === 'ko' ? '직접 추가' : 'add manually'}
+                    </Text>
+                  </TouchableOpacity>
+                )}
+              </>
+            ) : (
+              /* ── 선택된 장소 카드 + 지도 미리보기 ── */
+              <>
+                <View style={[S.selectedCard, { backgroundColor: bgSurf, borderColor: palette.coral500 }]}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ color: txP, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>{form.name}</Text>
+                    {form.address ? (
+                      <Text style={{ color: txSc, fontSize: 12, marginTop: 3 }} numberOfLines={2}>{form.address}</Text>
+                    ) : null}
+                    {form.latitude !== 0 && (
+                      <Text style={{ color: palette.coral500, fontSize: 11, marginTop: 4 }}>
+                        📍 {form.latitude.toFixed(5)}, {form.longitude.toFixed(5)}
+                      </Text>
+                    )}
+                  </View>
+                  <TouchableOpacity onPress={resetPlace} style={{ padding: 4 }}>
+                    <Ionicons name="close-circle" size={20} color={txSc} />
+                  </TouchableOpacity>
+                </View>
+
+                {/* 지도 미리보기 */}
+                {form.latitude !== 0 && form.longitude !== 0 && (
+                  <View style={S.mapPreview}>
+                    <MapView
+                      style={{ flex: 1 }}
+                      scrollEnabled={false} zoomEnabled={false} pitchEnabled={false} rotateEnabled={false}
+                      initialRegion={{ latitude: form.latitude, longitude: form.longitude, latitudeDelta: 0.01, longitudeDelta: 0.01 }}>
+                      <Marker coordinate={{ latitude: form.latitude, longitude: form.longitude }} pinColor={palette.coral500} />
+                    </MapView>
+                  </View>
+                )}
+              </>
             )}
 
-            {/* Day 선택 */}
-            <Text style={[S.lbl, { color: txSc }]}>{lang === 'ko' ? '방문 일차' : 'Travel Day'}</Text>
+            {/* ── Day 선택 ── */}
+            <Text style={[S.lbl, { color: txSc, marginTop: 4 }]}>{lang === 'ko' ? '방문 일차' : 'Travel Day'}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 {Array.from({ length: totalDays || 1 }, (_, i) => i + 1).map((d) => (
@@ -542,7 +653,7 @@ function AddLocationModal({
               </View>
             </ScrollView>
 
-            {/* 카테고리 */}
+            {/* ── 카테고리 ── */}
             <Text style={[S.lbl, { color: txSc }]}>{lang === 'ko' ? '카테고리' : 'Category'}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
               <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -559,7 +670,7 @@ function AddLocationModal({
               </View>
             </ScrollView>
 
-            {/* 소요시간 / 예산 */}
+            {/* ── 소요시간 / 예산 ── */}
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <View style={{ flex: 1 }}>
                 <Text style={[S.lbl, { color: txSc }]}>{lang === 'ko' ? '소요시간(분)' : 'Est. Minutes'}</Text>
@@ -577,10 +688,10 @@ function AddLocationModal({
               </View>
             </View>
 
-            {/* 메모 */}
+            {/* ── 메모 ── */}
             <Text style={[S.lbl, { color: txSc }]}>{lang === 'ko' ? '메모' : 'Notes'}</Text>
             <TextInput
-              style={[S.inp, { backgroundColor: bgSurf, borderColor: bord, color: txP, height: 80, textAlignVertical: 'top' }]}
+              style={[S.inp, { backgroundColor: bgSurf, borderColor: bord, color: txP, height: 72, textAlignVertical: 'top' }]}
               placeholder={lang === 'ko' ? '방문 팁, 예약 정보 등' : 'Visit tips, booking info...'} placeholderTextColor={txSc}
               multiline value={form.notes} onChangeText={(v) => setField('notes', v)} />
 
@@ -1028,5 +1139,12 @@ const S = StyleSheet.create({
   catChip:    { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   saveBtn:    { backgroundColor: palette.coral500, borderRadius: 16, paddingVertical: 16, alignItems: 'center', marginTop: 8, marginBottom: 20 },
   saveTx:     { color: '#fff', fontWeight: '800', fontSize: 16 },
-  coordRow:   { flexDirection: 'row', alignItems: 'center', marginBottom: 12, marginTop: -4 },
+  coordRow:     { flexDirection: 'row', alignItems: 'center', marginBottom: 12, marginTop: -4 },
+  searchRow:    { flexDirection: 'row', alignItems: 'center', borderRadius: 14, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 11, gap: 8, marginBottom: 4 },
+  searchInp:    { flex: 1, fontSize: 14 },
+  dropdown:     { borderRadius: 14, borderWidth: 1, overflow: 'hidden', marginBottom: 8 },
+  dropItem:     { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 11, borderBottomWidth: 1, gap: 10 },
+  placeIcon:    { width: 28, height: 28, borderRadius: 14, justifyContent: 'center', alignItems: 'center' },
+  selectedCard: { flexDirection: 'row', alignItems: 'flex-start', borderRadius: 14, borderWidth: 1.5, padding: 14, marginBottom: 10, gap: 8 },
+  mapPreview:   { height: 160, borderRadius: 14, overflow: 'hidden', marginBottom: 14 },
 });

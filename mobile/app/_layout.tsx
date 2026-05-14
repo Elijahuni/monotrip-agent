@@ -47,6 +47,7 @@ function InnerLayout() {
         <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="modal"      options={{ presentation: 'modal', title: 'Modal' }} />
         <Stack.Screen name="ai"         options={{ headerShown: false }} />
+        <Stack.Screen name="trips"      options={{ headerShown: false }} />
       </Stack>
 
       {/* 온보딩 미완료 → /onboarding 으로 리다이렉트 */}
