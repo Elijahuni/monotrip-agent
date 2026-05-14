@@ -84,3 +84,42 @@ async def delete_location(
 ) -> ApiResponse[None]:
     await _service.delete_location(db, trip_id, location_id, current_user.id)
     return ApiResponse(data=None, message="장소가 삭제되었습니다.")
+
+
+# ── 공유 (UP-7) ──────────────────────────────────────────────────────────────────
+
+import secrets
+
+from app.schemas.trip import TripSummary
+
+
+@router.post("/{trip_id}/share", response_model=ApiResponse[dict])
+async def share_trip(
+    trip_id: int, current_user: CurrentUser, db: DbSession
+) -> ApiResponse[dict]:
+    trip = await _service.repo.get_by_id(db, trip_id)
+    if trip is None or trip.user_id != current_user.id:
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="여행을 찾을 수 없습니다.")
+    if not trip.share_token:
+        trip.share_token = secrets.token_urlsafe(16)
+        db.add(trip)
+        await db.flush()
+        await db.refresh(trip)
+    from app.config import get_settings
+    base = get_settings().api_base_url if hasattr(get_settings(), "api_base_url") else "http://localhost:8000"
+    return ApiResponse(data={"share_token": trip.share_token, "share_url": f"{base}/trips/shared/{trip.share_token}"})
+
+
+@router.get("/shared/{share_token}", response_model=ApiResponse[dict])
+async def get_shared_trip(share_token: str, db: DbSession) -> ApiResponse[dict]:
+    from sqlalchemy import select
+    from app.models.trip import Trip
+    from sqlalchemy.orm import selectinload
+    stmt = select(Trip).where(Trip.share_token == share_token).options(selectinload(Trip.locations))
+    result = await db.execute(stmt)
+    trip = result.scalars().first()
+    if trip is None:
+        from fastapi import HTTPException, status
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="공유된 여행을 찾을 수 없습니다.")
+    return ApiResponse(data={"trip": TripSummary.model_validate(trip).model_dump(), "locations": [loc.__dict__ for loc in trip.locations]})
