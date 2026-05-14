@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     # AI
     gemini_api_key: str = ""
 
+    # 외부 API — 장소 검색
+    google_places_api_key: str = ""
+
     # Auth (JWT)
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
