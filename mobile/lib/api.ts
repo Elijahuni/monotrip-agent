@@ -55,12 +55,24 @@ export interface UserResponse {
   created_at: string;
 }
 
+export interface TripLocationCreateRequest {
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  category: string;
+  visit_order: number;
+  notes?: string | null;
+}
+
 export interface TripCreateRequest {
   title: string;
   description?: string | null;
   start_date?: string | null;
   end_date?: string | null;
   thumbnail_url?: string | null;
+  /** AI 빌더 등에서 trip + locations를 한 번에 생성할 때 사용 */
+  locations?: TripLocationCreateRequest[];
 }
 
 export interface TripDetail extends Trip {
@@ -187,6 +199,29 @@ export const api = {
     }): Promise<{ title: string; description: string; locations: Location[] }> {
       const res = await client.get('/ai/recommend', { params });
       return parseResp(aiTripPlanSchema, res.data.data, 'ai.recommend') as {
+        title: string;
+        description: string;
+        locations: Location[];
+      };
+    },
+    /** 부분 재생성 — 유지할 장소 + 피드백을 보내 나머지를 새로 받는다. */
+    async refine(body: {
+      destination: string;
+      days: number;
+      keep_locations: Array<{
+        name: string;
+        address: string;
+        latitude: number;
+        longitude: number;
+        category: string;
+        visit_order: number;
+        notes: string | null;
+      }>;
+      feedback: string;
+      target_total?: number;
+    }): Promise<{ title: string; description: string; locations: Location[] }> {
+      const res = await client.post('/ai/recommend/refine', body);
+      return parseResp(aiTripPlanSchema, res.data.data, 'ai.refine') as {
         title: string;
         description: string;
         locations: Location[];

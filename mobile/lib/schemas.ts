@@ -77,21 +77,23 @@ export const placeSearchResponseSchema = z.object({
   results: z.array(placeSearchResultSchema),
 });
 
+export const aiLocationPlanSchema = z.object({
+  name: z.string().min(1),
+  address: z.string(),
+  latitude: z.number(),
+  longitude: z.number(),
+  category: z.string(),
+  visit_order: z.number().int().nonnegative(),
+  notes: z.string().nullable(),
+});
+
 export const aiTripPlanSchema = z.object({
   title: z.string().min(1),
   description: z.string(),
-  locations: z.array(
-    z.object({
-      name: z.string().min(1),
-      address: z.string(),
-      latitude: z.number(),
-      longitude: z.number(),
-      category: z.string(),
-      visit_order: z.number().int().nonnegative(),
-      notes: z.string().nullable(),
-    }),
-  ),
+  locations: z.array(aiLocationPlanSchema),
 });
+
+export type AiLocationPlan = z.infer<typeof aiLocationPlanSchema>;
 
 // ─── 폼 입력 스키마 ────────────────────────────────────────────────────────────
 

@@ -99,9 +99,19 @@ export default function ExploreScreen() {
     if (!result) return;
     setSaving(true);
     try {
+      // AI 결과를 trip + locations로 한 번에 저장 (백엔드가 옵션 locations 지원)
       const trip = await api.trips.create({
         title: result.title,
         description: result.description,
+        locations: result.locations.map((loc, i) => ({
+          name: loc.name,
+          address: loc.address,
+          latitude: loc.latitude,
+          longitude: loc.longitude,
+          category: loc.category,
+          visit_order: loc.visit_order || i + 1,
+          notes: loc.notes,
+        })),
       });
       await saveTrip(trip as Trip);
       Alert.alert('저장 완료! ✈️', `"${result.title}" 일정이 저장되었습니다.`, [
@@ -122,6 +132,15 @@ export default function ExploreScreen() {
     } finally {
       setSaving(false);
     }
+  }
+
+  /** AI 플랜 빌더로 이동 — 부분 선택/일자별 배치/재생성 가능 */
+  function handleEdit() {
+    if (!result) return;
+    const planParam = encodeURIComponent(JSON.stringify(result));
+    router.push(
+      `/ai/builder?plan=${planParam}&destination=${encodeURIComponent(destination.trim())}&days=${days}&preferences=${encodeURIComponent(preferences.trim())}` as never,
+    );
   }
 
   const canRecommend = destination.trim().length > 0 && !loading;
@@ -246,13 +265,18 @@ export default function ExploreScreen() {
             {/* 액션 버튼 */}
             <View className="bg-bg-surface px-5 pt-4 pb-5 gap-3 border-t border-line-default">
               <Button
-                label="이 일정으로 저장"
+                label="✏️ 일정 편집 (선택·배치·재생성)"
+                onPress={handleEdit}
+              />
+              <Button
+                label="이대로 바로 저장"
+                variant="secondary"
                 onPress={handleSave}
                 loading={saving}
               />
               <Button
                 label="다시 추천받기"
-                variant="secondary"
+                variant="ghost"
                 onPress={() => { setResult(null); setError(''); }}
               />
             </View>

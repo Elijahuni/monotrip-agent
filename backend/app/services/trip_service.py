@@ -26,8 +26,16 @@ class TripService:
         self, db: AsyncSession, user_id: int, data: TripCreate
     ) -> TripResponse:
         trip = await self.repo.create(db, user_id, data)
+        if data.locations:
+            await self.repo.create_locations_bulk(db, trip.id, data.locations)
+            # locations relation 포함해서 다시 조회
+            refreshed = await self.repo.get_by_id_with_locations(db, trip.id)
+            logger.info(
+                "Trip created with %d locations: id=%s user_id=%s",
+                len(data.locations), trip.id, user_id,
+            )
+            return TripResponse.model_validate(refreshed)
         logger.info("Trip created: id=%s user_id=%s", trip.id, user_id)
-        # 생성 직후 locations는 비어 있으므로 selectinload 불필요
         return TripResponse.model_validate(trip)
 
     async def update_trip(

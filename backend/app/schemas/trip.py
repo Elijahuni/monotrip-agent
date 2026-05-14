@@ -44,6 +44,9 @@ class TripCreate(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
     thumbnail_url: str | None = None
+    # AI 빌더 등에서 trip + locations를 한 번에 생성할 수 있게 옵션 필드.
+    # 비어 있으면 trip만 만들고 locations는 별도 엔드포인트로 추가.
+    locations: list[LocationCreate] = Field(default_factory=list)
 
 
 class TripUpdate(BaseModel):
