@@ -87,11 +87,10 @@ export async function createTables(db: SQLite.SQLiteDatabase): Promise<void> {
       created_at         TEXT    NOT NULL
     );
 
-    -- 검색·정렬 성능 향상 인덱스
+    -- 검색·정렬 성능 향상 인덱스 (day_index 의존 인덱스는 마이그레이션 이후 생성)
     CREATE INDEX IF NOT EXISTS idx_trips_created  ON trips(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_trips_user     ON trips(user_id);
     CREATE INDEX IF NOT EXISTS idx_locations_trip ON locations(trip_id);
-    CREATE INDEX IF NOT EXISTS idx_locations_day  ON locations(trip_id, day_index);
     CREATE INDEX IF NOT EXISTS idx_saved_user     ON saved_places(user_id);
   `);
 
@@ -109,6 +108,8 @@ export async function createTables(db: SQLite.SQLiteDatabase): Promise<void> {
     "ALTER TABLE locations ADD COLUMN rating REAL",
     "ALTER TABLE locations ADD COLUMN images TEXT",
     "ALTER TABLE locations ADD COLUMN google_place_id TEXT",
+    // day_index 컬럼 추가 후 인덱스 생성 (컬럼 없는 기존 DB에서 먼저 실행되면 crash)
+    "CREATE INDEX IF NOT EXISTS idx_locations_day ON locations(trip_id, day_index)",
   ];
   for (const sql of migrations) {
     try { await db.execAsync(sql); } catch { /* 컬럼이 이미 있으면 무시 */ }
