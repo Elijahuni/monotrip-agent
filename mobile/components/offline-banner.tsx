@@ -36,7 +36,7 @@ export function OfflineBanner({ isOnline }: OfflineBannerProps) {
   return (
     <Animated.View style={{ opacity }}>
       <View className="bg-tx-secondary py-1.5 px-4 flex-row items-center justify-center gap-2">
-        <View className="w-1.5 h-1.5 rounded-full bg-negative" />
+        <View className="w-1.5 h-1.5 rounded-full bg-state-danger" />
         <Text className="text-tx-inverse text-xs font-semibold">
           오프라인 • 로컬 데이터 표시 중
         </Text>

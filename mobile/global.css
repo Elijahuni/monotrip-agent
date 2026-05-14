@@ -1,3 +1,70 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/*
+ * 다크모드 — OS prefers-color-scheme 자동 추종.
+ * 시맨틱 토큰만 light/dark 페어 정의. 브랜드 컬러는 양쪽 공통.
+ * 값은 RGB 채널(공백 구분)로 두어 Tailwind alpha modifier 호환.
+ */
+
+@layer base {
+  :root {
+    /* ── Brand (light/dark 공통) ── */
+    --color-brand-primary:          255 90 95;
+    --color-brand-primary-strong:   225 75 80;
+    --color-brand-secondary:        0 166 153;
+    --color-brand-secondary-strong: 14 140 130;
+
+    /* Legacy */
+    --color-triple-blue:        61 195 238;
+    --color-triple-blue-strong: 43 169 209;
+
+    /* ── Text (light) ── */
+    --color-tx-primary:   15 23 42;
+    --color-tx-secondary: 71 85 105;
+    --color-tx-tertiary:  155 167 181;
+    --color-tx-disabled:  203 213 225;
+    --color-tx-inverse:   255 255 255;
+    --color-tx-brand:     255 90 95;
+    --color-tx-danger:    239 68 68;
+
+    /* ── Surface / Background (light) ── */
+    --color-bg-base:    250 250 247;
+    --color-bg-surface: 255 255 255;
+    --color-bg-subtle:  241 245 249;
+    --color-bg-strong:  232 236 242;
+
+    /* ── Line / Border (light) ── */
+    --color-line-default: 232 236 242;
+    --color-line-strong:  226 232 240;
+    --color-line-focus:   255 90 95;
+
+    /* ── State (light/dark 공통) ── */
+    --color-state-success: 16 185 129;
+    --color-state-warning: 245 158 11;
+    --color-state-danger:  239 68 68;
+    --color-state-info:    59 130 246;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      /* ── Text (dark) ── */
+      --color-tx-primary:   241 245 249;
+      --color-tx-secondary: 203 213 225;
+      --color-tx-tertiary:  148 163 184;
+      --color-tx-disabled:  71 85 105;
+      --color-tx-inverse:   15 23 42;
+
+      /* ── Surface (dark) ── */
+      --color-bg-base:    15 23 42;
+      --color-bg-surface: 30 41 59;
+      --color-bg-subtle:  51 65 85;
+      --color-bg-strong:  71 85 105;
+
+      /* ── Line (dark) ── */
+      --color-line-default: 51 65 85;
+      --color-line-strong:  71 85 105;
+    }
+  }
+}
