@@ -34,19 +34,19 @@ __pycache__/
 *$py.class
 *.so
 
-# Distribution / packaging
-build/
-develop-eggs/
-dist/
-downloads/
-eggs/
-.eggs/
-lib/
-lib64/
-parts/
-sdist/
-var/
-wheels/
+# Distribution / packaging (Python — backend 한정. mobile/lib는 제외)
+backend/build/
+backend/develop-eggs/
+backend/dist/
+backend/downloads/
+backend/eggs/
+backend/.eggs/
+backend/lib/
+backend/lib64/
+backend/parts/
+backend/sdist/
+backend/var/
+backend/wheels/
 *.egg-info/
 .installed.cfg
 *.egg
