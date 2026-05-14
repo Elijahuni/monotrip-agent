@@ -1,7 +1,19 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
+import {
+  aiTripPlanSchema,
+  locationSchema,
+  placeSearchResponseSchema,
+  safeParse,
+  tokenSchema,
+  tripDetailSchema,
+  tripSchema,
+  userSchema,
+  type PlaceSearchResult,
+} from '@/lib/schemas';
 import type { Location, Trip, UserCache } from '@/lib/types';
+import { z } from 'zod';
 
 // ─── 환경 변수 ────────────────────────────────────────────────────────────────
 
@@ -85,43 +97,51 @@ client.interceptors.response.use(
 
 // ─── API 함수 ─────────────────────────────────────────────────────────────────
 
+/**
+ * 응답 unwrap + Zod 검증 헬퍼.
+ * 백엔드 응답이 스키마와 다르면 __DEV__ 콘솔 경고 + 원본 값 통과.
+ */
+function parseResp<T>(schema: z.ZodType<T>, raw: unknown, label: string): T {
+  return safeParse(schema, raw, label);
+}
+
 export const api = {
   auth: {
     async register(body: RegisterRequest): Promise<UserResponse> {
       const res = await client.post<ApiResponse<UserResponse>>('/auth/register', body);
-      return res.data.data;
+      return parseResp(userSchema, res.data.data, 'auth.register');
     },
 
     async login(body: LoginRequest): Promise<TokenResponse> {
       const res = await client.post<ApiResponse<TokenResponse>>('/auth/login', body);
-      return res.data.data;
+      return parseResp(tokenSchema, res.data.data, 'auth.login');
     },
 
     async me(): Promise<UserResponse> {
       const res = await client.get<ApiResponse<UserResponse>>('/auth/me');
-      return res.data.data;
+      return parseResp(userSchema, res.data.data, 'auth.me');
     },
   },
 
   trips: {
     async getAll(): Promise<Trip[]> {
       const res = await client.get<ApiResponse<Trip[]>>('/trips');
-      return res.data.data;
+      return parseResp(z.array(tripSchema), res.data.data, 'trips.getAll');
     },
 
     async getOne(tripId: number): Promise<TripDetail> {
       const res = await client.get<ApiResponse<TripDetail>>(`/trips/${tripId}`);
-      return res.data.data;
+      return parseResp(tripDetailSchema, res.data.data, 'trips.getOne');
     },
 
     async create(body: TripCreateRequest): Promise<TripDetail> {
       const res = await client.post<ApiResponse<TripDetail>>('/trips', body);
-      return res.data.data;
+      return parseResp(tripDetailSchema, res.data.data, 'trips.create');
     },
 
     async update(tripId: number, body: Partial<TripCreateRequest>): Promise<TripDetail> {
       const res = await client.patch<ApiResponse<TripDetail>>(`/trips/${tripId}`, body);
-      return res.data.data;
+      return parseResp(tripDetailSchema, res.data.data, 'trips.update');
     },
 
     async remove(tripId: number): Promise<void> {
@@ -143,7 +163,7 @@ export const api = {
       },
     ): Promise<Location> {
       const res = await client.post<ApiResponse<Location>>(`/trips/${tripId}/locations`, body);
-      return res.data.data;
+      return parseResp(locationSchema, res.data.data, 'locations.create');
     },
 
     async update(tripId: number, locationId: number, body: Partial<Location>): Promise<Location> {
@@ -151,7 +171,7 @@ export const api = {
         `/trips/${tripId}/locations/${locationId}`,
         body,
       );
-      return res.data.data;
+      return parseResp(locationSchema, res.data.data, 'locations.update');
     },
 
     async remove(tripId: number, locationId: number): Promise<void> {
@@ -166,7 +186,34 @@ export const api = {
       preferences?: string;
     }): Promise<{ title: string; description: string; locations: Location[] }> {
       const res = await client.get('/ai/recommend', { params });
-      return res.data.data;
+      return parseResp(aiTripPlanSchema, res.data.data, 'ai.recommend') as {
+        title: string;
+        description: string;
+        locations: Location[];
+      };
+    },
+  },
+
+  places: {
+    /**
+     * 텍스트로 장소 검색. lat/lng가 있으면 결과를 그 근방으로 편향.
+     */
+    async search(params: {
+      query: string;
+      lat?: number;
+      lng?: number;
+      language?: string;
+    }): Promise<PlaceSearchResult[]> {
+      const res = await client.get('/places/search', {
+        params: {
+          query: params.query,
+          lat: params.lat,
+          lng: params.lng,
+          language: params.language ?? 'ko',
+        },
+      });
+      const parsed = parseResp(placeSearchResponseSchema, res.data.data, 'places.search');
+      return parsed.results;
     },
   },
 } as const;
