@@ -1,0 +1,217 @@
+import json
+import logging
+import re
+
+from fastapi import HTTPException, status
+from google import genai
+from google.genai import types
+
+from app.config import get_settings
+from app.schemas.ai import AiLocationPlan, AiRefineRequest, AiTripPlan
+
+logger = logging.getLogger(__name__)
+
+_MODEL_NAME = "gemini-2.0-flash"
+
+_PROMPT_TEMPLATE = """\
+다음 조건에 맞는 여행 일정을 JSON 형식으로만 생성해줘. JSON 외의 다른 텍스트는 포함하지 마.
+
+목적지: {destination}
+여행 기간: {days}일
+여행 스타일: {preferences}
+
+반환할 JSON 스키마:
+{{
+  "title": "여행 제목 (예: 도쿄 3일 미식 여행)",
+  "description": "여행 전반적인 소개 (2~3문장)",
+  "locations": [
+    {{
+      "name": "장소명",
+      "address": "전체 주소 (국가 포함)",
+      "latitude": 위도(float),
+      "longitude": 경도(float),
+      "category": "관광지 | 음식점 | 숙소 | 쇼핑 | 액티비티",
+      "visit_order": 방문순서(1부터 시작, 전체 일정 기준),
+      "notes": "방문 팁 또는 추천 이유"
+    }}
+  ]
+}}
+
+조건:
+- 하루에 4~5개 장소 포함 (총 {total_locations}개 내외)
+- 실제 존재하는 장소의 정확한 위도/경도 제공
+- category는 반드시 "관광지", "음식점", "숙소", "쇼핑", "액티비티" 중 하나
+- 숙소는 하루에 1개, 음식점은 하루에 1~2개 포함
+- visit_order는 전체 일정에서 방문 순서 (1, 2, 3, ...)
+"""
+
+
+def _get_client() -> genai.Client:
+    settings = get_settings()
+    if not settings.gemini_api_key:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Gemini API 키가 설정되지 않았습니다.",
+        )
+    return genai.Client(api_key=settings.gemini_api_key)
+
+
+def _parse_json(raw: str) -> dict:
+    """마크다운 코드블록(```json ... ```)을 제거하고 JSON 파싱."""
+    cleaned = re.sub(r"```(?:json)?\s*|\s*```", "", raw).strip()
+    return json.loads(cleaned)
+
+
+async def generate_trip_plan(
+    destination: str,
+    days: int,
+    preferences: str | None = None,
+    user_top_categories: list[str] | None = None,
+) -> AiTripPlan:
+    """AI로 여행 일정을 생성.
+
+    user_top_categories가 있으면 프롬프트에 추가 컨텍스트로 주입해
+    사용자가 평소 좋아하는 카테고리를 반영한다 (사용자 선호 학습 기초).
+    """
+    client = _get_client()
+    prompt = _PROMPT_TEMPLATE.format(
+        destination=destination,
+        days=days,
+        preferences=preferences or "자유 여행",
+        total_locations=days * 4,
+    )
+    if user_top_categories:
+        prompt += (
+            "\n\n참고 — 이 사용자가 평소 자주 방문하는 카테고리(빈도 순): "
+            + ", ".join(user_top_categories)
+            + "\n위 카테고리를 일정에 적절히 반영해줘."
+        )
+
+    try:
+        response = await client.aio.models.generate_content(
+            model=_MODEL_NAME,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.7,
+            ),
+        )
+        raw = response.text
+    except Exception as e:
+        logger.error("Gemini API error: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="AI 추천 서비스에 일시적인 오류가 발생했습니다.",
+        )
+
+    try:
+        data = _parse_json(raw)
+        return AiTripPlan.model_validate(data)
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.error("Failed to parse Gemini response: %s | raw=%s", e, raw[:200])
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="AI 응답 파싱에 실패했습니다.",
+        )
+
+
+# ─── Refine (부분 재생성) ──────────────────────────────────────────────────────
+
+_REFINE_TEMPLATE = """\
+사용자가 기존 여행 일정에서 일부 장소를 마음에 들어해서 유지하고 싶어해.
+나머지 장소들을 사용자 피드백에 맞춰 새로 추천해줘. JSON으로만 응답해.
+
+목적지: {destination}
+여행 기간: {days}일
+사용자 피드백: {feedback}
+
+[유지할 장소 — 그대로 출력]
+{keep_json}
+
+목표 총 장소 수: {target_total}개
+
+반환할 JSON 스키마:
+{{
+  "title": "여행 제목",
+  "description": "여행 소개",
+  "locations": [
+    {{
+      "name": "장소명",
+      "address": "주소",
+      "latitude": float,
+      "longitude": float,
+      "category": "관광지|음식점|숙소|쇼핑|카페|자연|문화|엔터테인먼트",
+      "visit_order": int,
+      "notes": "팁"
+    }}
+  ]
+}}
+
+조건:
+- 유지할 장소는 반드시 포함하고 그 이름/좌표를 변경하지 마.
+- 새로 추가할 장소는 사용자 피드백을 적극 반영.
+- visit_order는 1부터 시작하는 일관된 순서.
+- 총 {target_total}개에 맞춰서 새 장소를 채워줘.
+"""
+
+
+async def refine_trip_plan(req: AiRefineRequest) -> AiTripPlan:
+    """기존 추천에서 일부 장소를 고정하고 나머지를 재생성."""
+    client = _get_client()
+    target_total = req.target_total or (req.days * 4)
+    keep_dicts = [loc.model_dump() for loc in req.keep_locations]
+
+    prompt = _REFINE_TEMPLATE.format(
+        destination=req.destination,
+        days=req.days,
+        feedback=req.feedback,
+        keep_json=json.dumps(keep_dicts, ensure_ascii=False, indent=2),
+        target_total=target_total,
+    )
+
+    try:
+        response = await client.aio.models.generate_content(
+            model=_MODEL_NAME,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.8,  # refine은 좀 더 발산
+            ),
+        )
+        raw = response.text
+    except Exception as e:
+        logger.error("Gemini refine API error: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="AI 추천 서비스에 일시적인 오류가 발생했습니다.",
+        )
+
+    try:
+        data = _parse_json(raw)
+        plan = AiTripPlan.model_validate(data)
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.error("Failed to parse refine response: %s | raw=%s", e, raw[:200])
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="AI 응답 파싱에 실패했습니다.",
+        )
+
+    # 사용자가 유지하라고 한 장소가 누락됐으면 후처리로 강제 보존
+    plan = _ensure_kept_locations(plan, req.keep_locations)
+    return plan
+
+
+def _ensure_kept_locations(plan: AiTripPlan, keep: list[AiLocationPlan]) -> AiTripPlan:
+    """LLM이 keep 항목을 누락했을 때 강제 병합. 이름 기준 매칭."""
+    if not keep:
+        return plan
+    present_names = {loc.name for loc in plan.locations}
+    missing = [k for k in keep if k.name not in present_names]
+    if not missing:
+        return plan
+    merged = list(plan.locations) + missing
+    # visit_order 재정렬
+    merged.sort(key=lambda x: x.visit_order)
+    for i, loc in enumerate(merged, start=1):
+        loc.visit_order = i
+    return AiTripPlan(title=plan.title, description=plan.description, locations=merged)
