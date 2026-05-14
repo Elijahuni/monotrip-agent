@@ -42,12 +42,12 @@ function InnerLayout() {
   return (
     <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
       <Stack>
-        <Stack.Screen name="(tabs)"     options={{ headerShown: false }} />
-        <Stack.Screen name="auth"       options={{ headerShown: false }} />
+        <Stack.Screen name="(tabs)"     options={{ headerShown: false, title: '홈' }} />
+        <Stack.Screen name="auth"       options={{ headerShown: false, title: '로그인' }} />
         <Stack.Screen name="onboarding" options={{ headerShown: false, gestureEnabled: false }} />
         <Stack.Screen name="modal"      options={{ presentation: 'modal', title: 'Modal' }} />
-        <Stack.Screen name="ai"         options={{ headerShown: false }} />
-        <Stack.Screen name="trips"      options={{ headerShown: false }} />
+        <Stack.Screen name="ai"         options={{ headerShown: false, title: 'AI 추천' }} />
+        <Stack.Screen name="trips"      options={{ headerShown: false, title: '내 여행' }} />
       </Stack>
 
       {/* 온보딩 미완료 → /onboarding 으로 리다이렉트 */}
