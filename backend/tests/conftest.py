@@ -5,13 +5,16 @@
 - 더미 유저 생성 헬퍼
 """
 
-import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from app.database import Base, get_db
+from app.limiter import limiter
 from app.main import app
+
+# 테스트 환경에서 rate limit 비활성화
+limiter.enabled = False
 
 # ── SQLite in-memory DB ──────────────────────────────────────────────────────
 

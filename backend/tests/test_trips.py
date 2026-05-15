@@ -209,5 +209,5 @@ async def test_delete_location(client: AsyncClient):
 
     # 삭제 후 상세에서 없어야 함
     detail = await client.get(f"/trips/{trip['id']}", headers={"Authorization": f"Bearer {token}"})
-    loc_ids = [l["id"] for l in detail.json()["data"]["locations"]]
+    loc_ids = [loc["id"] for loc in detail.json()["data"]["locations"]]
     assert loc_id not in loc_ids
