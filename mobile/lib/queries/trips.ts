@@ -2,6 +2,7 @@ import { QueryClient, useInfiniteQuery, useMutation, useQuery, useQueryClient } 
 
 import { api, type TripCreateRequest, type TripDetail, type TripPage } from '@/lib/api';
 import { deleteTrip, getTrips, saveTrip, syncTrips } from '@/lib/local-trips';
+import { enqueueMutation, isNetworkError } from '@/lib/mutation-queue';
 import type { Location, Trip } from '@/lib/types';
 
 import { queryKeys } from './client';
@@ -62,8 +63,12 @@ export function useCreateTrip() {
     mutationFn: (body: TripCreateRequest) => api.trips.create(body),
     async onSuccess(trip) {
       await saveTrip(trip);
-      // 무한 쿼리 캐시 전체를 무효화 → 첫 페이지부터 재조회
       await qc.invalidateQueries({ queryKey: queryKeys.trips.all });
+    },
+    async onError(err, body) {
+      if (isNetworkError(err)) {
+        await enqueueMutation('CREATE_TRIP', { body });
+      }
     },
   });
 }
@@ -77,6 +82,11 @@ export function useUpdateTrip() {
       await saveTrip(trip);
       await qc.invalidateQueries({ queryKey: queryKeys.trips.all });
       qc.setQueryData<TripDetail>(queryKeys.trips.detail(trip.id), trip);
+    },
+    async onError(err, { id, body }) {
+      if (isNetworkError(err)) {
+        await enqueueMutation('UPDATE_TRIP', { tripId: id, body });
+      }
     },
   });
 }
@@ -93,6 +103,14 @@ export function useDeleteTrip() {
       await qc.invalidateQueries({ queryKey: queryKeys.trips.all });
       qc.removeQueries({ queryKey: queryKeys.trips.detail(id) });
     },
+    async onError(err, id) {
+      if (isNetworkError(err)) {
+        // 로컬에서는 이미 삭제 처리하고 서버 동기화만 큐잉
+        await deleteTrip(id);
+        await qc.invalidateQueries({ queryKey: queryKeys.trips.all });
+        await enqueueMutation('DELETE_TRIP', { tripId: id });
+      }
+    },
   });
 }
 
@@ -104,6 +122,7 @@ export function useDuplicateTrip() {
       await saveTrip(trip);
       await qc.invalidateQueries({ queryKey: queryKeys.trips.all });
     },
+    // 복제는 오프라인 큐잉 불필요 (로컬에서 수행 불가)
   });
 }
 
@@ -131,6 +150,11 @@ export function useCreateLocation() {
         prev ? { ...prev, locations: [...(prev.locations ?? []), loc] } : prev,
       );
     },
+    async onError(err, { tripId, body }) {
+      if (isNetworkError(err)) {
+        await enqueueMutation('CREATE_LOCATION', { tripId, body });
+      }
+    },
   });
 }
 
@@ -147,6 +171,17 @@ export function useDeleteLocation() {
           ? { ...prev, locations: (prev.locations ?? []).filter((l: Location) => l.id !== locationId) }
           : prev,
       );
+    },
+    async onError(err, { tripId, locationId }) {
+      if (isNetworkError(err)) {
+        // 로컬 캐시에서 먼저 제거 (오프라인 UX)
+        qc.setQueryData<TripDetail>(queryKeys.trips.detail(tripId), (prev) =>
+          prev
+            ? { ...prev, locations: (prev.locations ?? []).filter((l: Location) => l.id !== locationId) }
+            : prev,
+        );
+        await enqueueMutation('DELETE_LOCATION', { tripId, locationId });
+      }
     },
   });
 }

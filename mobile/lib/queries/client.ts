@@ -1,4 +1,6 @@
-import { QueryClient } from '@tanstack/react-query';
+import { QueryClient, useQuery } from '@tanstack/react-query';
+
+import { getPendingCount } from '@/lib/mutation-queue';
 
 /**
  * 앱 전역 QueryClient.
@@ -18,6 +20,21 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+/**
+ * 오프라인 중 대기 중인 mutation 개수를 실시간으로 반환.
+ * 헤더 배지 / 동기화 배너 표시에 사용.
+ * 5초마다 폴링 (온라인 복귀 후 자동 갱신).
+ */
+export function usePendingCount(): number {
+  const { data } = useQuery({
+    queryKey: ['pendingMutations', 'count'],
+    queryFn: getPendingCount,
+    refetchInterval: 5_000,
+    staleTime: 0,
+  });
+  return data ?? 0;
+}
 
 /** 쿼리 키 팩토리 — 일관성 보장 */
 export const queryKeys = {

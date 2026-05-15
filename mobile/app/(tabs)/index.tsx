@@ -20,7 +20,8 @@ import { BottomSheet, Button, EmptyState, TextField } from '@/components/ui';
 import { palette, placeholderColor, shadow } from '@/lib/design-tokens';
 import { handleApiError, showSuccess } from '@/lib/error-handler';
 import { cancelTripNotifications, scheduleTripNotifications } from '@/lib/notifications';
-import { useCreateTrip, useDeleteTrip, useDuplicateTrip, useTrips, useUpdateTrip } from '@/lib/queries';
+import { useCreateTrip, useDeleteTrip, useDuplicateTrip, usePendingCount, useTrips, useUpdateTrip } from '@/lib/queries';
+import { useIsFlushing, useIsOnline } from '@/store';
 import type { Trip } from '@/lib/types';
 
 // ─── 유틸 ──────────────────────────────────────────────────────────────────────
@@ -240,6 +241,11 @@ export default function HomeScreen() {
   const deleteTrip = useDeleteTrip();
   const duplicateTrip = useDuplicateTrip();
 
+  // ── 오프라인 큐 상태 ──────────────────────────────────────────────────────────
+  const pendingCount = usePendingCount();
+  const isFlushing = useIsFlushing();
+  const isOnline = useIsOnline();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<Trip | null>(null);
@@ -356,6 +362,38 @@ export default function HomeScreen() {
 
       {/* ── 검색바 ── */}
       <SearchBar value={searchQuery} onChange={setSearchQuery} />
+
+      {/* ── 오프라인 / 동기화 배너 ── */}
+      {(!isOnline || isFlushing || pendingCount > 0) && (
+        <View
+          className={`mx-4 mb-2 px-4 py-2.5 rounded-xl flex-row items-center gap-2 ${
+            isFlushing
+              ? 'bg-blue-50 border border-blue-200'
+              : !isOnline
+                ? 'bg-amber-50 border border-amber-200'
+                : 'bg-green-50 border border-green-200'
+          }`}>
+          {isFlushing ? (
+            <ActivityIndicator size="small" color="#3B82F6" />
+          ) : (
+            <Text className="text-base">
+              {!isOnline ? '📡' : pendingCount > 0 ? '🔄' : '✅'}
+            </Text>
+          )}
+          <Text
+            className={`text-xs font-medium flex-1 ${
+              isFlushing ? 'text-blue-700' : !isOnline ? 'text-amber-700' : 'text-green-700'
+            }`}>
+            {isFlushing
+              ? `동기화 중... (${pendingCount}건 남음)`
+              : !isOnline
+                ? pendingCount > 0
+                  ? `오프라인 — ${pendingCount}건 대기 중`
+                  : '오프라인 모드'
+                : `동기화 완료`}
+          </Text>
+        </View>
+      )}
 
       {/* ── 여행 목록 ── */}
       {showSkeleton ? (

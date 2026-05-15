@@ -3,6 +3,7 @@ import { create } from 'zustand';
 
 import { api, TOKEN_KEY, type UserResponse } from '@/lib/api';
 import { getUserCache, saveUserCache, type CachedUser } from '@/lib/local-user';
+import { clearAllMutations } from '@/lib/mutation-queue';
 import { registerPushTokenWithServer, unregisterPushTokenFromServer } from '@/lib/notifications';
 import { clearSentryUser, setSentryUser } from '@/lib/sentry';
 
@@ -76,6 +77,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // 서버에서 푸시 토큰 먼저 제거 (토큰 유효한 동안 시도)
     await unregisterPushTokenFromServer().catch(() => {});
     await AsyncStorage.removeItem(TOKEN_KEY);
+    // 오프라인 큐 초기화 — 다른 유저 세션에 큐가 남지 않도록
+    await clearAllMutations().catch(() => {});
     clearSentryUser();
     set({ status: 'guest', token: null, user: null });
   },

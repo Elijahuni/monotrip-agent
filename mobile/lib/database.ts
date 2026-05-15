@@ -87,11 +87,23 @@ export async function createTables(db: SQLite.SQLiteDatabase): Promise<void> {
       created_at         TEXT    NOT NULL
     );
 
+    -- 오프라인 Mutation Queue
+    -- 네트워크 오류 시 쓰기 작업을 여기에 보관 → 온라인 복귀 시 순차 재시도
+    CREATE TABLE IF NOT EXISTS pending_mutations (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      type        TEXT    NOT NULL,  -- 'CREATE_TRIP' | 'UPDATE_TRIP' | 'DELETE_TRIP' 등
+      payload     TEXT    NOT NULL,  -- JSON 직렬화된 파라미터
+      created_at  TEXT    NOT NULL,
+      retry_count INTEGER NOT NULL DEFAULT 0,
+      last_error  TEXT               -- 마지막 실패 메시지 (디버깅용)
+    );
+
     -- 검색·정렬 성능 향상 인덱스 (day_index 의존 인덱스는 마이그레이션 이후 생성)
-    CREATE INDEX IF NOT EXISTS idx_trips_created  ON trips(created_at DESC);
-    CREATE INDEX IF NOT EXISTS idx_trips_user     ON trips(user_id);
-    CREATE INDEX IF NOT EXISTS idx_locations_trip ON locations(trip_id);
-    CREATE INDEX IF NOT EXISTS idx_saved_user     ON saved_places(user_id);
+    CREATE INDEX IF NOT EXISTS idx_trips_created      ON trips(created_at DESC);
+    CREATE INDEX IF NOT EXISTS idx_trips_user         ON trips(user_id);
+    CREATE INDEX IF NOT EXISTS idx_locations_trip     ON locations(trip_id);
+    CREATE INDEX IF NOT EXISTS idx_saved_user         ON saved_places(user_id);
+    CREATE INDEX IF NOT EXISTS idx_pending_created    ON pending_mutations(created_at ASC);
   `);
 
   // 기존 DB 마이그레이션: 누락 컬럼 추가 (이미 있으면 에러 무시)
@@ -110,6 +122,16 @@ export async function createTables(db: SQLite.SQLiteDatabase): Promise<void> {
     "ALTER TABLE locations ADD COLUMN google_place_id TEXT",
     // day_index 컬럼 추가 후 인덱스 생성 (컬럼 없는 기존 DB에서 먼저 실행되면 crash)
     "CREATE INDEX IF NOT EXISTS idx_locations_day ON locations(trip_id, day_index)",
+    // 오프라인 Mutation Queue — 기존 DB 마이그레이션
+    `CREATE TABLE IF NOT EXISTS pending_mutations (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      type        TEXT    NOT NULL,
+      payload     TEXT    NOT NULL,
+      created_at  TEXT    NOT NULL,
+      retry_count INTEGER NOT NULL DEFAULT 0,
+      last_error  TEXT
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_pending_created ON pending_mutations(created_at ASC)",
   ];
   for (const sql of migrations) {
     try { await db.execAsync(sql); } catch { /* 컬럼이 이미 있으면 무시 */ }
