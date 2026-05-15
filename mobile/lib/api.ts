@@ -104,23 +104,39 @@ client.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
 // 인증 자체가 필요 없는 엔드포인트(/auth/login, /auth/register)에서 발생한
 // 401(예: 잘못된 비밀번호)은 로그아웃 처리하지 않고 호출자에게 그대로 전달.
 //
+// 429 (rate limit) 에러는 토스트로 안내.
+//
 // store ← api 순환 import를 피하기 위해 dynamic import 사용.
 client.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
-    if (error.response?.status === 401) {
-      const url = error.config?.url ?? '';
-      const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register');
-      if (!isAuthEndpoint) {
-        try {
-          const { useAuthStore } = await import('@/store');
-          await useAuthStore.getState().logout();
-        } catch {
-          // store 초기화 실패 시 토큰만이라도 정리
-          await AsyncStorage.removeItem(TOKEN_KEY);
-        }
+    const status = error.response?.status;
+    const url = error.config?.url ?? '';
+    const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register');
+
+    if (status === 401 && !isAuthEndpoint) {
+      try {
+        const { useAuthStore } = await import('@/store');
+        await useAuthStore.getState().logout();
+      } catch {
+        await AsyncStorage.removeItem(TOKEN_KEY);
       }
     }
+
+    // 429 Rate limit → 사용자에게 토스트 안내
+    if (status === 429) {
+      try {
+        const Toast = (await import('react-native-toast-message')).default;
+        Toast.show({
+          type: 'error',
+          text1: '잠시 후 다시 시도해 주세요',
+          text2: '요청이 너무 많습니다. 1분 후 다시 시도하세요.',
+          visibilityTime: 4000,
+          position: 'bottom',
+        });
+      } catch { /* ignore */ }
+    }
+
     return Promise.reject(error);
   },
 );
@@ -176,6 +192,11 @@ export const api = {
 
     async remove(tripId: number): Promise<void> {
       await client.delete(`/trips/${tripId}`);
+    },
+
+    async duplicate(tripId: number): Promise<TripDetail> {
+      const res = await client.post<ApiResponse<TripDetail>>(`/trips/${tripId}/duplicate`);
+      return parseResp(tripDetailSchema, res.data.data, 'trips.duplicate');
     },
   },
 

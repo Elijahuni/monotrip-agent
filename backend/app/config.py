@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,6 +35,19 @@ class Settings(BaseSettings):
     r2_bucket: str = "monotrip-images"
     # 퍼블릭 액세스 URL (R2 커스텀 도메인 또는 r2.dev 서브도메인)
     r2_public_url: str = ""
+
+    @model_validator(mode="after")
+    def validate_production_secrets(self) -> "Settings":
+        """프로덕션 환경에서 안전하지 않은 기본값이 있으면 즉시 서버 시작 실패."""
+        if self.is_production:
+            if self.jwt_secret.startswith("change"):
+                raise ValueError(
+                    "🚨 JWT_SECRET이 기본값입니다. "
+                    "프로덕션 배포 전 openssl rand -hex 32 결과로 교체하세요."
+                )
+            if not self.gemini_api_key:
+                raise ValueError("🚨 GEMINI_API_KEY가 설정되지 않았습니다.")
+        return self
 
     @property
     def is_production(self) -> bool:

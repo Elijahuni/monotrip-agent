@@ -2,9 +2,10 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
 
 from app.dependencies.auth import get_current_user
+from app.limiter import limiter
 from app.models.user import User
 from app.schemas.common import ApiResponse
 from app.schemas.place import PlaceSearchResponse, PlaceSearchResult
@@ -14,7 +15,9 @@ router = APIRouter(prefix="/places", tags=["places"])
 
 
 @router.get("/search", response_model=ApiResponse[PlaceSearchResponse])
+@limiter.limit("30/minute")
 async def search_places(
+    request: Request,
     query: str = Query(..., min_length=1, max_length=200),
     lat: float | None = Query(None, ge=-90, le=90, description="결과 편향 중심 위도"),
     lng: float | None = Query(None, ge=-180, le=180, description="결과 편향 중심 경도"),

@@ -1,6 +1,7 @@
-from fastapi import APIRouter, File, HTTPException, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Request, UploadFile, status
 
 from app.dependencies.auth import CurrentUser
+from app.limiter import limiter
 from app.schemas.common import ApiResponse
 from app.services.storage_service import (
     InvalidImageError,
@@ -12,7 +13,9 @@ router = APIRouter(prefix="/uploads", tags=["uploads"])
 
 
 @router.post("/photo", response_model=ApiResponse[dict])
+@limiter.limit("20/hour")
 async def upload_photo_endpoint(
+    request: Request,
     current_user: CurrentUser,
     file: UploadFile = File(...),
 ) -> ApiResponse[dict]:

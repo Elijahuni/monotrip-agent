@@ -13,6 +13,22 @@ logger = logging.getLogger(__name__)
 
 _MODEL_NAME = "gemini-2.0-flash"
 
+
+def _sanitize_user_input(text: str, max_len: int = 200) -> str:
+    """프롬프트 인젝션 방어 — HTML 태그와 LLM 역할 전환 키워드 제거."""
+    if not text:
+        return ""
+    # HTML 태그 제거
+    cleaned = re.sub(r"<[^>]+>", "", text)
+    # 흔한 프롬프트 인젝션 패턴 제거 (ignore instructions, system:, etc.)
+    cleaned = re.sub(
+        r"\b(ignore|forget|disregard|override|system|assistant|user)\s*[:\-]\s*",
+        "",
+        cleaned,
+        flags=re.IGNORECASE,
+    )
+    return cleaned[:max_len].strip()
+
 _PROMPT_TEMPLATE = """\
 다음 조건에 맞는 여행 일정을 JSON 형식으로만 생성해줘. JSON 외의 다른 텍스트는 포함하지 마.
 
@@ -74,10 +90,13 @@ async def generate_trip_plan(
     사용자가 평소 좋아하는 카테고리를 반영한다 (사용자 선호 학습 기초).
     """
     client = _get_client()
+    # 프롬프트 인젝션 방어
+    safe_destination = _sanitize_user_input(destination, max_len=100)
+    safe_preferences = _sanitize_user_input(preferences or "자유 여행", max_len=200)
     prompt = _PROMPT_TEMPLATE.format(
-        destination=destination,
+        destination=safe_destination,
         days=days,
-        preferences=preferences or "자유 여행",
+        preferences=safe_preferences,
         total_locations=days * 4,
     )
     if user_top_categories:
@@ -161,10 +180,13 @@ async def refine_trip_plan(req: AiRefineRequest) -> AiTripPlan:
     target_total = req.target_total or (req.days * 4)
     keep_dicts = [loc.model_dump() for loc in req.keep_locations]
 
+    # 프롬프트 인젝션 방어
+    safe_destination = _sanitize_user_input(req.destination, max_len=100)
+    safe_feedback = _sanitize_user_input(req.feedback, max_len=300)
     prompt = _REFINE_TEMPLATE.format(
-        destination=req.destination,
+        destination=safe_destination,
         days=req.days,
-        feedback=req.feedback,
+        feedback=safe_feedback,
         keep_json=json.dumps(keep_dicts, ensure_ascii=False, indent=2),
         target_total=target_total,
     )

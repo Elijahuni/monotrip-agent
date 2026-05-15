@@ -96,6 +96,52 @@ class TripService:
         await self.repo.delete_location(db, location)
         logger.info("Location deleted: id=%s trip_id=%s", location_id, trip_id)
 
+    async def duplicate_trip(
+        self, db: AsyncSession, trip_id: int, user_id: int
+    ) -> TripResponse:
+        """여행과 장소를 모두 복사해 새 여행으로 반환. 날짜·공유토큰은 초기화."""
+        trip = await self.repo.get_by_id_with_locations(db, trip_id)
+        self._assert_accessible(trip, trip_id, user_id)
+
+        new_data = TripCreate(
+            title=f"{trip.title} (복사본)",
+            description=trip.description,
+            start_date=None,
+            end_date=None,
+            thumbnail_url=trip.thumbnail_url,
+            total_budget=trip.total_budget,
+            group_size=trip.group_size,
+        )
+        new_trip = await self.repo.create(db, user_id, new_data)
+
+        if trip.locations:
+            locs = [
+                LocationCreate(
+                    name=loc.name,
+                    address=loc.address,
+                    latitude=loc.latitude,
+                    longitude=loc.longitude,
+                    category=loc.category,
+                    visit_order=loc.visit_order,
+                    day_index=loc.day_index,
+                    notes=loc.notes,
+                    phone=loc.phone,
+                    opening_hours=loc.opening_hours,
+                    estimated_minutes=loc.estimated_minutes,
+                    budget_per_person=loc.budget_per_person,
+                    website=loc.website,
+                    rating=loc.rating,
+                    images=loc.images,
+                    google_place_id=loc.google_place_id,
+                )
+                for loc in trip.locations
+            ]
+            await self.repo.create_locations_bulk(db, new_trip.id, locs)
+
+        result = await self.repo.get_by_id_with_locations(db, new_trip.id)
+        logger.info("Trip duplicated: src=%s new=%s user_id=%s", trip_id, new_trip.id, user_id)
+        return TripResponse.model_validate(result)
+
     @staticmethod
     def _assert_accessible(trip: object | None, trip_id: int, user_id: int) -> None:
         if trip is None:

@@ -6,10 +6,16 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { Redirect, Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { useColorScheme } from 'nativewind';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import 'react-native-reanimated';
+import Toast from 'react-native-toast-message';
 
 import { hydrateTripsFromLocal, queryClient } from '@/lib/queries';
+import {
+  requestNotificationPermission,
+  setupNotificationChannel,
+  setupNotificationResponseListener,
+} from '@/lib/notifications';
 import { SettingsProvider } from '@/lib/settings-context';
 import { useAuthStore, useNetworkListener } from '@/store';
 
@@ -32,6 +38,18 @@ function InnerLayout() {
     AsyncStorage.getItem(ONBOARDING_KEY).then((val) => {
       setOnboardingDone(val === 'done');
     });
+
+    // 알림 채널 초기화 + 권한 요청 (iOS는 첫 실행 시 팝업, Android는 채널만)
+    setupNotificationChannel();
+    requestNotificationPermission();
+
+    // 알림 탭 → 해당 여행 화면 열기
+    const cleanup = setupNotificationResponseListener((tripId) => {
+      // expo-router imperative navigation
+      const { router } = require('expo-router');
+      router.push(`/trips/${tripId}` as never);
+    });
+    return cleanup;
   }, [hydrateAuth]);
 
   useNetworkListener();
@@ -54,6 +72,9 @@ function InnerLayout() {
       {!onboardingDone && <Redirect href={'/onboarding' as never} />}
 
       <StatusBar style={colorScheme === 'dark' ? 'light' : 'dark'} />
+
+      {/* 전역 Toast (항상 최상단) */}
+      <Toast />
     </ThemeProvider>
   );
 }
