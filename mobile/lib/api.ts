@@ -12,7 +12,7 @@ import {
   userSchema,
   type PlaceSearchResult,
 } from '@/lib/schemas';
-import type { ChecklistItem, Location, SavedPlace, Trip, UserCache } from '@/lib/types';
+import type { ChecklistItem, DestinationGuide, Location, SavedPlace, Trip, UserCache } from '@/lib/types';
 import { z } from 'zod';
 
 // ─── 환경 변수 ────────────────────────────────────────────────────────────────
@@ -244,6 +244,14 @@ export const api = {
         locations: Location[];
       };
     },
+    /** 여행지 가이드 (통화·시간대·비자·교통·음식·꿀팁). 24h SQLite 캐싱 권장. */
+    async destinationGuide(destination: string): Promise<DestinationGuide> {
+      const res = await client.get<ApiResponse<DestinationGuide>>('/ai/destination-guide', {
+        params: { destination },
+      });
+      return res.data.data;
+    },
+
     /** 부분 재생성 — 유지할 장소 + 피드백을 보내 나머지를 새로 받는다. */
     async refine(body: {
       destination: string;

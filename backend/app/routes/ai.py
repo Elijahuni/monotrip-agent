@@ -4,9 +4,9 @@ from app.dependencies.auth import CurrentUser
 from app.dependencies.db import DbSession
 from app.limiter import limiter
 from app.repositories.trip_repository import TripRepository
-from app.schemas.ai import AiRefineRequest, AiTripPlan
+from app.schemas.ai import AiRefineRequest, AiTripPlan, DestinationGuide
 from app.schemas.common import ApiResponse
-from app.services.ai_service import generate_trip_plan, refine_trip_plan
+from app.services.ai_service import generate_destination_guide, generate_trip_plan, refine_trip_plan
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -27,6 +27,18 @@ async def recommend_trip(
     top_categories = await _repo.get_top_categories(db, current_user.id, limit=3)
     plan = await generate_trip_plan(destination, days, preferences, top_categories or None)
     return ApiResponse(data=plan)
+
+
+@router.get("/destination-guide", response_model=ApiResponse[DestinationGuide])
+@limiter.limit("20/hour")
+async def get_destination_guide(
+    request: Request,
+    current_user: CurrentUser,
+    destination: str = Query(min_length=1, max_length=200, description="여행지 이름 (예: 도쿄, 파리)"),
+) -> ApiResponse[DestinationGuide]:
+    """목적지 여행 가이드 (통화·시간대·비자·교통·음식·꿀팁). 24h TTL 권장."""
+    guide = await generate_destination_guide(destination)
+    return ApiResponse(data=guide)
 
 
 @router.post("/recommend/refine", response_model=ApiResponse[AiTripPlan])

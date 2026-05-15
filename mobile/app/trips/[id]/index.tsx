@@ -33,6 +33,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { api } from '@/lib/api';
 import { palette } from '@/lib/design-tokens';
+import { WeatherWidget } from '@/components/WeatherWidget';
+import { ItineraryShareCard, type ItineraryShareCardRef } from '@/components/ItineraryShareCard';
 import { PhotoPicker } from '@/components/PhotoPicker';
 import { queryKeys } from '@/lib/queries/client';
 import { useDeleteLocation, useDeleteTrip, useTrip } from '@/lib/queries';
@@ -842,6 +844,7 @@ export default function TripDetailScreen() {
   const [showAdd, setShowAdd] = useState(false);
   const [defaultDay, setDefaultDay] = useState(1);
   const [editingLoc, setEditingLoc] = useState<Location | null>(null);
+  const shareCardRef = useRef<ItineraryShareCardRef>(null);
 
   const bgBase = isDark ? '#0D0D18' : '#F7F9FC';
   const bgSurf = isDark ? '#141420' : '#FFFFFF';
@@ -972,6 +975,12 @@ export default function TripDetailScreen() {
     );
   }
 
+  // ── 이미지 공유 (U4) ──────────────────────────────────────────────────────────
+
+  async function handleImageShare() {
+    await shareCardRef.current?.shareAsImage();
+  }
+
   // ── 공유 (UP-7) ──────────────────────────────────────────────────────────────
 
   async function handleShare() {
@@ -1038,6 +1047,14 @@ export default function TripDetailScreen() {
             </Text>
           )}
         </View>
+        <TouchableOpacity
+          onPress={() => router.push(`/trips/${tripId}/destination-guide?destination=${encodeURIComponent(trip.title)}`)}
+          style={S.iconBtn}>
+          <Text style={{ fontSize: 18 }}>📖</Text>
+        </TouchableOpacity>
+        <TouchableOpacity onPress={handleImageShare} style={S.iconBtn}>
+          <Text style={{ fontSize: 18 }}>📸</Text>
+        </TouchableOpacity>
         <TouchableOpacity onPress={handleShare} style={S.iconBtn}>
           <Ionicons name="share-outline" size={20} color={txP} />
         </TouchableOpacity>
@@ -1110,8 +1127,13 @@ export default function TripDetailScreen() {
               </ScrollView>
             )}
 
-            {/* 예산 카드 */}
+            {/* 날씨 위젯 */}
             <View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
+              <WeatherWidget destination={trip.title} />
+            </View>
+
+            {/* 예산 카드 */}
+            <View style={{ paddingHorizontal: 16 }}>
               <BudgetCard
                 locations={locations}
                 trip={trip}
@@ -1213,6 +1235,9 @@ export default function TripDetailScreen() {
           images: parseImages(editingLoc.images),
         } : undefined}
       />
+
+      {/* 일정 이미지 공유 카드 (화면 밖 렌더링, U4) */}
+      <ItineraryShareCard ref={shareCardRef} trip={trip} locations={locations} />
     </View>
   );
 }

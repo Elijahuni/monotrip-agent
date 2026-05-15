@@ -7,7 +7,7 @@ from google import genai
 from google.genai import types
 
 from app.config import get_settings
-from app.schemas.ai import AiLocationPlan, AiRefineRequest, AiTripPlan
+from app.schemas.ai import AiLocationPlan, AiRefineRequest, AiTripPlan, DestinationGuide
 
 logger = logging.getLogger(__name__)
 
@@ -221,6 +221,74 @@ async def refine_trip_plan(req: AiRefineRequest) -> AiTripPlan:
     # 사용자가 유지하라고 한 장소가 누락됐으면 후처리로 강제 보존
     plan = _ensure_kept_locations(plan, req.keep_locations)
     return plan
+
+
+_DESTINATION_GUIDE_TEMPLATE = """\
+다음 여행지에 대한 여행자 가이드를 JSON 형식으로만 생성해줘. JSON 외 다른 텍스트는 포함하지 마.
+
+여행지: {destination}
+
+반환할 JSON 스키마:
+{{
+  "destination": "{destination}",
+  "country": "국가명",
+  "currency": "통화 (예: JPY — 일본 엔)",
+  "exchange_rate_krw": 1원당 현지 통화 환율(float, 모르면 null),
+  "timezone": "시간대 (예: UTC+9)",
+  "language": "주요 언어",
+  "best_season": "최적 여행 시기 (예: 3~5월 봄)",
+  "climate_now": "현재 계절/날씨 특징 (1~2문장)",
+  "visa": "한국인 비자 요건 (예: 무비자 90일)",
+  "transport": ["주요 교통수단 1", "주요 교통수단 2", ...],
+  "top_areas": [
+    {{"name": "지역명", "description": "특징 설명 (1문장)"}},
+    ...
+  ],
+  "must_eat": ["반드시 먹어야 할 음식 1", "음식 2", ...],
+  "tips": ["현지 꿀팁 1", "꿀팁 2", ...]
+}}
+
+조건:
+- transport는 3~5개
+- top_areas는 3~5개
+- must_eat는 4~6개
+- tips는 4~6개
+- 모든 내용은 한국어로 작성
+"""
+
+
+async def generate_destination_guide(destination: str) -> DestinationGuide:
+    """여행지 가이드를 AI로 생성. (DestinationGuide 반환)"""
+    client = _get_client()
+    safe_destination = _sanitize_user_input(destination, max_len=100)
+    prompt = _DESTINATION_GUIDE_TEMPLATE.format(destination=safe_destination)
+
+    try:
+        response = await client.aio.models.generate_content(
+            model=_MODEL_NAME,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                response_mime_type="application/json",
+                temperature=0.4,
+            ),
+        )
+        raw = response.text
+    except Exception as e:
+        logger.error("Gemini destination guide error: %s", e, exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="AI 가이드 서비스에 일시적인 오류가 발생했습니다.",
+        )
+
+    try:
+        data = _parse_json(raw)
+        return DestinationGuide.model_validate(data)
+    except (json.JSONDecodeError, ValueError) as e:
+        logger.error("Failed to parse destination guide: %s | raw=%s", e, raw[:200])
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="AI 가이드 응답 파싱에 실패했습니다.",
+        )
 
 
 def _ensure_kept_locations(plan: AiTripPlan, keep: list[AiLocationPlan]) -> AiTripPlan:
