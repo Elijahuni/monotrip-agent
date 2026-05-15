@@ -1,5 +1,4 @@
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
-import { AxiosError } from 'axios';
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
@@ -18,7 +17,9 @@ import { TripCard } from '@/components/TripCard';
 import { TripCardSkeleton } from '@/components/TripCardSkeleton';
 import { BottomSheet, Button, EmptyState, TextField } from '@/components/ui';
 import { palette, placeholderColor, shadow } from '@/lib/design-tokens';
-import { useCreateTrip, useDeleteTrip, useTrips, useUpdateTrip } from '@/lib/queries';
+import { handleApiError, showSuccess } from '@/lib/error-handler';
+import { cancelTripNotifications, scheduleTripNotifications } from '@/lib/notifications';
+import { useCreateTrip, useDeleteTrip, useDuplicateTrip, useTrips, useUpdateTrip } from '@/lib/queries';
 import type { Trip } from '@/lib/types';
 
 // ─── 유틸 ──────────────────────────────────────────────────────────────────────
@@ -236,6 +237,7 @@ export default function HomeScreen() {
   const createTrip = useCreateTrip();
   const updateTrip = useUpdateTrip();
   const deleteTrip = useDeleteTrip();
+  const duplicateTrip = useDuplicateTrip();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreate, setShowCreate] = useState(false);
@@ -257,6 +259,17 @@ export default function HomeScreen() {
   function handleLongPress(trip: Trip) {
     Alert.alert(trip.title, '이 여행에 대한 작업을 선택하세요', [
       { text: '✏️ 정보 수정', onPress: () => setEditTarget(trip) },
+      {
+        text: '📋 복제하기',
+        onPress: () => {
+          duplicateTrip.mutate(trip.id, {
+            onSuccess: (newTrip) => {
+              showSuccess(`"${newTrip.title}"이 생성됐어요.`, '여행 복제 완료');
+            },
+            onError: (e) => handleApiError(e, '여행 복제에 실패했습니다.'),
+          });
+        },
+      },
       { text: '🗑️ 삭제', style: 'destructive', onPress: () => confirmDelete(trip) },
       { text: '취소', style: 'cancel' },
     ]);
@@ -273,7 +286,10 @@ export default function HomeScreen() {
           style: 'destructive',
           onPress: () => {
             deleteTrip.mutate(trip.id, {
-              onError: () => Alert.alert('오류', '여행 삭제에 실패했습니다.'),
+              onSuccess: () => {
+                cancelTripNotifications(trip.id).catch(() => {});
+              },
+              onError: (e) => handleApiError(e, '여행 삭제에 실패했습니다.'),
             });
           },
         },
@@ -283,12 +299,17 @@ export default function HomeScreen() {
 
   async function handleCreate(data: TripFormData) {
     try {
-      await createTrip.mutateAsync(data);
+      const trip = await createTrip.mutateAsync(data);
+      // 출발일이 있으면 알림 스케줄
+      if (trip.start_date) {
+        scheduleTripNotifications({
+          tripId: trip.id,
+          tripTitle: trip.title,
+          startDate: trip.start_date,
+        }).catch(() => {});
+      }
     } catch (e) {
-      const msg = e instanceof AxiosError
-        ? (e.response?.data?.detail ?? '여행 생성에 실패했습니다.')
-        : '네트워크 오류가 발생했습니다.';
-      Alert.alert('오류', msg);
+      handleApiError(e, '여행 생성에 실패했습니다.');
       throw e;
     }
   }
@@ -296,12 +317,19 @@ export default function HomeScreen() {
   async function handleEdit(data: TripFormData) {
     if (!editTarget) return;
     try {
-      await updateTrip.mutateAsync({ id: editTarget.id, body: data });
+      const trip = await updateTrip.mutateAsync({ id: editTarget.id, body: data });
+      // 날짜 변경 시 알림 재스케줄
+      if (trip.start_date) {
+        scheduleTripNotifications({
+          tripId: trip.id,
+          tripTitle: trip.title,
+          startDate: trip.start_date,
+        }).catch(() => {});
+      } else {
+        cancelTripNotifications(trip.id).catch(() => {});
+      }
     } catch (e) {
-      const msg = e instanceof AxiosError
-        ? (e.response?.data?.detail ?? '수정에 실패했습니다.')
-        : '네트워크 오류가 발생했습니다.';
-      Alert.alert('오류', msg);
+      handleApiError(e, '수정에 실패했습니다.');
       throw e;
     } finally { setEditTarget(null); }
   }
@@ -335,13 +363,25 @@ export default function HomeScreen() {
         <FlatList
           data={filteredTrips}
           keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => (
-            <TripCard
-              trip={item}
-              onPress={() => router.push(`/trips/${item.id}` as never)}
-              onLongPress={() => handleLongPress(item)}
-            />
-          )}
+          renderItem={({ item }) => {
+            // 첫 번째 장소의 첫 번째 이미지를 썸네일로 활용
+            const thumbnail = (() => {
+              try {
+                const raw = (item as any).locations?.[0]?.images;
+                if (!raw) return null;
+                const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
+                return Array.isArray(arr) && arr.length > 0 ? arr[0] : null;
+              } catch { return null; }
+            })();
+            return (
+              <TripCard
+                trip={item}
+                thumbnail={thumbnail}
+                onPress={() => router.push(`/trips/${item.id}` as never)}
+                onLongPress={() => handleLongPress(item)}
+              />
+            );
+          }}
           ListEmptyComponent={
             searchQuery ? (
               <EmptyState

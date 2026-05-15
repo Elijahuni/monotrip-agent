@@ -93,6 +93,19 @@ export function useDeleteTrip() {
   });
 }
 
+export function useDuplicateTrip() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (tripId: number) => api.trips.duplicate(tripId),
+    async onSuccess(trip) {
+      await saveTrip(trip);
+      qc.setQueryData<Trip[]>(queryKeys.trips.all, (prev) =>
+        prev ? [trip, ...prev] : [trip],
+      );
+    },
+  });
+}
+
 // ─── Location Mutations ────────────────────────────────────────────────────────
 
 interface CreateLocationVars {

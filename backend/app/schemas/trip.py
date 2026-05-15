@@ -5,22 +5,40 @@ from pydantic import BaseModel, Field
 
 class LocationCreate(BaseModel):
     name: str = Field(min_length=1, max_length=200)
-    address: str = Field(min_length=1, max_length=500)
+    address: str = Field(default="", max_length=500)  # 검색 없이 직접 입력 시 빈 값 허용
     latitude: float
     longitude: float
     category: str = Field(min_length=1, max_length=50)
     visit_order: int = Field(default=0, ge=0)
+    day_index: int = Field(default=1, ge=1)
     notes: str | None = None
+    phone: str | None = None
+    opening_hours: str | None = None
+    estimated_minutes: int | None = None
+    budget_per_person: int | None = None
+    website: str | None = None
+    rating: float | None = None
+    images: str | None = None
+    google_place_id: str | None = None
 
 
 class LocationUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=200)
-    address: str | None = Field(default=None, min_length=1, max_length=500)
+    address: str | None = Field(default=None, max_length=500)
     latitude: float | None = None
     longitude: float | None = None
     category: str | None = Field(default=None, min_length=1, max_length=50)
     visit_order: int | None = Field(default=None, ge=0)
+    day_index: int | None = Field(default=None, ge=1)
     notes: str | None = None
+    phone: str | None = None
+    opening_hours: str | None = None
+    estimated_minutes: int | None = None
+    budget_per_person: int | None = None
+    website: str | None = None
+    rating: float | None = None
+    images: str | None = None
+    google_place_id: str | None = None
 
 
 class LocationResponse(BaseModel):
@@ -32,7 +50,16 @@ class LocationResponse(BaseModel):
     longitude: float
     category: str
     visit_order: int
+    day_index: int
     notes: str | None
+    phone: str | None = None
+    opening_hours: str | None = None
+    estimated_minutes: int | None = None
+    budget_per_person: int | None = None
+    website: str | None = None
+    rating: float | None = None
+    images: str | None = None
+    google_place_id: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -44,8 +71,8 @@ class TripCreate(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
     thumbnail_url: str | None = None
-    # AI 빌더 등에서 trip + locations를 한 번에 생성할 수 있게 옵션 필드.
-    # 비어 있으면 trip만 만들고 locations는 별도 엔드포인트로 추가.
+    total_budget: int | None = None
+    group_size: int = Field(default=1, ge=1)
     locations: list[LocationCreate] = Field(default_factory=list)
 
 
@@ -55,11 +82,11 @@ class TripUpdate(BaseModel):
     start_date: date | None = None
     end_date: date | None = None
     thumbnail_url: str | None = None
+    total_budget: int | None = None
+    group_size: int | None = Field(default=None, ge=1)
 
 
 class TripSummary(BaseModel):
-    """목록 조회용 — locations 미포함"""
-
     id: int
     user_id: int
     title: str
@@ -67,6 +94,9 @@ class TripSummary(BaseModel):
     start_date: date | None
     end_date: date | None
     thumbnail_url: str | None
+    total_budget: int | None = None
+    group_size: int = 1
+    share_token: str | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -74,6 +104,4 @@ class TripSummary(BaseModel):
 
 
 class TripResponse(TripSummary):
-    """상세 조회용 — locations 포함"""
-
     locations: list[LocationResponse] = []

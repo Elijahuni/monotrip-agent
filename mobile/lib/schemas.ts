@@ -27,6 +27,9 @@ export const tripSchema = z.object({
   start_date: ymdOrNull,
   end_date: ymdOrNull,
   thumbnail_url: z.string().nullable(),
+  total_budget: z.number().nullable().optional().transform(v => v ?? null),
+  group_size: z.number().int().nonnegative().optional().transform(v => v ?? 1),
+  share_token: z.string().nullable().optional().transform(v => v ?? null),
   created_at: isoDateTime,
   updated_at: isoDateTime,
 });
@@ -40,7 +43,16 @@ export const locationSchema = z.object({
   longitude: z.number().min(-180).max(180),
   category: z.string(),
   visit_order: z.number().int().nonnegative(),
+  day_index: z.number().int().positive().optional().transform(v => v ?? 1),
   notes: z.string().nullable(),
+  phone: z.string().nullable().optional().transform(v => v ?? null),
+  opening_hours: z.string().nullable().optional().transform(v => v ?? null),
+  estimated_minutes: z.number().nullable().optional().transform(v => v ?? null),
+  budget_per_person: z.number().nullable().optional().transform(v => v ?? null),
+  website: z.string().nullable().optional().transform(v => v ?? null),
+  rating: z.number().nullable().optional().transform(v => v ?? null),
+  images: z.string().nullable().optional().transform(v => v ?? null),
+  google_place_id: z.string().nullable().optional().transform(v => v ?? null),
   created_at: isoDateTime,
 });
 

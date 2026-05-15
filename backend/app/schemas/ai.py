@@ -34,3 +34,26 @@ class AiRefineRequest(BaseModel):
     feedback: str = Field(min_length=1, max_length=500)
     # 추가로 채울 장소 개수 (기본: 원래 일정대비 부족분)
     target_total: int | None = Field(default=None, ge=1, le=60)
+
+
+class TopArea(BaseModel):
+    name: str
+    description: str
+
+
+class DestinationGuide(BaseModel):
+    """AI가 생성한 여행지 가이드북."""
+
+    destination: str
+    country: str
+    currency: str
+    exchange_rate_krw: float | None = None
+    timezone: str
+    language: str
+    best_season: str
+    climate_now: str
+    visa: str
+    transport: list[str] = Field(default_factory=list)
+    top_areas: list[TopArea] = Field(default_factory=list)
+    must_eat: list[str] = Field(default_factory=list)
+    tips: list[str] = Field(default_factory=list)

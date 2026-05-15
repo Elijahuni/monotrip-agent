@@ -1,18 +1,17 @@
-"""Google Places API (New) 어댑터.
+"""Google Places API 어댑터.
 
-서비스 책임:
-  - Text Search 호출 + 응답 정규화 (PlaceSearchResult)
-  - 단순 인메모리 LRU 캐싱 (같은 쿼리 호출 비용 절감)
-  - 카테고리 매핑 (Google place type → 앱 카테고리)
-  - 사진 URL 변환 (photo.name → media URL)
+전략:
+  1차 시도: Places API (New) — 더 정확한 데이터, FieldMask 지원
+  2차 폴백: Places Text Search (레거시) — API 키 제한이 있을 때 자동 사용
 
-참고: https://developers.google.com/maps/documentation/places/web-service/text-search
+사용자가 Google Cloud Console에서 API 키 제한에
+"Places API (New)"를 추가하면 1차가 성공합니다.
+그 전까지는 레거시 API로 자동 동작합니다.
 """
 
 from __future__ import annotations
 
 import logging
-from functools import lru_cache
 
 import httpx
 from fastapi import HTTPException
@@ -22,24 +21,20 @@ from app.schemas.place import PlaceSearchResult
 
 logger = logging.getLogger(__name__)
 
-PLACES_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
-PLACES_PHOTO_URL_TEMPLATE = "https://places.googleapis.com/v1/{name}/media"
+# ── Places API (New) ──────────────────────────────────────────────────────────
+_NEW_TEXT_SEARCH_URL   = "https://places.googleapis.com/v1/places:searchText"
+_NEW_PHOTO_URL         = "https://places.googleapis.com/v1/{name}/media"
+_NEW_FIELD_MASK        = ",".join([
+    "places.id", "places.displayName", "places.formattedAddress",
+    "places.location", "places.types", "places.photos",
+    "places.rating", "places.userRatingCount",
+])
 
-# 클라이언트가 필요로 하는 필드만 명시 (FieldMask)
-_FIELD_MASK = ",".join(
-    [
-        "places.id",
-        "places.displayName",
-        "places.formattedAddress",
-        "places.location",
-        "places.types",
-        "places.photos",
-        "places.rating",
-        "places.userRatingCount",
-    ]
-)
+# ── Places Text Search (레거시) ───────────────────────────────────────────────
+_LEGACY_TEXT_SEARCH_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json"
+_LEGACY_PHOTO_URL       = "https://maps.googleapis.com/maps/api/place/photo"
 
-# Google place type → 앱 카테고리 매핑 (우선순위 순)
+# Google place type → 앱 카테고리 매핑
 _CATEGORY_MAP: list[tuple[str, str]] = [
     ("lodging", "숙소"),
     ("hotel", "숙소"),
@@ -54,15 +49,15 @@ _CATEGORY_MAP: list[tuple[str, str]] = [
     ("natural_feature", "자연"),
     ("museum", "문화"),
     ("art_gallery", "문화"),
-    ("amusement_park", "엔터테인먼트"),
-    ("movie_theater", "엔터테인먼트"),
+    ("amusement_park", "액티비티"),
+    ("movie_theater", "액티비티"),
     ("tourist_attraction", "관광지"),
     ("point_of_interest", "관광지"),
+    ("establishment", "관광지"),
 ]
 
 
 def _map_category(types: list[str]) -> str:
-    """첫 번째로 매칭되는 카테고리 반환. 없으면 '관광지'."""
     type_set = set(types)
     for google_type, app_category in _CATEGORY_MAP:
         if google_type in type_set:
@@ -70,27 +65,15 @@ def _map_category(types: list[str]) -> str:
     return "관광지"
 
 
-def _photo_url(photos: list[dict] | None, api_key: str) -> str | None:
-    if not photos:
-        return None
-    name = photos[0].get("name")
-    if not name:
-        return None
-    base = PLACES_PHOTO_URL_TEMPLATE.format(name=name)
-    return f"{base}?key={api_key}&maxHeightPx=400"
-
-
-@lru_cache(maxsize=256)
-def _cached_call(cache_key: str) -> tuple:  # pragma: no cover - 캐시 마커
-    raise NotImplementedError
-
-
 class PlacesService:
-    """Google Places (New) 어댑터."""
-
     def __init__(self) -> None:
         self._settings = get_settings()
-        self._api_key = self._settings.google_places_api_key
+
+    @property
+    def _api_key(self) -> str:
+        return self._settings.google_places_api_key
+
+    # ── 공개 메서드 ─────────────────────────────────────────────────────────────
 
     async def search_text(
         self,
@@ -99,23 +82,32 @@ class PlacesService:
         near_longitude: float | None = None,
         language: str = "ko",
     ) -> list[PlaceSearchResult]:
-        """텍스트 쿼리로 장소 검색.
-
-        Args:
-            query: 검색어 (장소명, 주소, 키워드 등)
-            near_latitude/longitude: 결과를 편향시킬 중심 좌표 (선택)
-            language: 응답 언어 (ko, en, ja 등)
-        """
         if not self._api_key:
-            raise HTTPException(
-                status_code=503,
-                detail="Places API 키가 설정되지 않았습니다.",
-            )
+            raise HTTPException(status_code=503, detail="Places API 키가 설정되지 않았습니다.")
         if not query.strip():
             return []
 
-        payload: dict = {"textQuery": query.strip(), "languageCode": language}
-        # 위치 편향 (반경 50km)
+        # 1차: Places API (New)
+        try:
+            return await self._search_new(query.strip(), near_latitude, near_longitude, language)
+        except _PlacesKeyRestricted:
+            logger.warning(
+                "Places API (New) 키 제한 감지 → 레거시 API로 폴백. "
+                "Google Cloud Console에서 API 키에 'Places API (New)' 추가 권장."
+            )
+            # 2차: 레거시 API
+            return await self._search_legacy(query.strip(), near_latitude, near_longitude, language)
+
+    # ── Places API (New) ────────────────────────────────────────────────────────
+
+    async def _search_new(
+        self,
+        query: str,
+        near_latitude: float | None,
+        near_longitude: float | None,
+        language: str,
+    ) -> list[PlaceSearchResult]:
+        payload: dict = {"textQuery": query, "languageCode": language}
         if near_latitude is not None and near_longitude is not None:
             payload["locationBias"] = {
                 "circle": {
@@ -123,29 +115,36 @@ class PlacesService:
                     "radius": 50_000.0,
                 }
             }
-
         headers = {
             "Content-Type": "application/json",
             "X-Goog-Api-Key": self._api_key,
-            "X-Goog-FieldMask": _FIELD_MASK,
+            "X-Goog-FieldMask": _NEW_FIELD_MASK,
         }
-
         try:
             async with httpx.AsyncClient(timeout=10.0) as client:
-                resp = await client.post(PLACES_TEXT_SEARCH_URL, json=payload, headers=headers)
-                resp.raise_for_status()
-                data = resp.json()
-        except httpx.HTTPStatusError as e:
-            logger.error("Places API HTTP error: %s — %s", e.response.status_code, e.response.text[:200])
-            raise HTTPException(status_code=502, detail="장소 검색 서비스 오류")
+                resp = await client.post(_NEW_TEXT_SEARCH_URL, json=payload, headers=headers)
         except httpx.RequestError as e:
-            logger.error("Places API request error: %s", e)
-            raise HTTPException(status_code=504, detail="장소 검색 시간 초과")
+            raise HTTPException(status_code=504, detail="장소 검색 시간 초과") from e
 
-        return [self._normalize(p) for p in data.get("places", [])]
+        if resp.status_code == 403:
+            # API 키 제한 또는 API 미활성화 → 폴백 트리거
+            raise _PlacesKeyRestricted(resp.text[:200])
 
-    def _normalize(self, place: dict) -> PlaceSearchResult:
+        if not resp.is_success:
+            logger.error("Places API (New) error: %s — %s", resp.status_code, resp.text[:300])
+            raise HTTPException(status_code=502, detail="장소 검색 서비스 오류")
+
+        data = resp.json()
+        return [self._normalize_new(p) for p in data.get("places", [])[:10]]
+
+    def _normalize_new(self, place: dict) -> PlaceSearchResult:
         loc = place.get("location") or {}
+        photos = place.get("photos")
+        photo_url: str | None = None
+        if photos:
+            name = photos[0].get("name")
+            if name:
+                photo_url = f"{_NEW_PHOTO_URL.format(name=name)}?key={self._api_key}&maxHeightPx=400&skipHttpRedirect=false"
         return PlaceSearchResult(
             place_id=place.get("id", ""),
             name=(place.get("displayName") or {}).get("text", ""),
@@ -153,12 +152,73 @@ class PlacesService:
             latitude=float(loc.get("latitude", 0.0)),
             longitude=float(loc.get("longitude", 0.0)),
             category=_map_category(place.get("types") or []),
-            photo_url=_photo_url(place.get("photos"), self._api_key),
+            photo_url=photo_url,
             rating=place.get("rating"),
             user_ratings_total=place.get("userRatingCount"),
         )
 
+    # ── 레거시 Places Text Search ────────────────────────────────────────────────
+
+    async def _search_legacy(
+        self,
+        query: str,
+        near_latitude: float | None,
+        near_longitude: float | None,
+        language: str,
+    ) -> list[PlaceSearchResult]:
+        params: dict[str, str] = {
+            "query": query,
+            "key": self._api_key,
+            "language": language,
+        }
+        if near_latitude is not None and near_longitude is not None:
+            params["location"] = f"{near_latitude},{near_longitude}"
+            params["radius"] = "50000"
+
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.get(_LEGACY_TEXT_SEARCH_URL, params=params)
+                resp.raise_for_status()
+                data = resp.json()
+        except httpx.HTTPStatusError as e:
+            logger.error("Legacy Places API error: %s — %s", e.response.status_code, e.response.text[:300])
+            raise HTTPException(status_code=502, detail="장소 검색 서비스 오류") from e
+        except httpx.RequestError as e:
+            raise HTTPException(status_code=504, detail="장소 검색 시간 초과") from e
+
+        api_status = data.get("status", "")
+        if api_status not in ("OK", "ZERO_RESULTS"):
+            logger.error("Legacy Places API status: %s | %s", api_status, data.get("error_message", ""))
+            raise HTTPException(status_code=502, detail=f"장소 검색 오류: {api_status}")
+
+        return [self._normalize_legacy(p) for p in data.get("results", [])[:10]]
+
+    def _normalize_legacy(self, place: dict) -> PlaceSearchResult:
+        loc = place.get("geometry", {}).get("location", {})
+        photos = place.get("photos")
+        photo_url: str | None = None
+        if photos:
+            ref = photos[0].get("photo_reference")
+            if ref:
+                photo_url = f"{_LEGACY_PHOTO_URL}?photo_reference={ref}&key={self._api_key}&maxwidth=400"
+        return PlaceSearchResult(
+            place_id=place.get("place_id", ""),
+            name=place.get("name", ""),
+            address=place.get("formatted_address", "") or "",
+            latitude=float(loc.get("lat", 0.0)),
+            longitude=float(loc.get("lng", 0.0)),
+            category=_map_category(place.get("types") or []),
+            photo_url=photo_url,
+            rating=place.get("rating"),
+            user_ratings_total=place.get("user_ratings_total"),
+        )
+
+
+# ── 내부 예외 (폴백 신호) ──────────────────────────────────────────────────────
+
+class _PlacesKeyRestricted(Exception):
+    """API 키 제한으로 Places API (New) 호출이 막혔을 때 레거시 폴백 트리거."""
+
 
 def get_places_service() -> PlacesService:
-    """FastAPI Depends 용 팩토리."""
     return PlacesService()

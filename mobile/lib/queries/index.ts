@@ -6,6 +6,7 @@ export {
   useCreateTrip,
   useUpdateTrip,
   useDeleteTrip,
+  useDuplicateTrip,
   useCreateLocation,
   useDeleteLocation,
 } from './trips';

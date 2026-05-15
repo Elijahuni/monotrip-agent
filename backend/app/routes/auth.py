@@ -1,7 +1,8 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Request
 
 from app.dependencies.auth import CurrentUser
 from app.dependencies.db import DbSession
+from app.limiter import limiter
 from app.schemas.common import ApiResponse
 from app.schemas.user import TokenResponse, UserCreate, UserLogin, UserResponse
 from app.services.auth_service import AuthService
@@ -12,13 +13,19 @@ _service = AuthService()
 
 
 @router.post("/register", response_model=ApiResponse[UserResponse], status_code=201)
-async def register(body: UserCreate, db: DbSession) -> ApiResponse[UserResponse]:
+@limiter.limit("3/minute")
+async def register(
+    request: Request, body: UserCreate, db: DbSession
+) -> ApiResponse[UserResponse]:
     user = await _service.register(db, body)
     return ApiResponse(data=user)
 
 
 @router.post("/login", response_model=ApiResponse[TokenResponse])
-async def login(body: UserLogin, db: DbSession) -> ApiResponse[TokenResponse]:
+@limiter.limit("5/minute")
+async def login(
+    request: Request, body: UserLogin, db: DbSession
+) -> ApiResponse[TokenResponse]:
     token = await _service.login(db, body)
     return ApiResponse(data=token)
 
