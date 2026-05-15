@@ -383,6 +383,25 @@ export const api = {
     },
   },
 
+  // ─── 푸시 알림 토큰 관리 ───────────────────────────────────────────────────────
+  notifications: {
+    /** Expo Push Token을 서버에 등록 / 갱신 */
+    async registerToken(token: string): Promise<void> {
+      await client.post('/notifications/push-token', { token });
+    },
+    /** 로그아웃 또는 권한 거부 시 서버에서 토큰 제거 */
+    async unregisterToken(): Promise<void> {
+      await client.delete('/notifications/push-token');
+    },
+    /** 테스트 알림 전송 (개발/스테이징 전용) */
+    async sendTest(): Promise<{ sent: number; failed: number }> {
+      const res = await client.post<ApiResponse<{ sent: number; failed: number }>>(
+        '/notifications/test',
+      );
+      return res.data.data;
+    },
+  },
+
   // ─── UP-7: 여행 공유 ──────────────────────────────────────────────────────────
   trips_share: {
     async create(tripId: number): Promise<{ share_token: string; share_url: string }> {

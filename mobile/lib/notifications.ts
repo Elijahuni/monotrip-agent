@@ -1,16 +1,20 @@
 /**
- * 로컬 푸시 알림 모듈 (expo-notifications 기반).
+ * 푸시 알림 모듈 (expo-notifications 기반).
  *
- * 서버 없이 디바이스 로컬에서 여행 D-day 알림을 스케줄링한다.
- * 여행 생성/수정 시 scheduleTripNotifications()를 호출하면 된다.
+ * [로컬 알림] 서버 없이 디바이스에서 D-day 알림 스케줄링.
+ * [서버 알림] Expo Push Token을 백엔드에 등록 → 서버가 일괄 발송.
  *
- * 알림 트리거:
- *   - D-7: "✈️ {제목} 출발 7일 전! 짐 체크 해봤나요?"
- *   - D-3: "🗺 {제목} 출발 3일 전! 일정 최종 확인하세요."
- *   - D-1: "🎒 {제목} 내일 출발! 준비물 마지막 체크!"
- *   - D-0: "🎉 오늘 {제목} 출발일이에요! 즐거운 여행 되세요."
+ * 로컬 + 서버 이중 전송 방지를 위해:
+ *   - 로컬 알림: 앱이 설치된 기기의 로컬 스케줄 (오프라인 지원)
+ *   - 서버 알림: 앱이 꺼져있을 때 / 여러 기기 지원
+ *
+ * 서버 알림 등록 흐름:
+ *   1. requestNotificationPermission() → 권한 허용
+ *   2. getExpoPushToken()              → ExponentPushToken[xxx] 획득
+ *   3. registerPushTokenWithServer()   → POST /notifications/push-token
  */
 
+import Constants from 'expo-constants';
 import * as Notifications from 'expo-notifications';
 import { Platform } from 'react-native';
 
@@ -102,6 +106,70 @@ export async function cancelTripNotifications(tripId: number): Promise<void> {
     ),
   );
 }
+
+// ─── 서버 사이드 푸시 알림 — Expo Push Token 관리 ────────────────────────────
+
+/**
+ * Expo Push Token을 획득한다.
+ * - 시뮬레이터 또는 projectId 미설정 시 null 반환 (silent fail).
+ * - ExponentPushToken[xxx] 형식의 문자열 반환.
+ */
+export async function getExpoPushToken(): Promise<string | null> {
+  try {
+    // projectId: app.json > extra.eas.projectId 또는 환경변수
+    const projectId =
+      Constants.expoConfig?.extra?.eas?.projectId as string | undefined ??
+      process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
+
+    if (!projectId) {
+      // EAS 프로젝트 ID 없이는 Expo Push Token 발급 불가 (개발 환경에서는 정상)
+      console.log('[notifications] No EAS projectId — skipping push token registration');
+      return null;
+    }
+
+    const tokenData = await Notifications.getExpoPushTokenAsync({ projectId });
+    return tokenData.data; // "ExponentPushToken[xxx]"
+  } catch (err) {
+    // 시뮬레이터, 권한 없음, 네트워크 오류 등 → 무시
+    console.warn('[notifications] getExpoPushToken failed:', err);
+    return null;
+  }
+}
+
+/**
+ * 알림 권한 획득 후 Push Token을 서버에 등록한다.
+ * 네트워크 오류나 토큰 발급 실패는 무시 (로컬 알림은 계속 동작).
+ */
+export async function registerPushTokenWithServer(): Promise<void> {
+  try {
+    const granted = await requestNotificationPermission();
+    if (!granted) return;
+
+    const token = await getExpoPushToken();
+    if (!token) return;
+
+    // api를 직접 import하면 순환 import 위험이 있으므로 dynamic import
+    const { api } = await import('@/lib/api');
+    await api.notifications.registerToken(token);
+  } catch (err) {
+    // 서버 등록 실패해도 로컬 알림은 정상 동작
+    console.warn('[notifications] registerPushTokenWithServer failed:', err);
+  }
+}
+
+/**
+ * 로그아웃 또는 알림 권한 거부 시 서버에서 토큰을 제거한다.
+ */
+export async function unregisterPushTokenFromServer(): Promise<void> {
+  try {
+    const { api } = await import('@/lib/api');
+    await api.notifications.unregisterToken();
+  } catch {
+    // 실패 무시 (이미 로그아웃 상태이거나 토큰 없음)
+  }
+}
+
+// ─── 알림 응답 리스너 ─────────────────────────────────────────────────────────
 
 /** 앱 시작 시 알림 응답 리스너 설정. */
 export function setupNotificationResponseListener(

@@ -12,6 +12,7 @@ import Toast from 'react-native-toast-message';
 
 import { hydrateTripsFromLocal, queryClient } from '@/lib/queries';
 import {
+  registerPushTokenWithServer,
   requestNotificationPermission,
   setupNotificationChannel,
   setupNotificationResponseListener,
@@ -47,6 +48,10 @@ function InnerLayout() {
     // 알림 채널 초기화 + 권한 요청 (iOS는 첫 실행 시 팝업, Android는 채널만)
     setupNotificationChannel();
     requestNotificationPermission();
+
+    // 권한 허용 후 Expo Push Token을 서버에 등록 (백그라운드, 실패 무시)
+    // — 토큰은 이미 로그인된 상태여야 등록됨 (인증 헤더 필요)
+    registerPushTokenWithServer().catch(() => {});
 
     // 알림 탭 → 해당 여행 화면 열기
     const cleanup = setupNotificationResponseListener((tripId) => {

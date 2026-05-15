@@ -3,6 +3,7 @@ import { create } from 'zustand';
 
 import { api, TOKEN_KEY, type UserResponse } from '@/lib/api';
 import { getUserCache, saveUserCache, type CachedUser } from '@/lib/local-user';
+import { registerPushTokenWithServer, unregisterPushTokenFromServer } from '@/lib/notifications';
 import { clearSentryUser, setSentryUser } from '@/lib/sentry';
 
 /**
@@ -67,9 +68,13 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     set({ status: 'authenticated', token });
     // 로그인 직후 user 채우기
     await get().refreshUser().catch(() => {/* offline */});
+    // 로그인 후 Push Token을 서버에 등록 (백그라운드, 실패 무시)
+    registerPushTokenWithServer().catch(() => {});
   },
 
   async logout() {
+    // 서버에서 푸시 토큰 먼저 제거 (토큰 유효한 동안 시도)
+    await unregisterPushTokenFromServer().catch(() => {});
     await AsyncStorage.removeItem(TOKEN_KEY);
     clearSentryUser();
     set({ status: 'guest', token: null, user: null });

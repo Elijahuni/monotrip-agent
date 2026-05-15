@@ -1,4 +1,6 @@
 import uuid
+from contextlib import asynccontextmanager
+from collections.abc import AsyncGenerator
 
 import sentry_sdk
 import structlog
@@ -15,10 +17,12 @@ from app.limiter import limiter
 from app.routes.ai import router as ai_router
 from app.routes.auth import router as auth_router
 from app.routes.checklist import router as checklist_router
+from app.routes.notifications import router as notifications_router
 from app.routes.places import router as places_router
 from app.routes.saved_places import router as saved_places_router
 from app.routes.trips import router as trips_router
 from app.routes.uploads import router as uploads_router
+from app.services.notification_scheduler import get_scheduler, setup_scheduler
 
 # ─── structlog 설정 ──────────────────────────────────────────────────────────
 
@@ -58,9 +62,30 @@ if settings.sentry_dsn:
 else:
     logger.info("sentry_disabled", reason="SENTRY_DSN not set")
 
+# ─── 스케줄러 lifespan ────────────────────────────────────────────────────────
+
+@asynccontextmanager
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+    # 시작: 알림 스케줄러 등록 + 시작
+    # SCHEDULER_ENABLED=false 면 스케줄러 비활성화 (테스트 / Railway 무료 플랜 등)
+    scheduler_enabled = settings.app_env != "test"
+    setup_scheduler(enabled=scheduler_enabled)
+    scheduler = get_scheduler()
+    if not scheduler.running:
+        scheduler.start()
+        logger.info("notification_scheduler_started")
+
+    yield  # 앱 실행 중
+
+    # 종료: 스케줄러 graceful shutdown
+    if scheduler.running:
+        scheduler.shutdown(wait=False)
+        logger.info("notification_scheduler_stopped")
+
+
 # ─── 앱 초기화 ────────────────────────────────────────────────────────────────
 
-app = FastAPI(title="모노트립 Backend", version="0.4.0")
+app = FastAPI(title="모노트립 Backend", version="0.4.0", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
@@ -141,6 +166,7 @@ app.include_router(places_router)
 app.include_router(saved_places_router)
 app.include_router(checklist_router)
 app.include_router(uploads_router)
+app.include_router(notifications_router)
 
 
 # ─── 헬스체크 ────────────────────────────────────────────────────────────────
