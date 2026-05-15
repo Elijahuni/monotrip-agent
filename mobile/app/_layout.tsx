@@ -16,8 +16,13 @@ import {
   setupNotificationChannel,
   setupNotificationResponseListener,
 } from '@/lib/notifications';
+import { initSentry, wrap as sentryWrap } from '@/lib/sentry';
 import { SettingsProvider } from '@/lib/settings-context';
 import { useAuthStore, useNetworkListener } from '@/store';
+
+// Sentry를 앱 최초 로드 시점(모듈 평가 시)에 초기화
+// — RootLayout 렌더링 전에 실행되어야 첫 화면부터 에러가 캡처됨
+initSentry();
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -79,7 +84,7 @@ function InnerLayout() {
   );
 }
 
-export default function RootLayout() {
+function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <SettingsProvider>
@@ -88,3 +93,6 @@ export default function RootLayout() {
     </QueryClientProvider>
   );
 }
+
+// Sentry.wrap이 미처리 JS 에러 + 네이티브 크래시를 자동 캡처
+export default sentryWrap(RootLayout);

@@ -1,9 +1,12 @@
 import uuid
 
+import sentry_sdk
 import structlog
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.sqlalchemy import SqlalchemyIntegration
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
@@ -33,9 +36,29 @@ structlog.configure(
 
 logger = structlog.get_logger("app")
 
-# ─── 앱 초기화 ────────────────────────────────────────────────────────────────
+# ─── Sentry 초기화 ────────────────────────────────────────────────────────────
 
 settings = get_settings()
+
+if settings.sentry_dsn:
+    sentry_sdk.init(
+        dsn=settings.sentry_dsn,
+        integrations=[
+            FastApiIntegration(transaction_style="endpoint"),
+            SqlalchemyIntegration(),
+        ],
+        environment=settings.app_env,
+        traces_sample_rate=settings.sentry_traces_sample_rate,
+        # 개인정보 보호 — 요청 본문·쿠키·HTTP 헤더 수집 안 함
+        send_default_pii=False,
+        # 이미 global exception handler에서 structlog으로 로깅하므로 중복 방지
+        before_send=lambda event, hint: event,
+    )
+    logger.info("sentry_initialized", environment=settings.app_env)
+else:
+    logger.info("sentry_disabled", reason="SENTRY_DSN not set")
+
+# ─── 앱 초기화 ────────────────────────────────────────────────────────────────
 
 app = FastAPI(title="모노트립 Backend", version="0.4.0")
 app.state.limiter = limiter

@@ -3,6 +3,7 @@ import { create } from 'zustand';
 
 import { api, TOKEN_KEY, type UserResponse } from '@/lib/api';
 import { getUserCache, saveUserCache, type CachedUser } from '@/lib/local-user';
+import { clearSentryUser, setSentryUser } from '@/lib/sentry';
 
 /**
  * 인증 상태.
@@ -70,6 +71,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   async logout() {
     await AsyncStorage.removeItem(TOKEN_KEY);
+    clearSentryUser();
     set({ status: 'guest', token: null, user: null });
   },
 
@@ -77,6 +79,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const remote = await api.auth.me();
     const cached = toCached(remote);
     await saveUserCache(remote);
+    // Sentry에 사용자 ID 등록 (에러 발생 시 어떤 사용자인지 추적)
+    setSentryUser(remote.id, remote.email);
     set({ user: cached });
   },
 }));

@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     # CORS (콤마 구분 문자열 또는 "*" 전부 허용)
     cors_origins: str = "*"
 
+    # ── 에러 모니터링 ────────────────────────────────────────────────────────────
+    # 미설정 시 Sentry 비활성화 (개발/로컬 환경). 빈 문자열 = 비활성화.
+    sentry_dsn: str = ""
+    # 성능 트레이싱 샘플 비율 (0.0 ~ 1.0). 0.1 = 10% 트랜잭션 추적.
+    sentry_traces_sample_rate: float = 0.1
+
     # ── Cloudflare R2 (S3 호환 이미지 저장소) ──────────────────────────────────
     r2_account_id: str = ""
     r2_access_key_id: str = ""
