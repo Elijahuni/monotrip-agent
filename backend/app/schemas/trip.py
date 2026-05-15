@@ -105,3 +105,11 @@ class TripSummary(BaseModel):
 
 class TripResponse(TripSummary):
     locations: list[LocationResponse] = []
+
+
+class TripPage(BaseModel):
+    """cursor 기반 페이지네이션 응답."""
+
+    items: list[TripSummary]
+    next_cursor: int | None  # None = 마지막 페이지
+    has_more: bool

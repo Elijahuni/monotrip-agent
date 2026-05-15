@@ -1,27 +1,31 @@
-import { QueryClient, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { QueryClient, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 
-import { api, type TripCreateRequest, type TripDetail } from '@/lib/api';
+import { api, type TripCreateRequest, type TripDetail, type TripPage } from '@/lib/api';
 import { deleteTrip, getTrips, saveTrip, syncTrips } from '@/lib/local-trips';
 import type { Location, Trip } from '@/lib/types';
 
 import { queryKeys } from './client';
 
 /**
- * 트립 목록 — Local-First.
- *  - initialData: SQLite 캐시를 즉시 반환 (마운트 시 깜빡임 제거)
- *  - queryFn: 백엔드 호출 후 SQLite에 미러링
+ * 트립 목록 — cursor 기반 무한 스크롤 (Local-First).
+ *  - 첫 페이지 로드 시 SQLite 캐시를 미러링
+ *  - getNextPageParam: next_cursor → 다음 페이지 커서 전달
  *  - 네트워크 실패 시 캐시 유지
  */
 export function useTrips() {
-  return useQuery({
+  return useInfiniteQuery<TripPage, Error>({
     queryKey: queryKeys.trips.all,
-    async queryFn() {
-      const remote = await api.trips.getAll();
-      await syncTrips(remote);
-      return remote;
+    initialPageParam: undefined as number | undefined,
+    async queryFn({ pageParam }) {
+      const cursor = pageParam as number | undefined;
+      const page = await api.trips.getAll({ limit: 20, cursor });
+      // 첫 페이지만 SQLite에 미러링
+      if (!cursor) {
+        await syncTrips(page.items);
+      }
+      return page;
     },
-    // SQLite 로딩 후 적용. React Query는 동기 initialData만 받으므로
-    // 화면 마운트 시 별도 hydrate 헬퍼를 통해 setQueryData(...) 한다.
+    getNextPageParam: (lastPage) => lastPage.next_cursor ?? undefined,
   });
 }
 
@@ -42,7 +46,11 @@ export function useTrip(tripId: number, enabled = true) {
 export async function hydrateTripsFromLocal(qc: QueryClient): Promise<void> {
   const local = await getTrips();
   if (local.length > 0) {
-    qc.setQueryData<Trip[]>(queryKeys.trips.all, local);
+    // 첫 페이지 형태로 주입
+    qc.setQueryData(queryKeys.trips.all, {
+      pages: [{ items: local, next_cursor: null, has_more: false }],
+      pageParams: [undefined],
+    });
   }
 }
 
@@ -54,9 +62,8 @@ export function useCreateTrip() {
     mutationFn: (body: TripCreateRequest) => api.trips.create(body),
     async onSuccess(trip) {
       await saveTrip(trip);
-      qc.setQueryData<Trip[]>(queryKeys.trips.all, (prev) =>
-        prev ? [trip, ...prev] : [trip],
-      );
+      // 무한 쿼리 캐시 전체를 무효화 → 첫 페이지부터 재조회
+      await qc.invalidateQueries({ queryKey: queryKeys.trips.all });
     },
   });
 }
@@ -68,9 +75,7 @@ export function useUpdateTrip() {
       api.trips.update(id, body),
     async onSuccess(trip) {
       await saveTrip(trip);
-      qc.setQueryData<Trip[]>(queryKeys.trips.all, (prev) =>
-        prev ? prev.map((t) => (t.id === trip.id ? { ...t, ...trip } : t)) : prev,
-      );
+      await qc.invalidateQueries({ queryKey: queryKeys.trips.all });
       qc.setQueryData<TripDetail>(queryKeys.trips.detail(trip.id), trip);
     },
   });
@@ -84,10 +89,8 @@ export function useDeleteTrip() {
       await deleteTrip(id);
       return id;
     },
-    onSuccess(id) {
-      qc.setQueryData<Trip[]>(queryKeys.trips.all, (prev) =>
-        prev ? prev.filter((t) => t.id !== id) : prev,
-      );
+    async onSuccess(id) {
+      await qc.invalidateQueries({ queryKey: queryKeys.trips.all });
       qc.removeQueries({ queryKey: queryKeys.trips.detail(id) });
     },
   });
@@ -99,9 +102,7 @@ export function useDuplicateTrip() {
     mutationFn: (tripId: number) => api.trips.duplicate(tripId),
     async onSuccess(trip) {
       await saveTrip(trip);
-      qc.setQueryData<Trip[]>(queryKeys.trips.all, (prev) =>
-        prev ? [trip, ...prev] : [trip],
-      );
+      await qc.invalidateQueries({ queryKey: queryKeys.trips.all });
     },
   });
 }

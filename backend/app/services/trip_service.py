@@ -4,7 +4,7 @@ from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.repositories.trip_repository import TripRepository
-from app.schemas.trip import LocationCreate, LocationResponse, LocationUpdate, TripCreate, TripResponse, TripSummary, TripUpdate
+from app.schemas.trip import LocationCreate, LocationResponse, LocationUpdate, TripCreate, TripPage, TripResponse, TripSummary, TripUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -16,6 +16,22 @@ class TripService:
     async def get_my_trips(self, db: AsyncSession, user_id: int) -> list[TripSummary]:
         trips = await self.repo.get_all_by_user(db, user_id)
         return [TripSummary.model_validate(t) for t in trips]
+
+    async def get_my_trips_paginated(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        limit: int = 20,
+        cursor: int | None = None,
+    ) -> TripPage:
+        trips, next_cursor, has_more = await self.repo.get_all_by_user_paginated(
+            db, user_id, limit=limit, cursor=cursor
+        )
+        return TripPage(
+            items=[TripSummary.model_validate(t) for t in trips],
+            next_cursor=next_cursor,
+            has_more=has_more,
+        )
 
     async def get_trip(self, db: AsyncSession, trip_id: int, user_id: int) -> TripResponse:
         trip = await self.repo.get_by_id_with_locations(db, trip_id)

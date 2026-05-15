@@ -81,6 +81,13 @@ export interface TripDetail extends Trip {
   locations: Location[];
 }
 
+/** 백엔드 TripPage 응답 타입 */
+export interface TripPage {
+  items: Trip[];
+  next_cursor: number | null;
+  has_more: boolean;
+}
+
 // ─── Axios 인스턴스 ───────────────────────────────────────────────────────────
 
 const client: AxiosInstance = axios.create({
@@ -170,9 +177,15 @@ export const api = {
   },
 
   trips: {
-    async getAll(): Promise<Trip[]> {
-      const res = await client.get<ApiResponse<Trip[]>>('/trips');
-      return parseResp(z.array(tripSchema), res.data.data, 'trips.getAll');
+    /** cursor 기반 페이지네이션. cursor가 없으면 첫 페이지. */
+    async getAll(params?: { limit?: number; cursor?: number }): Promise<TripPage> {
+      const res = await client.get<ApiResponse<TripPage>>('/trips', { params });
+      const raw = res.data.data;
+      return {
+        items: parseResp(z.array(tripSchema), raw.items, 'trips.getAll.items'),
+        next_cursor: raw.next_cursor ?? null,
+        has_more: raw.has_more ?? false,
+      };
     },
 
     async getOne(tripId: number): Promise<TripDetail> {

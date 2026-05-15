@@ -23,6 +23,34 @@ class TripRepository:
         result = await db.execute(stmt)
         return list(result.scalars().all())
 
+    async def get_all_by_user_paginated(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        limit: int = 20,
+        cursor: int | None = None,
+    ) -> tuple[list[Trip], int | None, bool]:
+        """cursor 기반 페이지네이션.
+
+        cursor = 마지막으로 받은 trip.id (exclusive).
+        limit+1 개를 조회해 has_more를 판단한다.
+        반환: (trips[:limit], next_cursor, has_more)
+        """
+        stmt = select(Trip).where(Trip.user_id == user_id)
+        if cursor is not None:
+            stmt = stmt.where(Trip.id < cursor)
+        stmt = stmt.order_by(Trip.id.desc()).limit(limit + 1)
+
+        result = await db.execute(stmt)
+        trips = list(result.scalars().all())
+
+        has_more = len(trips) > limit
+        if has_more:
+            trips = trips[:limit]
+
+        next_cursor = trips[-1].id if has_more and trips else None
+        return trips, next_cursor, has_more
+
     async def create(self, db: AsyncSession, user_id: int, data: TripCreate) -> Trip:
         # locations는 별도 단계에서 일괄 생성 (create_locations_bulk)
         trip = Trip(user_id=user_id, **data.model_dump(exclude={"locations"}))

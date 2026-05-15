@@ -1,7 +1,7 @@
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -15,6 +15,7 @@ from app.schemas.trip import (
     LocationResponse,
     LocationUpdate,
     TripCreate,
+    TripPage,
     TripResponse,
     TripSummary,
     TripUpdate,
@@ -30,10 +31,15 @@ _SHARE_TOKEN_DAYS = 30  # 공유 토큰 유효 기간
 
 # ── Trip CRUD ────────────────────────────────────────────────────────────────
 
-@router.get("", response_model=ApiResponse[list[TripSummary]])
-async def list_trips(current_user: CurrentUser, db: DbSession) -> ApiResponse[list[TripSummary]]:
-    trips = await _service.get_my_trips(db, current_user.id)
-    return ApiResponse(data=trips)
+@router.get("", response_model=ApiResponse[TripPage])
+async def list_trips(
+    current_user: CurrentUser,
+    db: DbSession,
+    limit: int = Query(default=20, ge=1, le=100, description="페이지당 항목 수"),
+    cursor: int | None = Query(default=None, description="이전 페이지 마지막 trip.id (커서)"),
+) -> ApiResponse[TripPage]:
+    page = await _service.get_my_trips_paginated(db, current_user.id, limit=limit, cursor=cursor)
+    return ApiResponse(data=page)
 
 
 @router.post("", response_model=ApiResponse[TripResponse], status_code=201)

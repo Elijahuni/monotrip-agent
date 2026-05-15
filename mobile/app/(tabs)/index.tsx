@@ -2,6 +2,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Platform,
@@ -243,18 +244,22 @@ export default function HomeScreen() {
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<Trip | null>(null);
 
-  const trips = tripsQuery.data ?? [];
+  // 무한 쿼리 — 모든 페이지를 단일 배열로 펼치기
+  const allTrips: Trip[] = useMemo(
+    () => tripsQuery.data?.pages.flatMap((p) => p.items) ?? [],
+    [tripsQuery.data],
+  );
   // SQLite hydrate된 캐시가 있으면 isPending=false. 캐시 없을 때만 진짜 로딩.
-  const showSkeleton = tripsQuery.isPending && trips.length === 0;
-  const syncing = tripsQuery.isFetching;
+  const showSkeleton = tripsQuery.isPending && allTrips.length === 0;
+  const syncing = tripsQuery.isRefetching && !tripsQuery.isFetchingNextPage;
 
   const filteredTrips = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return trips;
-    return trips.filter(
+    if (!q) return allTrips;
+    return allTrips.filter(
       (t) => t.title.toLowerCase().includes(q) || (t.description ?? '').toLowerCase().includes(q),
     );
-  }, [trips, searchQuery]);
+  }, [allTrips, searchQuery]);
 
   function handleLongPress(trip: Trip) {
     Alert.alert(trip.title, '이 여행에 대한 작업을 선택하세요', [
@@ -400,7 +405,16 @@ export default function HomeScreen() {
             )
           }
           ListHeaderComponent={<View className="h-1" />}
-          ListFooterComponent={<View style={{ height: insets.bottom + 96 }} />}
+          ListFooterComponent={
+            <View style={{ height: insets.bottom + 96 }}>
+              {tripsQuery.isFetchingNextPage && (
+                <View className="py-4 items-center">
+                  <ActivityIndicator size="small" color={palette.coral500} />
+                  <Text className="text-xs text-tx-tertiary mt-1">더 불러오는 중...</Text>
+                </View>
+              )}
+            </View>
+          }
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ flexGrow: 1 }}
           refreshControl={
@@ -412,6 +426,13 @@ export default function HomeScreen() {
               titleColor={placeholderColor}
             />
           }
+          onEndReached={() => {
+            const lastPage = tripsQuery.data?.pages[tripsQuery.data.pages.length - 1];
+            if (lastPage?.has_more && !tripsQuery.isFetchingNextPage) {
+              tripsQuery.fetchNextPage();
+            }
+          }}
+          onEndReachedThreshold={0.3}
           removeClippedSubviews
           maxToRenderPerBatch={10}
           windowSize={5}
