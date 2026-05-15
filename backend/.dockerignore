@@ -1,0 +1,16 @@
+__pycache__
+*.pyc
+*.pyo
+.pytest_cache
+.venv
+.env
+.env.local
+.git
+.gitignore
+.idea
+.vscode
+.ruff_cache
+node_modules
+tests/__pycache__
+alembic/__pycache__
+*.md

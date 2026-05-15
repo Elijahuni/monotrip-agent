@@ -318,6 +318,29 @@ export const api = {
     },
   },
 
+  // ─── UP-9: 사진 업로드 ─────────────────────────────────────────────────────────
+  uploads: {
+    /**
+     * 로컬 파일 URI(예: file:///…/IMG_1234.jpg)를 백엔드에 멀티파트로 업로드.
+     * 응답: { url, width, height, key }
+     */
+    async photo(uri: string): Promise<{ url: string; width: number; height: number; key: string }> {
+      const form = new FormData();
+      // RN FormData는 { uri, name, type } 구조를 허용
+      const name = uri.split('/').pop() ?? 'photo.jpg';
+      const ext = name.split('.').pop()?.toLowerCase() ?? 'jpg';
+      const mime = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : 'image/jpeg';
+      // @ts-expect-error RN FormData 타입 한계
+      form.append('file', { uri, name, type: mime });
+      const res = await client.post<ApiResponse<{ url: string; width: number; height: number; key: string }>>(
+        '/uploads/photo',
+        form,
+        { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 30_000 },
+      );
+      return res.data.data;
+    },
+  },
+
   // ─── UP-7: 여행 공유 ──────────────────────────────────────────────────────────
   trips_share: {
     async create(tripId: number): Promise<{ share_token: string; share_url: string }> {

@@ -24,9 +24,30 @@ class Settings(BaseSettings):
     app_env: str = "development"
     log_level: str = "INFO"
 
+    # CORS (콤마 구분 문자열 또는 "*" 전부 허용)
+    cors_origins: str = "*"
+
+    # ── Cloudflare R2 (S3 호환 이미지 저장소) ──────────────────────────────────
+    r2_account_id: str = ""
+    r2_access_key_id: str = ""
+    r2_secret_access_key: str = ""
+    r2_bucket: str = "monotrip-images"
+    # 퍼블릭 액세스 URL (R2 커스텀 도메인 또는 r2.dev 서브도메인)
+    r2_public_url: str = ""
+
     @property
     def is_production(self) -> bool:
         return self.app_env == "production"
+
+    @property
+    def cors_origin_list(self) -> list[str]:
+        if self.cors_origins.strip() == "*":
+            return ["*"]
+        return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def r2_configured(self) -> bool:
+        return bool(self.r2_account_id and self.r2_access_key_id and self.r2_secret_access_key)
 
 
 @lru_cache

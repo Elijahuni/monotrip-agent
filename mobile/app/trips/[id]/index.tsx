@@ -9,6 +9,7 @@
 
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
+import { Image as ExpoImage } from 'expo-image';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useEffect, useRef, useState } from 'react';
 import {
@@ -32,11 +33,23 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { api } from '@/lib/api';
 import { palette } from '@/lib/design-tokens';
+import { PhotoPicker } from '@/components/PhotoPicker';
 import { queryKeys } from '@/lib/queries/client';
 import { useDeleteLocation, useDeleteTrip, useTrip } from '@/lib/queries';
 import { useSettings } from '@/lib/settings-context';
 import type { ChecklistItem, Location, Trip } from '@/lib/types';
 import type { PlaceSearchResult } from '@/lib/schemas';
+
+/** Location.images 필드(JSON 문자열)를 URL 배열로 파싱 */
+function parseImages(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((v) => typeof v === 'string') : [];
+  } catch {
+    return [];
+  }
+}
 
 // ─── 상수 & 유틸 ─────────────────────────────────────────────────────────────
 
@@ -121,6 +134,7 @@ function RichLocationCard({
   const stars = loc.rating
     ? '★'.repeat(Math.round(loc.rating)) + '☆'.repeat(5 - Math.round(loc.rating))
     : null;
+  const images = parseImages(loc.images);
 
   return (
     <View style={[S.locCard, { backgroundColor: bgS, borderColor: bord }]}>
@@ -168,6 +182,20 @@ function RichLocationCard({
             </View>
           )}
         </View>
+        {images.length > 0 && (
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+            <View style={{ flexDirection: 'row', gap: 6 }}>
+              {images.slice(0, 4).map((u, i) => (
+                <ExpoImage key={u + i} source={{ uri: u }} style={{ width: 56, height: 56, borderRadius: 8 }} contentFit="cover" transition={150} />
+              ))}
+              {images.length > 4 && (
+                <View style={{ width: 56, height: 56, borderRadius: 8, backgroundColor: bord, justifyContent: 'center', alignItems: 'center' }}>
+                  <Text style={{ color: txSc, fontSize: 11, fontWeight: '700' }}>+{images.length - 4}</Text>
+                </View>
+              )}
+            </View>
+          </ScrollView>
+        )}
         {loc.notes ? (
           <Text style={[S.locNotes, { color: txSc }]} numberOfLines={2}>{loc.notes}</Text>
         ) : null}
@@ -423,6 +451,7 @@ interface LocForm {
   name: string; address: string; latitude: number; longitude: number;
   category: string; day_index: number; notes: string;
   estimated_minutes: string; budget_per_person: string;
+  images: string[]; // 업로드된 사진 URL 배열 (저장 시 JSON.stringify)
 }
 
 function AddLocationModal({
@@ -439,6 +468,7 @@ function AddLocationModal({
     name: '', address: '', latitude: 0, longitude: 0,
     category: '관광지', day_index: defaultDay,
     notes: '', estimated_minutes: '', budget_per_person: '',
+    images: [],
   });
   const [saving, setSaving]       = useState(false);
   const [searchQ, setSearchQ]     = useState('');
@@ -460,12 +490,13 @@ function AddLocationModal({
         notes: initialValues.notes ?? '',
         estimated_minutes: initialValues.estimated_minutes ?? '',
         budget_per_person: initialValues.budget_per_person ?? '',
+        images: initialValues.images ?? [],
       });
       setPlaceSelected((initialValues.latitude ?? 0) !== 0);
       setSearchQ('');
       setResults([]);
     } else {
-      setForm({ name: '', address: '', latitude: 0, longitude: 0, category: '관광지', day_index: defaultDay, notes: '', estimated_minutes: '', budget_per_person: '' });
+      setForm({ name: '', address: '', latitude: 0, longitude: 0, category: '관광지', day_index: defaultDay, notes: '', estimated_minutes: '', budget_per_person: '', images: [] });
       setPlaceSelected(false);
       setSearchQ('');
       setResults([]);
@@ -688,6 +719,18 @@ function AddLocationModal({
               </View>
             </View>
 
+            {/* ── 사진 (UP-9) ── */}
+            <Text style={[S.lbl, { color: txSc }]}>{lang === 'ko' ? '사진' : 'Photos'}</Text>
+            <View style={{ marginBottom: 12 }}>
+              <PhotoPicker
+                urls={form.images}
+                onChange={(urls) => setField('images', urls)}
+                max={5}
+                isDark={isDark}
+                lang={lang}
+              />
+            </View>
+
             {/* ── 메모 ── */}
             <Text style={[S.lbl, { color: txSc }]}>{lang === 'ko' ? '메모' : 'Notes'}</Text>
             <TextInput
@@ -764,6 +807,7 @@ export default function TripDetailScreen() {
       notes: form.notes.trim() || null,
       ...(form.estimated_minutes ? { estimated_minutes: Number(form.estimated_minutes) } : {}),
       ...(form.budget_per_person ? { budget_per_person: Number(form.budget_per_person) } : {}),
+      ...(form.images.length > 0 ? { images: JSON.stringify(form.images) } : {}),
       day_index: form.day_index,
     } as Parameters<typeof api.locations.create>[1]);
     qc.setQueryData(queryKeys.trips.detail(tripId), (prev: typeof tripQuery.data) =>
@@ -785,6 +829,7 @@ export default function TripDetailScreen() {
       notes: form.notes.trim() || null,
       estimated_minutes: form.estimated_minutes ? Number(form.estimated_minutes) : null,
       budget_per_person: form.budget_per_person ? Number(form.budget_per_person) : null,
+      images: form.images.length > 0 ? JSON.stringify(form.images) : null,
     } as Partial<Location>);
     qc.setQueryData(queryKeys.trips.detail(tripId), (prev: typeof tripQuery.data) =>
       prev
@@ -1088,6 +1133,7 @@ export default function TripDetailScreen() {
           notes: editingLoc.notes ?? '',
           estimated_minutes: editingLoc.estimated_minutes != null ? String(editingLoc.estimated_minutes) : '',
           budget_per_person: editingLoc.budget_per_person != null ? String(editingLoc.budget_per_person) : '',
+          images: parseImages(editingLoc.images),
         } : undefined}
       />
     </View>
