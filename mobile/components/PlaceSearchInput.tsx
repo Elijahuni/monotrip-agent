@@ -1,4 +1,5 @@
-import { ActivityIndicator, FlatList, Image, Text, TouchableOpacity, View } from 'react-native';
+import { Image } from 'expo-image';
+import { ActivityIndicator, FlatList, Text, TouchableOpacity, View } from 'react-native';
 
 import { TextField } from '@/components/ui';
 import { palette } from '@/lib/design-tokens';
@@ -84,7 +85,7 @@ function PlaceRow({ place, onPress }: { place: PlaceSearchResult; onPress: () =>
       activeOpacity={0.7}>
       <View className="w-12 h-12 rounded-xl bg-bg-subtle overflow-hidden items-center justify-center">
         {place.photo_url ? (
-          <Image source={{ uri: place.photo_url }} className="w-12 h-12" resizeMode="cover" />
+          <Image source={{ uri: place.photo_url }} style={{ width: 48, height: 48 }} contentFit="cover" transition={150} />
         ) : (
           <Text className="text-xl">📍</Text>
         )}
