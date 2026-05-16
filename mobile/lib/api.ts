@@ -250,7 +250,11 @@ export const api = {
       preferences?: string;
       travel_style?: string;
     }): Promise<{ title: string; description: string; locations: Location[] }> {
-      const res = await client.get('/ai/recommend', { params: { ...params, travel_style: params.travel_style } });
+      // AI 생성은 Gemini 응답 시간이 길 수 있으므로 전용 timeout 60초 사용
+      const res = await client.get('/ai/recommend', {
+        params: { ...params, travel_style: params.travel_style },
+        timeout: 60_000,
+      });
       return parseResp(aiTripPlanSchema, res.data.data, 'ai.recommend') as {
         title: string;
         description: string;
@@ -261,6 +265,7 @@ export const api = {
     async destinationGuide(destination: string): Promise<DestinationGuide> {
       const res = await client.get<ApiResponse<DestinationGuide>>('/ai/destination-guide', {
         params: { destination },
+        timeout: 60_000, // 가이드 생성도 시간이 걸릴 수 있음
       });
       return res.data.data;
     },
@@ -281,7 +286,7 @@ export const api = {
       feedback: string;
       target_total?: number;
     }): Promise<{ title: string; description: string; locations: Location[] }> {
-      const res = await client.post('/ai/recommend/refine', body);
+      const res = await client.post('/ai/recommend/refine', body, { timeout: 60_000 });
       return parseResp(aiTripPlanSchema, res.data.data, 'ai.refine') as {
         title: string;
         description: string;

@@ -234,7 +234,17 @@ export default function ExploreScreen() {
       });
       setResult(data as AiResult);
     } catch (e) {
-      const msg = e instanceof AxiosError ? (e.response?.data?.detail ?? t('common', 'network')) : t('common', 'network');
+      let msg: string;
+      if (e instanceof AxiosError) {
+        if (e.code === 'ECONNABORTED') {
+          // timeout: AI 생성이 오래 걸리는 경우
+          msg = 'AI 일정 생성에 시간이 걸리고 있어요. 잠시 후 다시 시도해 주세요.';
+        } else {
+          msg = e.response?.data?.detail ?? e.response?.data?.message ?? t('common', 'network');
+        }
+      } else {
+        msg = e instanceof Error ? e.message : t('common', 'network');
+      }
       setAiError(msg);
     } finally { setLoading(false); }
   }

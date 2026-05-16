@@ -1,3 +1,4 @@
+import asyncio
 import json
 import logging
 import re
@@ -97,17 +98,28 @@ async def _call_gemini(client: genai.Client, prompt: str) -> str:
         response_mime_type="application/json",
         temperature=0.7,
     )
+    _GEMINI_TIMEOUT = 50  # 초 (모바일 클라이언트 60s보다 여유 있게)
+
     last_err: Exception | None = None
     for model in _CANDIDATE_MODELS:
         try:
-            response = await client.aio.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=config,
+            response = await asyncio.wait_for(
+                client.aio.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=config,
+                ),
+                timeout=_GEMINI_TIMEOUT,
             )
             if model != _CANDIDATE_MODELS[0]:
                 logger.warning("Used fallback model %s (primary unavailable)", model)
             return response.text
+        except asyncio.TimeoutError:
+            logger.error("Gemini timeout after %ss (model=%s)", _GEMINI_TIMEOUT, model)
+            raise HTTPException(
+                status_code=status.HTTP_504_GATEWAY_TIMEOUT,
+                detail="AI 응답이 너무 오래 걸립니다. 목적지를 짧게 입력하거나 일수를 줄여 다시 시도해 주세요.",
+            )
         except Exception as e:
             err_str = str(e)
             # 404 / "not found" → 해당 모델 미지원: 다음 모델 시도
