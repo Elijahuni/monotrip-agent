@@ -3,6 +3,7 @@ export interface Trip {
   id: number;
   user_id: number;
   title: string;
+  destination: string | null;   // 목적지 도시/국가명 (항공권·날씨 검색용)
   description: string | null;
   start_date: string | null;    // "YYYY-MM-DD"
   end_date: string | null;      // "YYYY-MM-DD"
@@ -35,7 +36,7 @@ export interface Location {
   budget_per_person: number | null;
   website: string | null;
   rating: number | null;
-  images: string | null;          // JSON 배열 문자열
+  images: string[] | null;
   google_place_id: string | null;
   created_at: string;
 }
@@ -71,11 +72,20 @@ export interface SavedPlace {
   notes: string | null;
   google_place_id: string | null;
   rating: number | null;
-  images: string | null;
+  images: string[] | null;
   website: string | null;
   phone: string | null;
   estimated_minutes: number | null;
   created_at: string;
+}
+
+/** 날씨 조건 기반 추천 여행지 (GET /ai/recommend/by-weather) */
+export interface WeatherDestination {
+  city: string;
+  country: string;
+  reason: string;
+  weather_desc: string;
+  sample_locations: string[];
 }
 
 /** AI 추천 여행지 가이드북 */

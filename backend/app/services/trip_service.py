@@ -3,8 +3,10 @@ import logging
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.database import AsyncSessionLocal
 from app.repositories.trip_repository import TripRepository
 from app.schemas.trip import LocationCreate, LocationResponse, LocationUpdate, TripCreate, TripPage, TripResponse, TripSummary, TripUpdate
+from app.services.ai.embedding_service import embed_place, embed_query
 
 logger = logging.getLogger(__name__)
 
@@ -75,9 +77,56 @@ class TripService:
     ) -> LocationResponse:
         trip = await self.repo.get_by_id(db, trip_id)
         self._assert_accessible(trip, trip_id, user_id)
+
+        duplicate = await self.repo.find_duplicate_location(db, trip_id, data)
+        if duplicate:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"이미 같은 장소가 추가되어 있습니다. (id={duplicate.id}, name={duplicate.name!r})",
+            )
+
         location = await self.repo.create_location(db, trip_id, data)
         logger.info("Location added: id=%s trip_id=%s", location.id, trip_id)
         return LocationResponse.model_validate(location)
+
+    async def embed_location_bg(self, location_id: int, data: LocationCreate) -> None:
+        """BackgroundTask용: 독립 세션으로 임베딩 생성 후 저장. 실패 시 조용히 무시."""
+        try:
+            vector = await embed_place(
+                name=data.name,
+                category=data.category,
+                address=data.address,
+                notes=getattr(data, "notes", None),
+            )
+            if not vector:
+                return
+            async with AsyncSessionLocal() as session:
+                await self.repo.update_embedding(session, location_id, vector)
+                await session.commit()
+        except Exception as exc:
+            logger.warning("임베딩 저장 실패 location_id=%s: %s", location_id, exc)
+
+    async def find_similar_locations(
+        self,
+        db: AsyncSession,
+        trip_id: int,
+        user_id: int,
+        query: str,
+        limit: int = 5,
+    ) -> list[LocationResponse]:
+        """자연어 쿼리로 여행 내 장소를 의미 검색. PostgreSQL+pgvector 필요."""
+        trip = await self.repo.get_by_id(db, trip_id)
+        self._assert_accessible(trip, trip_id, user_id)
+
+        query_vector = await embed_query(query)
+        if query_vector is None:
+            raise HTTPException(
+                status_code=503,
+                detail="임베딩 서비스를 사용할 수 없습니다. GEMINI_API_KEY를 확인하세요.",
+            )
+
+        locations = await self.repo.find_similar_in_trip(db, trip_id, query_vector, limit)
+        return [LocationResponse.model_validate(loc) for loc in locations]
 
     async def update_location(
         self,

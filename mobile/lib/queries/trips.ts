@@ -5,7 +5,7 @@ import { deleteTrip, getTrips, saveTrip, syncTrips } from '@/lib/local-trips';
 import { enqueueMutation, isNetworkError } from '@/lib/mutation-queue';
 import type { Location, Trip } from '@/lib/types';
 
-import { queryKeys } from './client';
+import { STALE_TIME, queryKeys } from './client';
 
 /**
  * 트립 목록 — cursor 기반 무한 스크롤 (Local-First).
@@ -17,6 +17,7 @@ export function useTrips() {
   return useInfiniteQuery<TripPage, Error>({
     queryKey: queryKeys.trips.all,
     initialPageParam: undefined as number | undefined,
+    staleTime: STALE_TIME.TRIPS,
     async queryFn({ pageParam }) {
       const cursor = pageParam as number | undefined;
       const page = await api.trips.getAll({ limit: 20, cursor });
@@ -35,6 +36,7 @@ export function useTrip(tripId: number, enabled = true) {
   return useQuery({
     queryKey: queryKeys.trips.detail(tripId),
     enabled,
+    staleTime: STALE_TIME.TRIPS,
     async queryFn() {
       const data = await api.trips.getOne(tripId);
       await saveTrip(data);

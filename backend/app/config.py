@@ -19,7 +19,8 @@ class Settings(BaseSettings):
     # Auth (JWT)
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 60 * 24 * 30  # 30일
+    jwt_expire_minutes: int = 15            # access token: 15분 (짧게, 보안)
+    jwt_refresh_expire_days: int = 7        # refresh token: 7일 (DB 저장, rotation)
 
     # App
     app_env: str = "development"

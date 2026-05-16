@@ -23,6 +23,7 @@ export const tripSchema = z.object({
   id: z.number().int().positive(),
   user_id: z.number().int().positive(),
   title: z.string().min(1),
+  destination: z.string().nullable().optional().transform(v => v ?? null),
   description: z.string().nullable(),
   start_date: ymdOrNull,
   end_date: ymdOrNull,
@@ -51,7 +52,7 @@ export const locationSchema = z.object({
   budget_per_person: z.number().nullable().optional().transform(v => v ?? null),
   website: z.string().nullable().optional().transform(v => v ?? null),
   rating: z.number().nullable().optional().transform(v => v ?? null),
-  images: z.string().nullable().optional().transform(v => v ?? null),
+  images: z.array(z.string()).nullable().optional().transform(v => v ?? null),
   google_place_id: z.string().nullable().optional().transform(v => v ?? null),
   created_at: isoDateTime,
 });
@@ -70,7 +71,9 @@ export const userSchema = z.object({
 
 export const tokenSchema = z.object({
   access_token: z.string().min(1),
+  refresh_token: z.string().min(1),
   token_type: z.string(),
+  expires_in: z.number().int().positive(),
 });
 
 export const placeSearchResultSchema = z.object({

@@ -35,7 +35,10 @@ async function getCachedGuide(destination: string): Promise<DestinationGuide | n
     );
     if (!row) return null;
     const age = Date.now() - new Date(row.cached_at).getTime();
-    if (age > CACHE_TTL_MS) return null;
+    if (age > CACHE_TTL_MS) {
+      await db.runAsync('DELETE FROM destination_guides WHERE destination = ?', [destination]);
+      return null;
+    }
     return JSON.parse(row.data) as DestinationGuide;
   } catch {
     return null;

@@ -1,10 +1,11 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Float, ForeignKey, String, Text, func
+from sqlalchemy import Float, ForeignKey, JSON, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
+from app.models._vector_type import CompatibleVector
 
 if TYPE_CHECKING:
     from app.models.trip import Trip
@@ -29,8 +30,10 @@ class Location(Base):
     budget_per_person: Mapped[int | None] = mapped_column(nullable=True)
     website: Mapped[str | None] = mapped_column(String(500), nullable=True)
     rating: Mapped[float | None] = mapped_column(Float, nullable=True)
-    images: Mapped[str | None] = mapped_column(Text, nullable=True)
+    images: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     google_place_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=func.now(), nullable=False)
+    # 장소 텍스트의 의미 벡터 (768차원). PostgreSQL: native vector, SQLite: JSON 배열.
+    embedding: Mapped[list[float] | None] = mapped_column(CompatibleVector(768), nullable=True)
 
     trip: Mapped["Trip"] = relationship("Trip", back_populates="locations")

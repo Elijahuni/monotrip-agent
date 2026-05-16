@@ -1,0 +1,49 @@
+# 로컬 개발 환경 (신규 개발자 온보딩용)
+# 사용법:
+#   cp backend/.env.example backend/.env   # .env 설정 후
+#   docker compose up --build
+#
+# 포트 매핑:
+#   PostgreSQL  → localhost:5432
+#   Backend API → localhost:8000  (http://localhost:8000/docs)
+
+services:
+  # ── PostgreSQL 16 + pgvector ──────────────────────────────────────────────
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-triple}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-triple}
+      POSTGRES_DB: ${POSTGRES_DB:-triple}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-triple} -d ${POSTGRES_DB:-triple}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── FastAPI 백엔드 ────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    env_file:
+      - ./backend/.env
+    environment:
+      # .env의 DATABASE_URL을 컨테이너 내부 db 서비스 호스트로 오버라이드
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-triple}:${POSTGRES_PASSWORD:-triple}@db:5432/${POSTGRES_DB:-triple}
+      APP_ENV: development
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    # CMD는 Dockerfile에서 alembic upgrade head && uvicorn ... 으로 정의되어 있음
+
+volumes:
+  pg_data:

@@ -1,6 +1,13 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
+// allow _retry flag on request config without TypeScript complaints
+declare module 'axios' {
+  interface InternalAxiosRequestConfig {
+    _retry?: boolean;
+  }
+}
+
 import {
   aiTripPlanSchema,
   locationSchema,
@@ -12,7 +19,7 @@ import {
   userSchema,
   type PlaceSearchResult,
 } from '@/lib/schemas';
-import type { ChecklistItem, DestinationGuide, Location, SavedPlace, Trip, UserCache } from '@/lib/types';
+import type { ChecklistItem, DestinationGuide, Location, SavedPlace, Trip, UserCache, WeatherDestination } from '@/lib/types';
 import { z } from 'zod';
 
 // ─── 환경 변수 ────────────────────────────────────────────────────────────────
@@ -20,6 +27,7 @@ import { z } from 'zod';
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 
 export const TOKEN_KEY = '@triple/access_token';
+export const REFRESH_TOKEN_KEY = '@triple/refresh_token';
 
 // ─── 공용 응답 타입 ────────────────────────────────────────────────────────────
 
@@ -44,7 +52,9 @@ export interface RegisterRequest {
 
 export interface TokenResponse {
   access_token: string;
+  refresh_token: string;
   token_type: string;
+  expires_in: number;
 }
 
 export interface UserResponse {
@@ -67,6 +77,7 @@ export interface TripLocationCreateRequest {
 
 export interface TripCreateRequest {
   title: string;
+  destination?: string | null;
   description?: string | null;
   start_date?: string | null;
   end_date?: string | null;
@@ -105,28 +116,48 @@ client.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
   return config;
 });
 
-// 응답 인터셉터: 401이면 authStore.logout() → status='guest'로 전환되어
-// (tabs) layout이 자동으로 /auth/login으로 redirect.
-//
-// 인증 자체가 필요 없는 엔드포인트(/auth/login, /auth/register)에서 발생한
-// 401(예: 잘못된 비밀번호)은 로그아웃 처리하지 않고 호출자에게 그대로 전달.
-//
-// 429 (rate limit) 에러는 토스트로 안내.
-//
+// 응답 인터셉터:
+// - 401: refresh token으로 갱신 시도 → 성공 시 원본 요청 재시도, 실패 시 logout.
+//   /auth/* 엔드포인트(로그인 실패 등)나 이미 재시도한 요청은 즉시 reject.
+// - 429: 사용자에게 토스트 안내.
 // store ← api 순환 import를 피하기 위해 dynamic import 사용.
 client.interceptors.response.use(
   (response) => response,
   async (error: AxiosError) => {
     const status = error.response?.status;
     const url = error.config?.url ?? '';
-    const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/register');
+    const isAuthEndpoint = /\/auth\/(login|register|refresh)/.test(url);
 
-    if (status === 401 && !isAuthEndpoint) {
+    if (status === 401 && !isAuthEndpoint && !error.config?._retry) {
+      const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+      if (refreshToken) {
+        try {
+          // 별도 axios 인스턴스로 호출 — 인터셉터 재진입 방지
+          const res = await axios.post<ApiResponse<TokenResponse>>(
+            `${BASE_URL}/auth/refresh`,
+            { refresh_token: refreshToken },
+            { headers: { 'Content-Type': 'application/json' } },
+          );
+          const newTokens = res.data.data;
+          await saveToken(newTokens.access_token, newTokens.refresh_token);
+
+          if (error.config) {
+            error.config._retry = true;
+            error.config.headers.Authorization = `Bearer ${newTokens.access_token}`;
+            return client(error.config);
+          }
+        } catch {
+          // refresh 실패 — 아래 logout 경로로 진행
+        }
+      }
+
+      // refresh token 없거나 갱신 실패 → 로그아웃
       try {
         const { useAuthStore } = await import('@/store');
         await useAuthStore.getState().logout();
       } catch {
         await AsyncStorage.removeItem(TOKEN_KEY);
+        await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
       }
     }
 
@@ -173,6 +204,10 @@ export const api = {
     async me(): Promise<UserResponse> {
       const res = await client.get<ApiResponse<UserResponse>>('/auth/me');
       return parseResp(userSchema, res.data.data, 'auth.me');
+    },
+
+    async logout(): Promise<void> {
+      await client.post('/auth/logout');
     },
   },
 
@@ -249,6 +284,12 @@ export const api = {
       days: number;
       preferences?: string;
       travel_style?: string;
+      /** wttr.in 현재 기온 (°C) */
+      weather_temp_c?: number;
+      /** wttr.in weatherCode (비/눈 감지) */
+      weather_code?: number;
+      /** 강우 확률 (0~100) */
+      rain_chance?: number;
     }): Promise<{ title: string; description: string; locations: Location[] }> {
       // AI 생성은 Gemini 응답 시간이 길 수 있으므로 전용 timeout 60초 사용
       const res = await client.get('/ai/recommend', {
@@ -268,6 +309,18 @@ export const api = {
         timeout: 60_000, // 가이드 생성도 시간이 걸릴 수 있음
       });
       return res.data.data;
+    },
+
+    /**
+     * 날씨 조건으로 세계 여행지 3곳 추천.
+     * @param weather_condition "sunny_warm" | "spring" | "snow" | "cool" | "hot_summer"
+     */
+    async byWeather(weather_condition: string): Promise<WeatherDestination[]> {
+      const res = await client.get<ApiResponse<{ destinations: WeatherDestination[] }>>(
+        '/ai/recommend/by-weather',
+        { params: { weather_condition }, timeout: 60_000 },
+      );
+      return res.data.data.destinations ?? [];
     },
 
     /** 부분 재생성 — 유지할 장소 + 피드백을 보내 나머지를 새로 받는다. */
@@ -426,12 +479,18 @@ export const api = {
 
 // ─── 인증 헬퍼 ────────────────────────────────────────────────────────────────
 
-export async function saveToken(token: string): Promise<void> {
-  await AsyncStorage.setItem(TOKEN_KEY, token);
+export async function saveToken(accessToken: string, refreshToken: string): Promise<void> {
+  await Promise.all([
+    AsyncStorage.setItem(TOKEN_KEY, accessToken),
+    AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken),
+  ]);
 }
 
 export async function clearToken(): Promise<void> {
-  await AsyncStorage.removeItem(TOKEN_KEY);
+  await Promise.all([
+    AsyncStorage.removeItem(TOKEN_KEY),
+    AsyncStorage.removeItem(REFRESH_TOKEN_KEY),
+  ]);
 }
 
 export async function getStoredToken(): Promise<string | null> {

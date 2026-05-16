@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { api } from '@/lib/api';
 import type { PlaceSearchResult } from '@/lib/schemas';
 
-import { queryKeys } from './client';
+import { STALE_TIME, queryKeys } from './client';
 
 interface UsePlaceSearchOptions {
   /** 디바운스 간격(ms). 기본 300ms */
@@ -24,8 +24,8 @@ function useDebounced<T>(value: T, delay: number): T {
 
 /**
  * 디바운스된 쿼리 + React Query 캐싱.
- *  - 1자 이하면 fetch 안 함
- *  - 동일 쿼리 30초 캐시 (queryClient 기본 staleTime)
+ *  - 2자 미만이면 fetch 안 함
+ *  - 동일 쿼리 1시간 캐시 (Google Places 데이터 변화 드물고 재검색 비용 큼)
  */
 export function usePlaceSearch(rawQuery: string, opts: UsePlaceSearchOptions = {}) {
   const { debounceMs = 300, near = null } = opts;
@@ -39,13 +39,13 @@ export function usePlaceSearch(rawQuery: string, opts: UsePlaceSearchOptions = {
       near?.longitude ?? null,
     ],
     enabled,
+    staleTime: STALE_TIME.PLACES,
     queryFn: () =>
       api.places.search({
         query,
         lat: near?.latitude,
         lng: near?.longitude,
       }),
-    // 짧은 입력 변경에도 무거운 API 호출이 누적되지 않도록 retry 0
     retry: 0,
   });
 }

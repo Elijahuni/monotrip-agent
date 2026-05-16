@@ -1,0 +1,91 @@
+name: CI
+
+on:
+  push:
+    branches: [master, develop, "pr/**"]
+  pull_request:
+    branches: [master, develop]
+
+jobs:
+  # ── 백엔드 (FastAPI / pytest) ────────────────────────────────────────────
+  backend:
+    name: Backend — lint & test
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: triple
+          POSTGRES_PASSWORD: triple
+          POSTGRES_DB: triple_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U triple -d triple_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: backend
+
+    env:
+      DATABASE_URL: postgresql+asyncpg://triple:triple@localhost:5432/triple_test
+      GEMINI_API_KEY: dummy-key-for-ci
+      JWT_SECRET: ci-secret
+      APP_ENV: test
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: uv sync --frozen
+
+      - name: Lint (ruff)
+        run: uv run ruff check .
+
+      - name: Format check (ruff)
+        run: uv run ruff format --check .
+
+      - name: Run tests
+        run: uv run pytest -v --tb=short
+
+  # ── 모바일 (TypeScript 타입 체크 + Jest) ────────────────────────────────
+  mobile:
+    name: Mobile — type-check & test
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: mobile
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: mobile/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript type-check
+        run: npx tsc --noEmit
+
+      - name: Run tests
+        run: npm run test:ci

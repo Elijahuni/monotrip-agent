@@ -65,8 +65,10 @@ function DateRow({ label, value, onPress }: { label: string; value: string | nul
 
 interface TripFormData {
   title: string;
+  destination?: string | null;
   start_date: string | null;
   end_date: string | null;
+  group_size: number;
 }
 
 interface TripFormSheetProps {
@@ -79,16 +81,20 @@ interface TripFormSheetProps {
 
 function TripFormSheet({ visible, initial = {}, mode, onClose, onSubmit }: TripFormSheetProps) {
   const [title, setTitle] = useState(initial.title ?? '');
+  const [destination, setDestination] = useState(initial.destination ?? '');
   const [startDate, setStartDate] = useState<string | null>(initial.start_date ?? null);
   const [endDate, setEndDate] = useState<string | null>(initial.end_date ?? null);
+  const [groupSize, setGroupSize] = useState(initial.group_size ?? 1);
   const [loading, setLoading] = useState(false);
   const [pickerTarget, setPickerTarget] = useState<'start' | 'end' | null>(null);
 
   useEffect(() => {
     if (visible) {
       setTitle(initial.title ?? '');
+      setDestination(initial.destination ?? '');
       setStartDate(initial.start_date ?? null);
       setEndDate(initial.end_date ?? null);
+      setGroupSize(initial.group_size ?? 1);
       setPickerTarget(null);
     }
   }, [visible]);
@@ -108,9 +114,13 @@ function TripFormSheet({ visible, initial = {}, mode, onClose, onSubmit }: TripF
   async function handleSubmit() {
     const trimmed = title.trim();
     if (!trimmed) return;
+    if (startDate && endDate && startDate > endDate) {
+      Alert.alert('날짜 오류', '출발일은 귀국일보다 이전이어야 합니다.');
+      return;
+    }
     setLoading(true);
     try {
-      await onSubmit({ title: trimmed, start_date: startDate, end_date: endDate });
+      await onSubmit({ title: trimmed, destination: destination.trim() || null, start_date: startDate, end_date: endDate, group_size: groupSize });
       onClose();
     } finally {
       setLoading(false);
@@ -138,6 +148,15 @@ function TripFormSheet({ visible, initial = {}, mode, onClose, onSubmit }: TripF
         value={title}
         onChangeText={setTitle}
         autoFocus={!isEdit}
+        returnKeyType="next"
+        containerClassName="mb-3"
+      />
+
+      <TextField
+        label="목적지 (선택)"
+        placeholder="예: 도쿄, 파리, 방콕"
+        value={destination}
+        onChangeText={setDestination}
         returnKeyType="done"
         onSubmitEditing={handleSubmit}
         containerClassName="mb-4"
@@ -193,6 +212,26 @@ function TripFormSheet({ visible, initial = {}, mode, onClose, onSubmit }: TripF
           <Text className="text-xs text-tx-tertiary">날짜 초기화</Text>
         </TouchableOpacity>
       )}
+
+      {/* 인원 스텝퍼 */}
+      <Text className="text-xs font-semibold text-tx-secondary mb-1.5 ml-1">인원</Text>
+      <View className="flex-row items-center bg-bg-subtle rounded-xl px-4 py-2 mb-4">
+        <TouchableOpacity
+          onPress={() => setGroupSize(g => Math.max(1, g - 1))}
+          activeOpacity={0.7}
+          className="w-8 h-8 rounded-full bg-bg-base border border-line-default items-center justify-center">
+          <Text className="text-lg text-tx-primary leading-none">−</Text>
+        </TouchableOpacity>
+        <View className="flex-1 items-center">
+          <Text className="text-base font-semibold text-tx-primary">{groupSize}명</Text>
+        </View>
+        <TouchableOpacity
+          onPress={() => setGroupSize(g => Math.min(50, g + 1))}
+          activeOpacity={0.7}
+          className="w-8 h-8 rounded-full bg-bg-base border border-line-default items-center justify-center">
+          <Text className="text-lg text-tx-primary leading-none">+</Text>
+        </TouchableOpacity>
+      </View>
 
       <Button
         label={isEdit ? '수정하기' : '만들기'}
@@ -408,14 +447,8 @@ export default function HomeScreen() {
           keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => {
             // 첫 번째 장소의 첫 번째 이미지를 썸네일로 활용
-            const thumbnail = (() => {
-              try {
-                const raw = (item as any).locations?.[0]?.images;
-                if (!raw) return null;
-                const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
-                return Array.isArray(arr) && arr.length > 0 ? arr[0] : null;
-              } catch { return null; }
-            })();
+            const images: string[] | null = (item as any).locations?.[0]?.images ?? null;
+            const thumbnail = Array.isArray(images) && images.length > 0 ? images[0] : null;
             return (
               <TripCard
                 trip={item}
@@ -501,8 +534,10 @@ export default function HomeScreen() {
         mode="edit"
         initial={editTarget ? {
           title: editTarget.title,
+          destination: editTarget.destination,
           start_date: editTarget.start_date,
           end_date: editTarget.end_date,
+          group_size: editTarget.group_size,
         } : {}}
         onClose={() => setEditTarget(null)}
         onSubmit={handleEdit}

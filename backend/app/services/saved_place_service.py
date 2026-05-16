@@ -3,7 +3,6 @@ import logging
 from fastapi import HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.location import Location
 from app.repositories.saved_place_repository import SavedPlaceRepository
 from app.repositories.trip_repository import TripRepository
 from app.schemas.saved_place import AddToTripRequest, SavedPlaceCreate, SavedPlaceResponse

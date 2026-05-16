@@ -1,6 +1,7 @@
 from datetime import date, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+from typing import Self
 
 
 class LocationCreate(BaseModel):
@@ -18,7 +19,7 @@ class LocationCreate(BaseModel):
     budget_per_person: int | None = None
     website: str | None = None
     rating: float | None = None
-    images: str | None = None
+    images: list[str] | None = None
     google_place_id: str | None = None
 
 
@@ -37,7 +38,7 @@ class LocationUpdate(BaseModel):
     budget_per_person: int | None = None
     website: str | None = None
     rating: float | None = None
-    images: str | None = None
+    images: list[str] | None = None
     google_place_id: str | None = None
 
 
@@ -58,15 +59,22 @@ class LocationResponse(BaseModel):
     budget_per_person: int | None = None
     website: str | None = None
     rating: float | None = None
-    images: str | None = None
+    images: list[str] | None = None
     google_place_id: str | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
 
 
+def _validate_date_range(start: date | None, end: date | None) -> None:
+    """start_date > end_date이면 ValueError."""
+    if start is not None and end is not None and start > end:
+        raise ValueError("출발일(start_date)은 귀국일(end_date)보다 이전이어야 합니다.")
+
+
 class TripCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
+    destination: str | None = Field(default=None, max_length=200, description="목적지 도시/국가명 (항공권·날씨 검색용)")
     description: str | None = None
     start_date: date | None = None
     end_date: date | None = None
@@ -75,9 +83,15 @@ class TripCreate(BaseModel):
     group_size: int = Field(default=1, ge=1)
     locations: list[LocationCreate] = Field(default_factory=list)
 
+    @model_validator(mode="after")
+    def check_dates(self) -> Self:
+        _validate_date_range(self.start_date, self.end_date)
+        return self
+
 
 class TripUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
+    destination: str | None = Field(default=None, max_length=200)
     description: str | None = None
     start_date: date | None = None
     end_date: date | None = None
@@ -85,11 +99,17 @@ class TripUpdate(BaseModel):
     total_budget: int | None = None
     group_size: int | None = Field(default=None, ge=1)
 
+    @model_validator(mode="after")
+    def check_dates(self) -> Self:
+        _validate_date_range(self.start_date, self.end_date)
+        return self
+
 
 class TripSummary(BaseModel):
     id: int
     user_id: int
     title: str
+    destination: str | None = None
     description: str | None
     start_date: date | None
     end_date: date | None

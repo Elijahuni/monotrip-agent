@@ -1,7 +1,7 @@
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -82,9 +82,12 @@ async def delete_trip(
     status_code=201,
 )
 async def add_location(
-    trip_id: int, body: LocationCreate, current_user: CurrentUser, db: DbSession
+    trip_id: int, body: LocationCreate, background_tasks: BackgroundTasks,
+    current_user: CurrentUser, db: DbSession,
 ) -> ApiResponse[LocationResponse]:
     location = await _service.add_location(db, trip_id, current_user.id, body)
+    # 임베딩은 응답 후 별도 세션에서 백그라운드로 처리
+    background_tasks.add_task(_service.embed_location_bg, location.id, body)
     return ApiResponse(data=location)
 
 
@@ -111,6 +114,28 @@ async def delete_location(
     return ApiResponse(data=None, message="장소가 삭제되었습니다.")
 
 
+@router.get(
+    "/{trip_id}/locations/similar",
+    response_model=ApiResponse[list[LocationResponse]],
+    summary="의미 유사 장소 검색 (pgvector)",
+)
+async def similar_locations(
+    trip_id: int,
+    q: str,
+    current_user: CurrentUser,
+    db: DbSession,
+    limit: int = 5,
+) -> ApiResponse[list[LocationResponse]]:
+    """자연어 쿼리 q와 의미적으로 가장 가까운 장소를 반환.
+
+    예: ?q=카페 분위기 조용한 곳  →  해당 여행의 카페 중 유사한 장소 순위.
+    임베딩이 없는 장소는 결과에서 제외됨 (장소 추가 후 수 초 내 생성됨).
+    PostgreSQL + pgvector 환경에서만 동작 (SQLite에서는 빈 리스트).
+    """
+    locations = await _service.find_similar_locations(db, trip_id, current_user.id, q, limit)
+    return ApiResponse(data=locations)
+
+
 # ── 공유 (UP-7) ───────────────────────────────────────────────────────────────
 
 @router.post("/{trip_id}/share", response_model=ApiResponse[dict])
@@ -123,11 +148,14 @@ async def share_trip(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="여행을 찾을 수 없습니다.")
 
     now = datetime.now(timezone.utc)
-    # 토큰이 없거나 만료됐으면 새로 발급
+    # 토큰이 없거나 만료됐으면 새로 발급 (SQLite naive datetime 정규화)
+    _exp = trip.share_token_expires_at
+    if _exp is not None and _exp.tzinfo is None:
+        _exp = _exp.replace(tzinfo=timezone.utc)
     needs_new_token = (
         not trip.share_token
-        or trip.share_token_expires_at is None
-        or trip.share_token_expires_at < now
+        or _exp is None
+        or _exp < now
     )
     if needs_new_token:
         trip.share_token = secrets.token_urlsafe(16)
@@ -156,9 +184,13 @@ async def get_shared_trip(share_token: str, db: DbSession) -> ApiResponse[dict]:
     if trip is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="공유된 여행을 찾을 수 없습니다.")
 
-    # 만료 체크
+    # 만료 체크: expires_at이 NULL이면 항상 만료로 처리
+    # SQLite는 naive datetime을 반환하므로 UTC로 정규화
     now = datetime.now(timezone.utc)
-    if trip.share_token_expires_at and trip.share_token_expires_at < now:
+    expires_at = trip.share_token_expires_at
+    if expires_at is not None and expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at is None or expires_at < now:
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail="공유 링크가 만료되었습니다. 여행 주인에게 재공유를 요청하세요.",

@@ -34,7 +34,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const token = await api.auth.login({ email: email.trim(), password });
-      await login(token.access_token);
+      await login(token.access_token, token.refresh_token);
       router.replace('/(tabs)');
     } catch (e) {
       const msg = e instanceof AxiosError

@@ -1,4 +1,4 @@
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -91,6 +91,31 @@ class TripRepository:
         result = await db.execute(stmt)
         return result.scalars().first()
 
+    async def find_duplicate_location(
+        self,
+        db: AsyncSession,
+        trip_id: int,
+        data: LocationCreate,
+    ) -> Location | None:
+        """동일 google_place_id 또는 동일 좌표(소수점 5자리 ≈ 1m 오차) 장소를 반환."""
+        if data.google_place_id:
+            stmt = select(Location).where(
+                Location.trip_id == trip_id,
+                Location.google_place_id == data.google_place_id,
+            )
+            result = await db.execute(stmt)
+            return result.scalars().first()
+
+        # google_place_id 없음 → 모든 위치를 Python에서 좌표 비교
+        stmt = select(Location).where(Location.trip_id == trip_id)
+        result = await db.execute(stmt)
+        lat = round(data.latitude, 5)
+        lng = round(data.longitude, 5)
+        for loc in result.scalars().all():
+            if round(loc.latitude, 5) == lat and round(loc.longitude, 5) == lng:
+                return loc
+        return None
+
     async def create_location(
         self, db: AsyncSession, trip_id: int, data: LocationCreate
     ) -> Location:
@@ -113,6 +138,57 @@ class TripRepository:
     async def delete_location(self, db: AsyncSession, location: Location) -> None:
         await db.delete(location)
         await db.flush()
+
+    # ── 임베딩 ──────────────────────────────────────────────────────────────────
+
+    async def update_embedding(
+        self, db: AsyncSession, location_id: int, vector: list[float]
+    ) -> None:
+        """Location.embedding 컬럼만 갱신. 별도 커밋 없이 flush만."""
+        await db.execute(
+            update(Location)
+            .where(Location.id == location_id)
+            .values(embedding=vector)
+        )
+        await db.flush()
+
+    async def find_similar_in_trip(
+        self,
+        db: AsyncSession,
+        trip_id: int,
+        query_vector: list[float],
+        limit: int = 5,
+    ) -> list[Location]:
+        """코사인 유사도 기반 유사 장소 검색 (PostgreSQL + pgvector 전용).
+
+        embedding IS NOT NULL인 장소만 대상으로 하며, 거리 오름차순 정렬.
+        SQLite에서는 빈 리스트를 반환한다.
+        """
+        # dialect 확인: SQLite에서는 pgvector 연산자가 없음
+        if db.bind is None:
+            conn_info = db.get_bind()
+        else:
+            conn_info = db.bind
+        # SQLAlchemy 2.x: engine dialect name 확인
+        try:
+            dialect_name = db.get_bind().dialect.name  # type: ignore[union-attr]
+        except Exception:
+            dialect_name = "unknown"
+
+        if dialect_name != "postgresql":
+            return []
+
+        # pgvector 코사인 거리 연산자 <=> 사용
+        vector_literal = f"[{','.join(str(v) for v in query_vector)}]"
+        stmt = (
+            select(Location)
+            .where(Location.trip_id == trip_id)
+            .where(Location.embedding.isnot(None))
+            .order_by(text(f"embedding <=> '{vector_literal}'::vector"))
+            .limit(limit)
+        )
+        result = await db.execute(stmt)
+        return list(result.scalars().all())
 
     # ── 사용자 선호 추정 ───────────────────────────────────────────────────────
 

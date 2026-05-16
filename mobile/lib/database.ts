@@ -21,6 +21,7 @@ export async function createTables(db: SQLite.SQLiteDatabase): Promise<void> {
       id            INTEGER PRIMARY KEY,
       user_id       INTEGER NOT NULL,
       title         TEXT    NOT NULL,
+      destination   TEXT,
       description   TEXT,
       start_date    TEXT,
       end_date      TEXT,
@@ -108,6 +109,7 @@ export async function createTables(db: SQLite.SQLiteDatabase): Promise<void> {
 
   // 기존 DB 마이그레이션: 누락 컬럼 추가 (이미 있으면 에러 무시)
   const migrations = [
+    "ALTER TABLE trips ADD COLUMN destination TEXT",
     "ALTER TABLE trips ADD COLUMN total_budget INTEGER",
     "ALTER TABLE trips ADD COLUMN group_size INTEGER NOT NULL DEFAULT 1",
     "ALTER TABLE trips ADD COLUMN share_token TEXT",

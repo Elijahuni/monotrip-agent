@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy import Float, ForeignKey, String, Text, func
+from sqlalchemy import Float, ForeignKey, JSON, String, Text, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -19,7 +19,7 @@ class SavedPlace(Base):
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
     google_place_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
     rating: Mapped[float | None] = mapped_column(Float, nullable=True)
-    images: Mapped[str | None] = mapped_column(Text, nullable=True)
+    images: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     website: Mapped[str | None] = mapped_column(String(500), nullable=True)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     estimated_minutes: Mapped[int | None] = mapped_column(nullable=True)

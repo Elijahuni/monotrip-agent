@@ -14,6 +14,7 @@ export interface CurrentWeather {
   description: string;     // "Partly cloudy"
   icon: string;            // 날씨 이모지
   wind_kph: number;
+  weather_code: number;    // wttr.in weatherCode (비/눈 감지용)
 }
 
 export interface WeatherForecast {
@@ -34,16 +35,24 @@ export interface WeatherData {
 }
 
 // ─── 조건 코드 → 이모지 매핑 ──────────────────────────────────────────────────
+// Set으로 모듈 상수화: 함수 호출마다 배열이 재생성되는 것을 방지 (O(n)→O(1))
+
+const CODES_CLOUDY   = new Set([119, 122]);
+const CODES_FOG      = new Set([143, 248, 260]);
+const CODES_RAIN     = new Set([176, 293, 296, 299, 302, 305, 308, 353, 356, 359]);
+const CODES_SNOW     = new Set([179, 182, 185, 281, 284, 311, 314, 317, 320, 362, 365, 374, 377]);
+const CODES_THUNDER  = new Set([200, 386, 389, 392, 395]);
+const CODES_DRIZZLE  = new Set([263, 266]);
 
 function codeToEmoji(code: number): string {
   if (code === 113) return '☀️';
   if (code === 116) return '⛅';
-  if ([119, 122].includes(code)) return '☁️';
-  if ([143, 248, 260].includes(code)) return '🌫️';
-  if ([176, 293, 296, 299, 302, 305, 308, 353, 356, 359].includes(code)) return '🌧️';
-  if ([179, 182, 185, 281, 284, 311, 314, 317, 320, 362, 365, 374, 377].includes(code)) return '🌨️';
-  if ([200, 386, 389, 392, 395].includes(code)) return '⛈️';
-  if ([263, 266].includes(code)) return '🌦️';
+  if (CODES_CLOUDY.has(code))  return '☁️';
+  if (CODES_FOG.has(code))     return '🌫️';
+  if (CODES_RAIN.has(code))    return '🌧️';
+  if (CODES_SNOW.has(code))    return '🌨️';
+  if (CODES_THUNDER.has(code)) return '⛈️';
+  if (CODES_DRIZZLE.has(code)) return '🌦️';
   return '🌤️';
 }
 
@@ -91,6 +100,7 @@ export async function fetchWeather(destination: string): Promise<WeatherData> {
     description:  cur.weatherDesc[0]?.value ?? '',
     icon:         codeToEmoji(code),
     wind_kph:     Number(cur.windspeedKmph),
+    weather_code: code,
   };
 
   const forecast: WeatherForecast[] = json.weather.slice(0, 3).map((day) => {
