@@ -11,7 +11,10 @@ from app.schemas.ai import AiLocationPlan, AiRefineRequest, AiTripPlan, Destinat
 
 logger = logging.getLogger(__name__)
 
-_MODEL_NAME = "gemini-2.0-flash"
+# gemini-2.0-flash (버전 별칭) → 신규 계정 차단됨 (2025-05).
+# 명시적 스냅샷 버전 사용. 폴백 순서: 2.0-flash-001 → 1.5-flash-latest
+_MODEL_NAME = "gemini-2.0-flash-001"
+_MODEL_FALLBACK = "gemini-1.5-flash-latest"
 
 
 def _sanitize_user_input(text: str, max_len: int = 200) -> str:
@@ -78,6 +81,47 @@ def _parse_json(raw: str) -> dict:
     return json.loads(cleaned)
 
 
+async def _call_gemini(client: genai.Client, prompt: str) -> str:
+    """Gemini 호출 — 주 모델 실패 시 fallback 모델로 재시도.
+
+    404 NOT_FOUND: 모델이 이 계정에서 차단됨 → fallback
+    429 / 503:     일시적 과부하 → HTTPException(502) 전파
+    """
+    config = types.GenerateContentConfig(
+        response_mime_type="application/json",
+        temperature=0.7,
+    )
+    for model in (_MODEL_NAME, _MODEL_FALLBACK):
+        try:
+            response = await client.aio.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=config,
+            )
+            if model != _MODEL_NAME:
+                logger.warning("Primary model unavailable; used fallback %s", model)
+            return response.text
+        except Exception as e:
+            err_str = str(e)
+            # 404 → 이 계정에서 모델 차단: 다음 모델 시도
+            if "404" in err_str or "NOT_FOUND" in err_str:
+                logger.warning("Model %s not available (404), trying next model. err=%s", model, err_str[:120])
+                continue
+            # 그 외 오류: 즉시 전파
+            logger.error("Gemini API error (model=%s): %s", model, e, exc_info=True)
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail="AI 추천 서비스에 일시적인 오류가 발생했습니다.",
+            )
+
+    # 모든 모델 실패
+    logger.error("All Gemini models unavailable: %s, %s", _MODEL_NAME, _MODEL_FALLBACK)
+    raise HTTPException(
+        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+        detail="AI 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요.",
+    )
+
+
 async def generate_trip_plan(
     destination: str,
     days: int,
@@ -106,22 +150,7 @@ async def generate_trip_plan(
             + "\n위 카테고리를 일정에 적절히 반영해줘."
         )
 
-    try:
-        response = await client.aio.models.generate_content(
-            model=_MODEL_NAME,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.7,
-            ),
-        )
-        raw = response.text
-    except Exception as e:
-        logger.error("Gemini API error: %s", e, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="AI 추천 서비스에 일시적인 오류가 발생했습니다.",
-        )
+    raw = await _call_gemini(client, prompt)
 
     try:
         data = _parse_json(raw)
@@ -191,22 +220,7 @@ async def refine_trip_plan(req: AiRefineRequest) -> AiTripPlan:
         target_total=target_total,
     )
 
-    try:
-        response = await client.aio.models.generate_content(
-            model=_MODEL_NAME,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.8,  # refine은 좀 더 발산
-            ),
-        )
-        raw = response.text
-    except Exception as e:
-        logger.error("Gemini refine API error: %s", e, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="AI 추천 서비스에 일시적인 오류가 발생했습니다.",
-        )
+    raw = await _call_gemini(client, prompt)
 
     try:
         data = _parse_json(raw)
@@ -263,22 +277,7 @@ async def generate_destination_guide(destination: str) -> DestinationGuide:
     safe_destination = _sanitize_user_input(destination, max_len=100)
     prompt = _DESTINATION_GUIDE_TEMPLATE.format(destination=safe_destination)
 
-    try:
-        response = await client.aio.models.generate_content(
-            model=_MODEL_NAME,
-            contents=prompt,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                temperature=0.4,
-            ),
-        )
-        raw = response.text
-    except Exception as e:
-        logger.error("Gemini destination guide error: %s", e, exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="AI 가이드 서비스에 일시적인 오류가 발생했습니다.",
-        )
+    raw = await _call_gemini(client, prompt)
 
     try:
         data = _parse_json(raw)
