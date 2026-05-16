@@ -11,10 +11,16 @@ from app.schemas.ai import AiLocationPlan, AiRefineRequest, AiTripPlan, Destinat
 
 logger = logging.getLogger(__name__)
 
-# gemini-2.0-flash (버전 별칭) → 신규 계정 차단됨 (2025-05).
-# 명시적 스냅샷 버전 사용. 폴백 순서: 2.0-flash-001 → 1.5-flash-latest
-_MODEL_NAME = "gemini-2.0-flash-001"
-_MODEL_FALLBACK = "gemini-1.5-flash-latest"
+# ─── Gemini 모델 우선순위 목록 ────────────────────────────────────────────────
+# API 키의 v1beta 모델 목록(GET /v1beta/models)에서 generateContent를 지원하는 것만 사용.
+# 신규 계정은 gemini-2.0-flash / gemini-2.0-flash-001 계열이 차단될 수 있음.
+# gemini-2.5-flash: 신규 계정 제한 없이 사용 가능한 최신 안정 모델.
+# 상위부터 순서대로 시도 → 404 시 다음 모델로 자동 전환.
+_CANDIDATE_MODELS: list[str] = [
+    "gemini-2.5-flash",      # 최신 안정 (신규 계정 사용 가능 ✅ 실증)
+    "gemini-2.5-flash-lite", # 경량 2.5 (신규 계정 사용 가능 ✅ 실증)
+    "gemini-2.5-pro",        # Pro — 위 둘 실패 시 최후 수단
+]
 
 
 def _sanitize_user_input(text: str, max_len: int = 200) -> str:
@@ -82,43 +88,51 @@ def _parse_json(raw: str) -> dict:
 
 
 async def _call_gemini(client: genai.Client, prompt: str) -> str:
-    """Gemini 호출 — 주 모델 실패 시 fallback 모델로 재시도.
+    """Gemini 호출 — _CANDIDATE_MODELS 순서대로 시도, 첫 성공 모델 사용.
 
-    404 NOT_FOUND: 모델이 이 계정에서 차단됨 → fallback
-    429 / 503:     일시적 과부하 → HTTPException(502) 전파
+    404 NOT_FOUND / "not found" : 이 계정·API버전에서 모델 미지원 → 다음 모델
+    429 / 503 등 일시적 오류    : 즉시 502 전파 (재시도 무의미)
     """
     config = types.GenerateContentConfig(
         response_mime_type="application/json",
         temperature=0.7,
     )
-    for model in (_MODEL_NAME, _MODEL_FALLBACK):
+    last_err: Exception | None = None
+    for model in _CANDIDATE_MODELS:
         try:
             response = await client.aio.models.generate_content(
                 model=model,
                 contents=prompt,
                 config=config,
             )
-            if model != _MODEL_NAME:
-                logger.warning("Primary model unavailable; used fallback %s", model)
+            if model != _CANDIDATE_MODELS[0]:
+                logger.warning("Used fallback model %s (primary unavailable)", model)
             return response.text
         except Exception as e:
             err_str = str(e)
-            # 404 → 이 계정에서 모델 차단: 다음 모델 시도
-            if "404" in err_str or "NOT_FOUND" in err_str:
-                logger.warning("Model %s not available (404), trying next model. err=%s", model, err_str[:120])
+            # 404 / "not found" → 해당 모델 미지원: 다음 모델 시도
+            if "404" in err_str or "NOT_FOUND" in err_str or "not found" in err_str.lower():
+                logger.warning(
+                    "Model %s not available, trying next. err=%s",
+                    model, err_str[:150],
+                )
+                last_err = e
                 continue
-            # 그 외 오류: 즉시 전파
+            # 그 외 오류(429/500 등): 즉시 전파
             logger.error("Gemini API error (model=%s): %s", model, e, exc_info=True)
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
                 detail="AI 추천 서비스에 일시적인 오류가 발생했습니다.",
             )
 
-    # 모든 모델 실패
-    logger.error("All Gemini models unavailable: %s, %s", _MODEL_NAME, _MODEL_FALLBACK)
+    # 모든 후보 모델 실패
+    logger.error(
+        "All Gemini candidate models unavailable: %s. last_err=%s",
+        _CANDIDATE_MODELS, last_err,
+    )
     raise HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-        detail="AI 서비스를 일시적으로 사용할 수 없습니다. 잠시 후 다시 시도해주세요.",
+        detail="AI 서비스를 현재 사용할 수 없습니다. API 키의 모델 접근 권한을 확인해주세요.",
     )
 
 
