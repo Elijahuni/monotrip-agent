@@ -3,7 +3,7 @@
 신고 누적 시 자동 숨김(3건) — 1차 모더레이션. Gemini 자동 분류는 후속.
 """
 
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
 from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, status
@@ -15,6 +15,8 @@ from app.dependencies.auth import CurrentUser
 from app.dependencies.db import DbSession
 from app.limiter import limiter
 from app.models.community import (
+    LIVE_TTL_HOURS,
+    POST_TYPE_LIVE,
     CommunityComment,
     CommunityPost,
     CommunityPostLike,
@@ -76,6 +78,7 @@ router = APIRouter(prefix="/community", tags=["community"])
 
 
 class PostCreate(BaseModel):
+    post_type: Literal["regular", "live"] = "regular"
     category: Literal["qna", "review", "photospot"] = "qna"
     city: str | None = Field(default=None, max_length=50)
     title: str = Field(min_length=1, max_length=200)
@@ -86,6 +89,7 @@ class PostCreate(BaseModel):
 class PostResponse(BaseModel):
     id: int
     user_id: int
+    post_type: str
     category: str
     city: str | None
     title: str
@@ -93,6 +97,7 @@ class PostResponse(BaseModel):
     images: list[str] | None
     like_count: int
     comment_count: int
+    expires_at: datetime | None
     created_at: datetime
     model_config = {"from_attributes": True}
 
@@ -124,12 +129,16 @@ async def feed(
     db: DbSession,
     city: str | None = Query(default=None, max_length=50),
     category: Literal["qna", "review", "photospot"] | None = Query(default=None),
+    post_type: Literal["regular", "live"] | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=50),
     cursor: int | None = Query(default=None, description="마지막으로 받은 post_id (exclusive)"),
 ) -> ApiResponse[list[PostResponse]]:
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
     stmt = (
         select(CommunityPost)
         .where(CommunityPost.is_hidden.is_(False))
+        # 만료된 live 게시글 제외
+        .where((CommunityPost.expires_at.is_(None)) | (CommunityPost.expires_at > now))
         .order_by(desc(CommunityPost.id))
         .limit(limit)
     )
@@ -137,8 +146,36 @@ async def feed(
         stmt = stmt.where(CommunityPost.city == city)
     if category:
         stmt = stmt.where(CommunityPost.category == category)
+    if post_type:
+        stmt = stmt.where(CommunityPost.post_type == post_type)
     if cursor:
         stmt = stmt.where(CommunityPost.id < cursor)
+    rows = (await db.execute(stmt)).scalars().all()
+    return ApiResponse(data=[PostResponse.model_validate(r) for r in rows])
+
+
+@router.get("/feed/live", response_model=ApiResponse[list[PostResponse]])
+async def live_feed(
+    current_user: CurrentUser,
+    db: DbSession,
+    city: str | None = Query(default=None, max_length=50),
+    limit: int = Query(default=20, ge=1, le=50),
+) -> ApiResponse[list[PostResponse]]:
+    """실시간 마이크로피드 — live 게시글만, 최신순, 만료 제외.
+
+    5분마다 자동 새로고침 권장 (모바일에서 setInterval 사용).
+    """
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    stmt = (
+        select(CommunityPost)
+        .where(CommunityPost.post_type == POST_TYPE_LIVE)
+        .where(CommunityPost.is_hidden.is_(False))
+        .where(CommunityPost.expires_at > now)
+        .order_by(desc(CommunityPost.created_at))
+        .limit(limit)
+    )
+    if city:
+        stmt = stmt.where(CommunityPost.city == city)
     rows = (await db.execute(stmt)).scalars().all()
     return ApiResponse(data=[PostResponse.model_validate(r) for r in rows])
 
@@ -155,13 +192,22 @@ async def create_post(
     current_user: CurrentUser,
     db: DbSession,
 ) -> ApiResponse[PostResponse]:
+    # live 게시글: expires_at = 작성 시각 + 6시간 TTL
+    expires_at = None
+    if body.post_type == POST_TYPE_LIVE:
+        expires_at = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(
+            hours=LIVE_TTL_HOURS
+        )
+
     post = CommunityPost(
         user_id=current_user.id,
+        post_type=body.post_type,
         category=body.category,
         city=body.city,
         title=body.title,
         body=body.body,
         images=body.images,
+        expires_at=expires_at,
     )
     db.add(post)
     await db.flush()

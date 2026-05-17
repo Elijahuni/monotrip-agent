@@ -122,12 +122,13 @@ export default function ProfileScreen() {
 
         {/* 메뉴 */}
         {([
-          { labelKey: 'notices' as const, icon: '📢' },
-          { labelKey: 'privacy'  as const, icon: '🔒' },
-          { labelKey: 'terms'    as const, icon: '📋' },
+          { labelKey: 'notices' as const, icon: '📢', route: null },
+          { labelKey: 'privacy'  as const, icon: '🔒', route: '/legal/privacy' as const },
+          { labelKey: 'terms'    as const, icon: '📋', route: '/legal/terms' as const },
         ]).map((item) => (
           <TouchableOpacity
             key={item.labelKey}
+            onPress={() => { if (item.route) router.push(item.route); }}
             style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, borderTopWidth: 1, borderTopColor: borderC }}
             activeOpacity={0.7}>
             <Text style={{ fontSize: 16, marginRight: 12 }}>{item.icon}</Text>

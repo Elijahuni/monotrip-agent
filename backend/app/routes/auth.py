@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from app.dependencies.auth import CurrentUser
@@ -7,6 +7,7 @@ from app.limiter import limiter
 from app.schemas.common import ApiResponse
 from app.schemas.user import RefreshRequest, TokenResponse, UserCreate, UserLogin, UserResponse
 from app.services.auth_service import AuthService
+from app.services.google_oauth import upsert_google_user, verify_google_id_token
 from app.services.kakao_oauth import (
     exchange_code_for_token,
     fetch_kakao_profile,
@@ -49,8 +50,6 @@ async def kakao_login(
 ) -> ApiResponse[TokenResponse]:
     """카카오 OAuth 로그인. access_token이 있으면 그대로 사용, 없으면 code 교환."""
     if not body.access_token and not body.code:
-        from fastapi import HTTPException, status
-
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="access_token 또는 code 중 하나는 필수입니다.",
@@ -59,6 +58,30 @@ async def kakao_login(
     access_token = body.access_token or await exchange_code_for_token(body.code or "")
     profile = await fetch_kakao_profile(access_token)
     user = await upsert_kakao_user(db, profile)
+    tokens = await _service.issue_tokens(db, user.id)
+    return ApiResponse(data=tokens)
+
+
+class GoogleLoginRequest(BaseModel):
+    """expo-auth-session이 Google 로그인 후 반환하는 id_token 전달."""
+
+    id_token: str = Field(min_length=10)
+
+
+@router.post("/google", response_model=ApiResponse[TokenResponse])
+@limiter.limit("10/minute")
+async def google_login(
+    request: Request,
+    body: GoogleLoginRequest,
+    db: DbSession,
+) -> ApiResponse[TokenResponse]:
+    """Google OAuth 로그인.
+
+    모바일에서 expo-auth-session으로 획득한 id_token을 검증하고
+    사용자 upsert 후 triple JWT를 발급합니다.
+    """
+    profile = await verify_google_id_token(body.id_token)
+    user = await upsert_google_user(db, profile)
     tokens = await _service.issue_tokens(db, user.id)
     return ApiResponse(data=tokens)
 

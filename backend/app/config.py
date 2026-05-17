@@ -43,6 +43,13 @@ class Settings(BaseSettings):
     # 성능 트레이싱 샘플 비율 (0.0 ~ 1.0). 0.1 = 10% 트랜잭션 추적.
     sentry_traces_sample_rate: float = 0.1
 
+    # ── Google OAuth ───────────────────────────────────────────────────────────
+    # Google Cloud Console → API 및 서비스 → 사용자 인증 정보 → OAuth 2.0 클라이언트 ID
+    # id_token audience 검증에 사용. 비어있으면 audience 검증 생략 (개발 환경)
+    google_client_id: str = ""          # Web 클라이언트 ID (audience 검증 기준)
+    google_ios_client_id: str = ""      # iOS 클라이언트 ID (expo app.json에도 입력)
+    google_android_client_id: str = ""  # Android 클라이언트 ID
+
     # ── 메타서치 어필리에이트 API ──────────────────────────────────────────────
     # RapidAPI → Skyscanner Flight Search (Flights Live Prices v2)
     # https://rapidapi.com/skyscanner/api/skyscanner50

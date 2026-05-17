@@ -86,6 +86,7 @@ export interface SavedPlace {
 export interface CommunityPost {
   id: number;
   user_id: number;
+  post_type: 'regular' | 'live';
   category: 'qna' | 'review' | 'photospot';
   city: string | null;
   title: string;
@@ -93,6 +94,7 @@ export interface CommunityPost {
   images: string[] | null;
   like_count: number;
   comment_count: number;
+  expires_at: string | null;   // live 게시글 만료 시각 (ISO datetime)
   created_at: string;
 }
 

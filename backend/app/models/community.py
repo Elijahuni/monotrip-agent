@@ -3,7 +3,17 @@
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Boolean, ForeignKey, Index, JSON, String, Text, UniqueConstraint, func
+from sqlalchemy import (
+    Boolean,
+    DateTime,
+    ForeignKey,
+    Index,
+    JSON,
+    String,
+    Text,
+    UniqueConstraint,
+    func,
+)
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -11,12 +21,20 @@ from app.database import Base
 if TYPE_CHECKING:
     pass
 
+# post_type 상수
+POST_TYPE_REGULAR = "regular"  # 일반 게시글 (무기한)
+POST_TYPE_LIVE = "live"  # 실시간 마이크로피드 (6시간 TTL)
+
+LIVE_TTL_HOURS = 6  # live 게시글 자동 만료 시간
+
 
 class CommunityPost(Base):
     __tablename__ = "community_posts"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    # regular(일반) | live(실시간 마이크로피드)
+    post_type: Mapped[str] = mapped_column(String(20), nullable=False, default=POST_TYPE_REGULAR)
     # qna(질문) | review(후기) | photospot(포토스팟 공유)
     category: Mapped[str] = mapped_column(String(20), nullable=False, default="qna")
     city: Mapped[str | None] = mapped_column(String(50), nullable=True)  # 정규화 키
@@ -26,6 +44,8 @@ class CommunityPost(Base):
     like_count: Mapped[int] = mapped_column(default=0, nullable=False)
     comment_count: Mapped[int] = mapped_column(default=0, nullable=False)
     is_hidden: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    # live 게시글 만료 시각 (regular는 NULL)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     # Gemini 자동 모더레이션 결과
     moderation_status: Mapped[str] = mapped_column(String(20), default="pending", nullable=False)
     # pending | safe | review | hide
@@ -36,6 +56,8 @@ class CommunityPost(Base):
         Index("ix_post_city_created", "city", "created_at"),
         Index("ix_post_user", "user_id"),
         Index("ix_post_moderation_status", "moderation_status"),
+        Index("ix_post_type", "post_type"),
+        Index("ix_post_expires_at", "expires_at"),
     )
 
 

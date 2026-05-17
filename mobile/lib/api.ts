@@ -215,6 +215,10 @@ export const api = {
       const res = await client.post<ApiResponse<TokenResponse>>('/auth/kakao', body);
       return parseResp(tokenSchema, res.data.data, 'auth.kakao');
     },
+    async google(body: { id_token: string }): Promise<TokenResponse> {
+      const res = await client.post<ApiResponse<TokenResponse>>('/auth/google', body);
+      return parseResp(tokenSchema, res.data.data, 'auth.google');
+    },
   },
 
   trips: {
@@ -638,11 +642,16 @@ export const api = {
   },
 
   community: {
-    async feed(params: { city?: string; category?: string; limit?: number; cursor?: number } = {}): Promise<CommunityPost[]> {
+    async feed(params: { city?: string; category?: string; post_type?: 'regular' | 'live'; limit?: number; cursor?: number } = {}): Promise<CommunityPost[]> {
       const res = await client.get<ApiResponse<CommunityPost[]>>('/community/feed', { params });
       return res.data.data ?? [];
     },
+    async liveFeed(params: { city?: string; limit?: number } = {}): Promise<CommunityPost[]> {
+      const res = await client.get<ApiResponse<CommunityPost[]>>('/community/feed/live', { params });
+      return res.data.data ?? [];
+    },
     async createPost(body: {
+      post_type?: 'regular' | 'live';
       category: 'qna' | 'review' | 'photospot';
       city?: string;
       title: string;
