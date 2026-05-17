@@ -22,17 +22,24 @@ from app.schemas.place import PlaceSearchResult
 logger = logging.getLogger(__name__)
 
 # ── Places API (New) ──────────────────────────────────────────────────────────
-_NEW_TEXT_SEARCH_URL   = "https://places.googleapis.com/v1/places:searchText"
-_NEW_PHOTO_URL         = "https://places.googleapis.com/v1/{name}/media"
-_NEW_FIELD_MASK        = ",".join([
-    "places.id", "places.displayName", "places.formattedAddress",
-    "places.location", "places.types", "places.photos",
-    "places.rating", "places.userRatingCount",
-])
+_NEW_TEXT_SEARCH_URL = "https://places.googleapis.com/v1/places:searchText"
+_NEW_PHOTO_URL = "https://places.googleapis.com/v1/{name}/media"
+_NEW_FIELD_MASK = ",".join(
+    [
+        "places.id",
+        "places.displayName",
+        "places.formattedAddress",
+        "places.location",
+        "places.types",
+        "places.photos",
+        "places.rating",
+        "places.userRatingCount",
+    ]
+)
 
 # ── Places Text Search (레거시) ───────────────────────────────────────────────
 _LEGACY_TEXT_SEARCH_URL = "https://maps.googleapis.com/maps/api/place/textsearch/json"
-_LEGACY_PHOTO_URL       = "https://maps.googleapis.com/maps/api/place/photo"
+_LEGACY_PHOTO_URL = "https://maps.googleapis.com/maps/api/place/photo"
 
 # Google place type → 앱 카테고리 매핑
 _CATEGORY_MAP: list[tuple[str, str]] = [
@@ -181,14 +188,18 @@ class PlacesService:
                 resp.raise_for_status()
                 data = resp.json()
         except httpx.HTTPStatusError as e:
-            logger.error("Legacy Places API error: %s — %s", e.response.status_code, e.response.text[:300])
+            logger.error(
+                "Legacy Places API error: %s — %s", e.response.status_code, e.response.text[:300]
+            )
             raise HTTPException(status_code=502, detail="장소 검색 서비스 오류") from e
         except httpx.RequestError as e:
             raise HTTPException(status_code=504, detail="장소 검색 시간 초과") from e
 
         api_status = data.get("status", "")
         if api_status not in ("OK", "ZERO_RESULTS"):
-            logger.error("Legacy Places API status: %s | %s", api_status, data.get("error_message", ""))
+            logger.error(
+                "Legacy Places API status: %s | %s", api_status, data.get("error_message", "")
+            )
             raise HTTPException(status_code=502, detail=f"장소 검색 오류: {api_status}")
 
         return [self._normalize_legacy(p) for p in data.get("results", [])[:10]]
@@ -200,7 +211,9 @@ class PlacesService:
         if photos:
             ref = photos[0].get("photo_reference")
             if ref:
-                photo_url = f"{_LEGACY_PHOTO_URL}?photo_reference={ref}&key={self._api_key}&maxwidth=400"
+                photo_url = (
+                    f"{_LEGACY_PHOTO_URL}?photo_reference={ref}&key={self._api_key}&maxwidth=400"
+                )
         return PlaceSearchResult(
             place_id=place.get("place_id", ""),
             name=place.get("name", ""),
@@ -215,6 +228,7 @@ class PlacesService:
 
 
 # ── 내부 예외 (폴백 신호) ──────────────────────────────────────────────────────
+
 
 class _PlacesKeyRestricted(Exception):
     """API 키 제한으로 Places API (New) 호출이 막혔을 때 레거시 폴백 트리거."""

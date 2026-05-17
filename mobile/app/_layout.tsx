@@ -12,12 +12,18 @@ import Toast from 'react-native-toast-message';
 
 import { hydrateTripsFromLocal, queryClient } from '@/lib/queries';
 import {
+  registerPushTokenWithServer,
   requestNotificationPermission,
   setupNotificationChannel,
   setupNotificationResponseListener,
 } from '@/lib/notifications';
+import { initSentry, wrap as sentryWrap } from '@/lib/sentry';
 import { SettingsProvider } from '@/lib/settings-context';
 import { useAuthStore, useNetworkListener } from '@/store';
+
+// Sentry를 앱 최초 로드 시점(모듈 평가 시)에 초기화
+// — RootLayout 렌더링 전에 실행되어야 첫 화면부터 에러가 캡처됨
+initSentry();
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -42,6 +48,10 @@ function InnerLayout() {
     // 알림 채널 초기화 + 권한 요청 (iOS는 첫 실행 시 팝업, Android는 채널만)
     setupNotificationChannel();
     requestNotificationPermission();
+
+    // 권한 허용 후 Expo Push Token을 서버에 등록 (백그라운드, 실패 무시)
+    // — 토큰은 이미 로그인된 상태여야 등록됨 (인증 헤더 필요)
+    registerPushTokenWithServer().catch(() => {});
 
     // 알림 탭 → 해당 여행 화면 열기
     const cleanup = setupNotificationResponseListener((tripId) => {
@@ -79,7 +89,7 @@ function InnerLayout() {
   );
 }
 
-export default function RootLayout() {
+function RootLayout() {
   return (
     <QueryClientProvider client={queryClient}>
       <SettingsProvider>
@@ -88,3 +98,6 @@ export default function RootLayout() {
     </QueryClientProvider>
   );
 }
+
+// Sentry.wrap이 미처리 JS 에러 + 네이티브 크래시를 자동 캡처
+export default sentryWrap(RootLayout);

@@ -1,10 +1,17 @@
-import { useRouter } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
+import { useCallback, useState } from 'react';
 import { Alert, Switch, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as Sentry from '@sentry/react-native';
 
+import { countConflicts } from '@/lib/conflicts';
 import { shadow } from '@/lib/design-tokens';
+import { captureError } from '@/lib/sentry';
 import { useSettings } from '@/lib/settings-context';
 import { useAuthStore } from '@/store';
+
+const SENTRY_DEBUG_VISIBLE =
+  __DEV__ || process.env.EXPO_PUBLIC_SENTRY_FORCE_ENABLE === '1';
 
 export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
@@ -12,6 +19,16 @@ export default function ProfileScreen() {
   const user = useAuthStore((s) => s.user);
   const logout = useAuthStore((s) => s.logout);
   const { t, isDark, toggleDark, lang, toggleLang } = useSettings();
+  const [conflictCount, setConflictCount] = useState(0);
+
+  // 화면 진입 시마다 충돌 카운트 갱신 (mutation queue flush 결과 반영)
+  useFocusEffect(
+    useCallback(() => {
+      let cancelled = false;
+      countConflicts().then((n) => { if (!cancelled) setConflictCount(n); }).catch(() => {});
+      return () => { cancelled = true; };
+    }, []),
+  );
 
   async function handleLogout() {
     Alert.alert(t('auth', 'logoutTitle'), t('auth', 'logoutConfirm'), [
@@ -120,6 +137,31 @@ export default function ProfileScreen() {
         ))}
       </View>
 
+      {/* ── 동기화 충돌 (있을 때만) ── */}
+      {conflictCount > 0 ? (
+        <View style={{ marginHorizontal: 16, marginTop: 12 }}>
+          <TouchableOpacity
+            onPress={() => router.push('/conflicts')}
+            activeOpacity={0.85}
+            style={{
+              flexDirection: 'row', alignItems: 'center',
+              paddingVertical: 14, paddingHorizontal: 16,
+              borderRadius: 14, backgroundColor: '#FFF1E6', borderWidth: 1, borderColor: '#FFB07A',
+            }}>
+            <Text style={{ fontSize: 18, marginRight: 10 }}>⚡</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={{ fontSize: 14, fontWeight: '800', color: '#7A3700' }}>
+                동기화 충돌 {conflictCount}건
+              </Text>
+              <Text style={{ fontSize: 11, color: '#9A5A2A', marginTop: 2 }}>
+                탭하여 내 변경 vs 동료 변경을 직접 비교·해결하세요
+              </Text>
+            </View>
+            <Text style={{ color: '#7A3700', fontSize: 18 }}>›</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
+
       {/* ── 로그아웃 ── */}
       <View style={{ marginHorizontal: 16, marginTop: 12 }}>
         <TouchableOpacity
@@ -129,6 +171,60 @@ export default function ProfileScreen() {
           <Text style={{ color: '#E74C3C', fontWeight: '700', fontSize: 15 }}>{t('auth', 'logout')}</Text>
         </TouchableOpacity>
       </View>
+
+      {/* ── 디버그 (개발/베타 빌드 한정) ── */}
+      {SENTRY_DEBUG_VISIBLE ? (
+        <View style={{ marginHorizontal: 16, marginTop: 16, gap: 8 }}>
+          <Text style={{ fontSize: 11, color: txTertiary, paddingHorizontal: 4 }}>DEBUG · Sentry</Text>
+          <TouchableOpacity
+            onPress={() => {
+              captureError(new Error('Sentry test — captured exception'), {
+                screen: 'profile',
+                trigger: 'manual_debug_button',
+              });
+              Alert.alert('Sentry', 'captureException 호출 완료\n대시보드(Issues)에서 확인하세요.');
+            }}
+            style={{ paddingVertical: 12, backgroundColor: bgBase, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: borderC }}
+            activeOpacity={0.85}>
+            <Text style={{ color: txPrimary, fontSize: 13, fontWeight: '600' }}>① captureException 테스트</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              Alert.alert('Sentry', '3초 후 미처리 에러를 발생시킵니다.\n(자동 캡처 확인용)', [
+                { text: '취소', style: 'cancel' },
+                {
+                  text: '진행',
+                  style: 'destructive',
+                  onPress: () => {
+                    setTimeout(() => {
+                      throw new Error('Sentry test — unhandled error');
+                    }, 3000);
+                  },
+                },
+              ]);
+            }}
+            style={{ paddingVertical: 12, backgroundColor: bgBase, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: borderC }}
+            activeOpacity={0.85}>
+            <Text style={{ color: txPrimary, fontSize: 13, fontWeight: '600' }}>② 미처리 에러 (Crash) 테스트</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={async () => {
+              try {
+                const ev = await Sentry.flush();
+                Alert.alert('Sentry', `flush 완료\n전송 결과: ${ev ? 'OK' : 'timeout/fail'}`);
+              } catch (e) {
+                Alert.alert('Sentry', `flush 실패: ${String(e)}`);
+              }
+            }}
+            style={{ paddingVertical: 12, backgroundColor: bgBase, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: borderC }}
+            activeOpacity={0.85}>
+            <Text style={{ color: txPrimary, fontSize: 13, fontWeight: '600' }}>③ 강제 flush</Text>
+          </TouchableOpacity>
+          <Text style={{ fontSize: 10, color: txTertiary, paddingHorizontal: 4 }}>
+            DEV에서 이벤트 전송하려면 .env.local에 EXPO_PUBLIC_SENTRY_FORCE_ENABLE=1 추가
+          </Text>
+        </View>
+      ) : null}
 
       <View style={{ height: insets.bottom + 16 }} />
     </View>

@@ -18,12 +18,13 @@ export async function saveTrip(trip: Trip): Promise<void> {
   const db = await getDB();
   await db.runAsync(
     `INSERT OR REPLACE INTO trips
-       (id, user_id, title, description, start_date, end_date, thumbnail_url, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, user_id, title, destination, description, start_date, end_date, thumbnail_url, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       trip.id,
       trip.user_id,
       trip.title,
+      trip.destination ?? null,
       trip.description ?? null,
       trip.start_date ?? null,
       trip.end_date ?? null,
@@ -54,13 +55,14 @@ export async function syncTrips(trips: Trip[]): Promise<void> {
     for (const trip of trips) {
       await db.runAsync(
         `INSERT INTO trips
-           (id, user_id, title, description, start_date, end_date, thumbnail_url,
+           (id, user_id, title, destination, description, start_date, end_date, thumbnail_url,
             total_budget, group_size, share_token, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           trip.id,
           trip.user_id,
           trip.title,
+          trip.destination ?? null,
           trip.description ?? null,
           trip.start_date ?? null,
           trip.end_date ?? null,
@@ -78,12 +80,21 @@ export async function syncTrips(trips: Trip[]): Promise<void> {
 
 // ─── UP-3: 보관함 (찜한 장소) ──────────────────────────────────────────────────
 
+// SQLite는 JSONB 미지원 → TEXT로 저장하고 경계에서 직렬화/역직렬화
+function deserializeSavedPlace(row: Record<string, unknown>): SavedPlace {
+  const raw = row.images;
+  const images: string[] | null =
+    typeof raw === 'string' ? (JSON.parse(raw) as string[]) : (raw as string[] | null) ?? null;
+  return { ...(row as Omit<SavedPlace, 'images'>), images };
+}
+
 export async function getSavedPlaces(userId: number): Promise<SavedPlace[]> {
   const db = await getDB();
-  return db.getAllAsync<SavedPlace>(
+  const rows = await db.getAllAsync<Record<string, unknown>>(
     'SELECT * FROM saved_places WHERE user_id = ? ORDER BY created_at DESC',
     [userId],
   );
+  return rows.map(deserializeSavedPlace);
 }
 
 export async function saveSavedPlace(place: SavedPlace): Promise<void> {
@@ -104,7 +115,7 @@ export async function saveSavedPlace(place: SavedPlace): Promise<void> {
       place.notes ?? null,
       place.google_place_id ?? null,
       place.rating ?? null,
-      place.images ?? null,
+      place.images ? JSON.stringify(place.images) : null,
       place.website ?? null,
       place.phone ?? null,
       place.estimated_minutes ?? null,
@@ -131,7 +142,7 @@ export async function syncSavedPlaces(userId: number, places: SavedPlace[]): Pro
         [
           p.id, p.user_id, p.name, p.address, p.latitude, p.longitude, p.category,
           p.notes ?? null, p.google_place_id ?? null, p.rating ?? null,
-          p.images ?? null, p.website ?? null, p.phone ?? null,
+          p.images ? JSON.stringify(p.images) : null, p.website ?? null, p.phone ?? null,
           p.estimated_minutes ?? null, p.created_at,
         ],
       );

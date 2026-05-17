@@ -12,7 +12,7 @@ class SavedPlaceCreate(BaseModel):
     notes: str | None = None
     google_place_id: str | None = None
     rating: float | None = None
-    images: str | None = None
+    images: list[str] | None = None
     website: str | None = None
     phone: str | None = None
     estimated_minutes: int | None = None
@@ -29,7 +29,7 @@ class SavedPlaceResponse(BaseModel):
     notes: str | None = None
     google_place_id: str | None = None
     rating: float | None = None
-    images: str | None = None
+    images: list[str] | None = None
     website: str | None = None
     phone: str | None = None
     estimated_minutes: int | None = None

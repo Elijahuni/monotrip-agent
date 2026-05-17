@@ -11,7 +11,9 @@ _service = ChecklistService()
 
 
 @router.get("", response_model=ApiResponse[list[ChecklistItemResponse]])
-async def list_items(trip_id: int, current_user: CurrentUser, db: DbSession) -> ApiResponse[list[ChecklistItemResponse]]:
+async def list_items(
+    trip_id: int, current_user: CurrentUser, db: DbSession
+) -> ApiResponse[list[ChecklistItemResponse]]:
     items = await _service.get_all(db, trip_id, current_user.id)
     return ApiResponse(data=items)
 

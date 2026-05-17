@@ -2,6 +2,7 @@ import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/dat
 import { useRouter } from 'expo-router';
 import { useEffect, useMemo, useState } from 'react';
 import {
+  ActivityIndicator,
   Alert,
   FlatList,
   Platform,
@@ -19,7 +20,8 @@ import { BottomSheet, Button, EmptyState, TextField } from '@/components/ui';
 import { palette, placeholderColor, shadow } from '@/lib/design-tokens';
 import { handleApiError, showSuccess } from '@/lib/error-handler';
 import { cancelTripNotifications, scheduleTripNotifications } from '@/lib/notifications';
-import { useCreateTrip, useDeleteTrip, useDuplicateTrip, useTrips, useUpdateTrip } from '@/lib/queries';
+import { useCreateTrip, useDeleteTrip, useDuplicateTrip, usePendingCount, useTrips, useUpdateTrip } from '@/lib/queries';
+import { useIsFlushing, useIsOnline } from '@/store';
 import type { Trip } from '@/lib/types';
 
 // ─── 유틸 ──────────────────────────────────────────────────────────────────────
@@ -63,8 +65,10 @@ function DateRow({ label, value, onPress }: { label: string; value: string | nul
 
 interface TripFormData {
   title: string;
+  destination?: string | null;
   start_date: string | null;
   end_date: string | null;
+  group_size: number;
 }
 
 interface TripFormSheetProps {
@@ -77,16 +81,20 @@ interface TripFormSheetProps {
 
 function TripFormSheet({ visible, initial = {}, mode, onClose, onSubmit }: TripFormSheetProps) {
   const [title, setTitle] = useState(initial.title ?? '');
+  const [destination, setDestination] = useState(initial.destination ?? '');
   const [startDate, setStartDate] = useState<string | null>(initial.start_date ?? null);
   const [endDate, setEndDate] = useState<string | null>(initial.end_date ?? null);
+  const [groupSize, setGroupSize] = useState(initial.group_size ?? 1);
   const [loading, setLoading] = useState(false);
   const [pickerTarget, setPickerTarget] = useState<'start' | 'end' | null>(null);
 
   useEffect(() => {
     if (visible) {
       setTitle(initial.title ?? '');
+      setDestination(initial.destination ?? '');
       setStartDate(initial.start_date ?? null);
       setEndDate(initial.end_date ?? null);
+      setGroupSize(initial.group_size ?? 1);
       setPickerTarget(null);
     }
   }, [visible]);
@@ -106,9 +114,13 @@ function TripFormSheet({ visible, initial = {}, mode, onClose, onSubmit }: TripF
   async function handleSubmit() {
     const trimmed = title.trim();
     if (!trimmed) return;
+    if (startDate && endDate && startDate > endDate) {
+      Alert.alert('날짜 오류', '출발일은 귀국일보다 이전이어야 합니다.');
+      return;
+    }
     setLoading(true);
     try {
-      await onSubmit({ title: trimmed, start_date: startDate, end_date: endDate });
+      await onSubmit({ title: trimmed, destination: destination.trim() || null, start_date: startDate, end_date: endDate, group_size: groupSize });
       onClose();
     } finally {
       setLoading(false);
@@ -136,6 +148,15 @@ function TripFormSheet({ visible, initial = {}, mode, onClose, onSubmit }: TripF
         value={title}
         onChangeText={setTitle}
         autoFocus={!isEdit}
+        returnKeyType="next"
+        containerClassName="mb-3"
+      />
+
+      <TextField
+        label="목적지 (선택)"
+        placeholder="예: 도쿄, 파리, 방콕"
+        value={destination}
+        onChangeText={setDestination}
         returnKeyType="done"
         onSubmitEditing={handleSubmit}
         containerClassName="mb-4"
@@ -192,6 +213,26 @@ function TripFormSheet({ visible, initial = {}, mode, onClose, onSubmit }: TripF
         </TouchableOpacity>
       )}
 
+      {/* 인원 스텝퍼 */}
+      <Text className="text-xs font-semibold text-tx-secondary mb-1.5 ml-1">인원</Text>
+      <View className="flex-row items-center bg-bg-subtle rounded-xl px-4 py-2 mb-4">
+        <TouchableOpacity
+          onPress={() => setGroupSize(g => Math.max(1, g - 1))}
+          activeOpacity={0.7}
+          className="w-8 h-8 rounded-full bg-bg-base border border-line-default items-center justify-center">
+          <Text className="text-lg text-tx-primary leading-none">−</Text>
+        </TouchableOpacity>
+        <View className="flex-1 items-center">
+          <Text className="text-base font-semibold text-tx-primary">{groupSize}명</Text>
+        </View>
+        <TouchableOpacity
+          onPress={() => setGroupSize(g => Math.min(50, g + 1))}
+          activeOpacity={0.7}
+          className="w-8 h-8 rounded-full bg-bg-base border border-line-default items-center justify-center">
+          <Text className="text-lg text-tx-primary leading-none">+</Text>
+        </TouchableOpacity>
+      </View>
+
       <Button
         label={isEdit ? '수정하기' : '만들기'}
         onPress={handleSubmit}
@@ -239,22 +280,31 @@ export default function HomeScreen() {
   const deleteTrip = useDeleteTrip();
   const duplicateTrip = useDuplicateTrip();
 
+  // ── 오프라인 큐 상태 ──────────────────────────────────────────────────────────
+  const pendingCount = usePendingCount();
+  const isFlushing = useIsFlushing();
+  const isOnline = useIsOnline();
+
   const [searchQuery, setSearchQuery] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<Trip | null>(null);
 
-  const trips = tripsQuery.data ?? [];
+  // 무한 쿼리 — 모든 페이지를 단일 배열로 펼치기
+  const allTrips: Trip[] = useMemo(
+    () => tripsQuery.data?.pages.flatMap((p) => p.items) ?? [],
+    [tripsQuery.data],
+  );
   // SQLite hydrate된 캐시가 있으면 isPending=false. 캐시 없을 때만 진짜 로딩.
-  const showSkeleton = tripsQuery.isPending && trips.length === 0;
-  const syncing = tripsQuery.isFetching;
+  const showSkeleton = tripsQuery.isPending && allTrips.length === 0;
+  const syncing = tripsQuery.isRefetching && !tripsQuery.isFetchingNextPage;
 
   const filteredTrips = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
-    if (!q) return trips;
-    return trips.filter(
+    if (!q) return allTrips;
+    return allTrips.filter(
       (t) => t.title.toLowerCase().includes(q) || (t.description ?? '').toLowerCase().includes(q),
     );
-  }, [trips, searchQuery]);
+  }, [allTrips, searchQuery]);
 
   function handleLongPress(trip: Trip) {
     Alert.alert(trip.title, '이 여행에 대한 작업을 선택하세요', [
@@ -352,6 +402,38 @@ export default function HomeScreen() {
       {/* ── 검색바 ── */}
       <SearchBar value={searchQuery} onChange={setSearchQuery} />
 
+      {/* ── 오프라인 / 동기화 배너 ── */}
+      {(!isOnline || isFlushing || pendingCount > 0) && (
+        <View
+          className={`mx-4 mb-2 px-4 py-2.5 rounded-xl flex-row items-center gap-2 ${
+            isFlushing
+              ? 'bg-blue-50 border border-blue-200'
+              : !isOnline
+                ? 'bg-amber-50 border border-amber-200'
+                : 'bg-green-50 border border-green-200'
+          }`}>
+          {isFlushing ? (
+            <ActivityIndicator size="small" color="#3B82F6" />
+          ) : (
+            <Text className="text-base">
+              {!isOnline ? '📡' : pendingCount > 0 ? '🔄' : '✅'}
+            </Text>
+          )}
+          <Text
+            className={`text-xs font-medium flex-1 ${
+              isFlushing ? 'text-blue-700' : !isOnline ? 'text-amber-700' : 'text-green-700'
+            }`}>
+            {isFlushing
+              ? `동기화 중... (${pendingCount}건 남음)`
+              : !isOnline
+                ? pendingCount > 0
+                  ? `오프라인 — ${pendingCount}건 대기 중`
+                  : '오프라인 모드'
+                : `동기화 완료`}
+          </Text>
+        </View>
+      )}
+
       {/* ── 여행 목록 ── */}
       {showSkeleton ? (
         <View className="pt-1">
@@ -365,14 +447,8 @@ export default function HomeScreen() {
           keyExtractor={(item) => String(item.id)}
           renderItem={({ item }) => {
             // 첫 번째 장소의 첫 번째 이미지를 썸네일로 활용
-            const thumbnail = (() => {
-              try {
-                const raw = (item as any).locations?.[0]?.images;
-                if (!raw) return null;
-                const arr = typeof raw === 'string' ? JSON.parse(raw) : raw;
-                return Array.isArray(arr) && arr.length > 0 ? arr[0] : null;
-              } catch { return null; }
-            })();
+            const images: string[] | null = (item as any).locations?.[0]?.images ?? null;
+            const thumbnail = Array.isArray(images) && images.length > 0 ? images[0] : null;
             return (
               <TripCard
                 trip={item}
@@ -400,7 +476,16 @@ export default function HomeScreen() {
             )
           }
           ListHeaderComponent={<View className="h-1" />}
-          ListFooterComponent={<View style={{ height: insets.bottom + 96 }} />}
+          ListFooterComponent={
+            <View style={{ height: insets.bottom + 96 }}>
+              {tripsQuery.isFetchingNextPage && (
+                <View className="py-4 items-center">
+                  <ActivityIndicator size="small" color={palette.coral500} />
+                  <Text className="text-xs text-tx-tertiary mt-1">더 불러오는 중...</Text>
+                </View>
+              )}
+            </View>
+          }
           showsVerticalScrollIndicator={false}
           contentContainerStyle={{ flexGrow: 1 }}
           refreshControl={
@@ -412,6 +497,13 @@ export default function HomeScreen() {
               titleColor={placeholderColor}
             />
           }
+          onEndReached={() => {
+            const lastPage = tripsQuery.data?.pages[tripsQuery.data.pages.length - 1];
+            if (lastPage?.has_more && !tripsQuery.isFetchingNextPage) {
+              tripsQuery.fetchNextPage();
+            }
+          }}
+          onEndReachedThreshold={0.3}
           removeClippedSubviews
           maxToRenderPerBatch={10}
           windowSize={5}
@@ -442,8 +534,10 @@ export default function HomeScreen() {
         mode="edit"
         initial={editTarget ? {
           title: editTarget.title,
+          destination: editTarget.destination,
           start_date: editTarget.start_date,
           end_date: editTarget.end_date,
+          group_size: editTarget.group_size,
         } : {}}
         onClose={() => setEditTarget(null)}
         onSubmit={handleEdit}

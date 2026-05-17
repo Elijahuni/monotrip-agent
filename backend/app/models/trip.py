@@ -16,6 +16,7 @@ class Trip(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
+    destination: Mapped[str | None] = mapped_column(String(200), nullable=True)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     start_date: Mapped[date | None] = mapped_column(nullable=True)
     end_date: Mapped[date | None] = mapped_column(nullable=True)
@@ -23,7 +24,9 @@ class Trip(Base):
     total_budget: Mapped[int | None] = mapped_column(nullable=True)
     group_size: Mapped[int] = mapped_column(nullable=False, default=1)
     share_token: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
-    share_token_expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    share_token_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         default=func.now(), onupdate=func.now(), nullable=False

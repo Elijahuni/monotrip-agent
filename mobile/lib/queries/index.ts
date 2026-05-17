@@ -1,4 +1,4 @@
-export { queryClient, queryKeys } from './client';
+export { queryClient, queryKeys, usePendingCount } from './client';
 export {
   useTrips,
   useTrip,

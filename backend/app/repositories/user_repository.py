@@ -27,3 +27,19 @@ class UserRepository:
         await db.flush()
         await db.refresh(user)
         return user
+
+    async def update_push_token(
+        self,
+        db: AsyncSession,
+        user_id: int,
+        token: str | None,
+    ) -> None:
+        """Expo push token을 등록(token 문자열) 또는 제거(None)한다."""
+        stmt = select(User).where(User.id == user_id)
+        result = await db.execute(stmt)
+        user = result.scalars().first()
+        if user is None:
+            return
+        user.expo_push_token = token
+        db.add(user)
+        await db.flush()

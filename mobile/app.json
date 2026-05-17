@@ -9,7 +9,28 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "infoPlist": {
+        "LSApplicationQueriesSchemes": [
+          "instagram",
+          "comgooglemaps",
+          "kakaokompassauth",
+          "kakaolink",
+          "kakaotalk",
+          "instagram",
+          "comgooglemaps",
+          "kakaokompassauth",
+          "kakaolink",
+          "kakaotalk"
+        ],
+        "CFBundleURLTypes": [
+          {
+            "CFBundleTypeRole": "Editor",
+            "CFBundleURLSchemes": ["kakao38a4188dd9eba28696a7e70be08cdbc1"]
+          }
+        ]
+      },
+      "bundleIdentifier": "com.anonymous.monotrip"
     },
     "android": {
       "adaptiveIcon": {
@@ -19,7 +40,8 @@
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.anonymous.monotrip"
     },
     "web": {
       "output": "static",
@@ -40,7 +62,23 @@
         }
       ],
       "expo-sqlite",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "@react-native-seoul/kakao-login",
+        {
+          "kakaoAppKey": "38a4188dd9eba28696a7e70be08cdbc1",
+          "kotlinVersion": "1.9.0",
+          "overrideKakaoSDKVersion": "2.22.7"
+        }
+      ],
+      [
+        "@sentry/react-native/expo",
+        {
+          "url": "https://sentry.io/",
+          "project": "monotrip-mobile",
+          "organization": "monotrip"
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

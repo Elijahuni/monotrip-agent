@@ -51,6 +51,20 @@ export default function TabLayout() {
           }}
         />
         <Tabs.Screen
+          name="curated"
+          options={{
+            title: '큐레이션',
+            tabBarIcon: ({ color }) => <IconSymbol size={24} name="heart.circle.fill" color={color} />,
+          }}
+        />
+        <Tabs.Screen
+          name="community"
+          options={{
+            title: '커뮤니티',
+            tabBarIcon: ({ color }) => <IconSymbol size={24} name="bubble.left.and.bubble.right.fill" color={color} />,
+          }}
+        />
+        <Tabs.Screen
           name="saved"
           options={{
             title: t('tabs', 'saved'),

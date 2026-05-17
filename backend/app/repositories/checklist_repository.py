@@ -7,7 +7,11 @@ from app.schemas.checklist import ChecklistItemCreate
 
 class ChecklistRepository:
     async def get_all_by_trip(self, db: AsyncSession, trip_id: int) -> list[ChecklistItem]:
-        stmt = select(ChecklistItem).where(ChecklistItem.trip_id == trip_id).order_by(ChecklistItem.created_at)
+        stmt = (
+            select(ChecklistItem)
+            .where(ChecklistItem.trip_id == trip_id)
+            .order_by(ChecklistItem.created_at)
+        )
         result = await db.execute(stmt)
         return list(result.scalars().all())
 
@@ -16,14 +20,18 @@ class ChecklistRepository:
         result = await db.execute(stmt)
         return result.scalars().first()
 
-    async def create(self, db: AsyncSession, trip_id: int, data: ChecklistItemCreate) -> ChecklistItem:
+    async def create(
+        self, db: AsyncSession, trip_id: int, data: ChecklistItemCreate
+    ) -> ChecklistItem:
         obj = ChecklistItem(trip_id=trip_id, **data.model_dump())
         db.add(obj)
         await db.flush()
         await db.refresh(obj)
         return obj
 
-    async def toggle(self, db: AsyncSession, item: ChecklistItem, is_checked: bool) -> ChecklistItem:
+    async def toggle(
+        self, db: AsyncSession, item: ChecklistItem, is_checked: bool
+    ) -> ChecklistItem:
         item.is_checked = is_checked
         db.add(item)
         await db.flush()

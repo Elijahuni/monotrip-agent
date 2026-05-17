@@ -1,8 +1,11 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 
-import { api, TOKEN_KEY, type UserResponse } from '@/lib/api';
+import { api, TOKEN_KEY, saveToken, clearToken, type UserResponse } from '@/lib/api';
 import { getUserCache, saveUserCache, type CachedUser } from '@/lib/local-user';
+import { clearAllMutations } from '@/lib/mutation-queue';
+import { registerPushTokenWithServer, unregisterPushTokenFromServer } from '@/lib/notifications';
+import { clearSentryUser, setSentryUser } from '@/lib/sentry';
 
 /**
  * 인증 상태.
@@ -21,7 +24,7 @@ interface AuthState {
   hydrate: () => Promise<void>;
 
   /** 로그인 성공 후 호출 — 토큰 저장 + 백그라운드 /auth/me 갱신 */
-  login: (token: string) => Promise<void>;
+  login: (accessToken: string, refreshToken: string) => Promise<void>;
 
   /** 로그아웃 — 토큰 + 캐시 삭제 */
   logout: () => Promise<void>;
@@ -61,15 +64,23 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     get().refreshUser().catch(() => {/* offline */});
   },
 
-  async login(token: string) {
-    await AsyncStorage.setItem(TOKEN_KEY, token);
-    set({ status: 'authenticated', token });
+  async login(accessToken: string, refreshToken: string) {
+    await saveToken(accessToken, refreshToken);
+    set({ status: 'authenticated', token: accessToken });
     // 로그인 직후 user 채우기
     await get().refreshUser().catch(() => {/* offline */});
+    // 로그인 후 Push Token을 서버에 등록 (백그라운드, 실패 무시)
+    registerPushTokenWithServer().catch(() => {});
   },
 
   async logout() {
-    await AsyncStorage.removeItem(TOKEN_KEY);
+    // 서버에서 refresh token 전체 폐기 (토큰 유효한 동안 시도)
+    await api.auth.logout().catch(() => {});
+    await unregisterPushTokenFromServer().catch(() => {});
+    await clearToken();
+    // 오프라인 큐 초기화 — 다른 유저 세션에 큐가 남지 않도록
+    await clearAllMutations().catch(() => {});
+    clearSentryUser();
     set({ status: 'guest', token: null, user: null });
   },
 
@@ -77,6 +88,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     const remote = await api.auth.me();
     const cached = toCached(remote);
     await saveUserCache(remote);
+    // Sentry에 사용자 ID 등록 (에러 발생 시 어떤 사용자인지 추적)
+    setSentryUser(remote.id, remote.email);
     set({ user: cached });
   },
 }));

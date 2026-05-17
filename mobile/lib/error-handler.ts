@@ -9,6 +9,8 @@
 import { AxiosError } from 'axios';
 import Toast from 'react-native-toast-message';
 
+import { captureError } from '@/lib/sentry';
+
 // ─── 공용 토스트 헬퍼 ─────────────────────────────────────────────────────────
 
 export function showSuccess(message: string, title?: string) {
@@ -43,11 +45,24 @@ export function showInfo(message: string, title?: string) {
 
 // ─── API 에러 파싱 ────────────────────────────────────────────────────────────
 
-/** AxiosError 또는 임의의 예외를 받아 사용자 메시지로 변환 후 토스트 표시. */
+/** AxiosError 또는 임의의 예외를 받아 사용자 메시지로 변환 후 토스트 표시.
+ *  서버 5xx 에러 또는 네트워크 에러는 Sentry에 자동 전송. */
 export function handleApiError(error: unknown, fallback?: string): void {
   const ko = isKo();
   const msg = extractErrorMessage(error, ko, fallback);
   showError(msg);
+
+  // 서버 오류 or 예상치 못한 에러만 Sentry로 전송 (4xx는 사용자 실수)
+  if (error instanceof AxiosError) {
+    const status = error.response?.status;
+    const isServerError = status !== undefined && status >= 500;
+    const isNetworkError = !error.response;
+    if (isServerError || isNetworkError) {
+      captureError(error, { fallback, status });
+    }
+  } else if (error instanceof Error) {
+    captureError(error, { fallback });
+  }
 }
 
 /** AxiosError → 백엔드 message 필드 → HTTP 상태별 기본 메시지 우선순위 추출. */

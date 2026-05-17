@@ -13,7 +13,9 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Button, TextField } from '@/components/ui';
 import { api } from '@/lib/api';
 import { shadow } from '@/lib/design-tokens';
+import { KakaoAuthError, startKakaoLogin } from '@/lib/kakao-auth';
 import { useAuthStore } from '@/store';
+import { TouchableOpacity } from 'react-native';
 
 export default function LoginScreen() {
   const router = useRouter();
@@ -25,6 +27,34 @@ export default function LoginScreen() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  async function handleKakaoLogin() {
+    setError('');
+    setLoading(true);
+    try {
+      // 네이티브 SDK로 access_token 직접 수령
+      const { accessToken } = await startKakaoLogin();
+      // 백엔드에 access_token 전달 → 자체 JWT 발급
+      const token = await api.auth.kakao({ access_token: accessToken });
+      await login(token.access_token, token.refresh_token);
+      router.replace('/(tabs)');
+    } catch (e) {
+      if (e instanceof KakaoAuthError) {
+        if (e.reason === 'cancel') {
+          /* 사용자 취소 — 조용히 무시 */
+        } else {
+          setError('카카오 로그인에 실패했어요. 잠시 후 다시 시도해주세요.');
+        }
+      } else {
+        const msg = e instanceof AxiosError
+          ? (e.response?.data?.detail ?? '카카오 로그인에 실패했습니다.')
+          : '네트워크 오류가 발생했습니다.';
+        setError(typeof msg === 'string' ? msg : '카카오 로그인 실패');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
   async function handleLogin() {
     if (!email.trim() || !password) {
       setError('이메일과 비밀번호를 입력해주세요.');
@@ -34,7 +64,7 @@ export default function LoginScreen() {
     setLoading(true);
     try {
       const token = await api.auth.login({ email: email.trim(), password });
-      await login(token.access_token);
+      await login(token.access_token, token.refresh_token);
       router.replace('/(tabs)');
     } catch (e) {
       const msg = e instanceof AxiosError
@@ -108,6 +138,23 @@ export default function LoginScreen() {
             <Text className="text-tx-tertiary text-xs">또는</Text>
             <View className="flex-1 h-px bg-line-default" />
           </View>
+
+          {/* 카카오 로그인 */}
+          <TouchableOpacity
+            onPress={handleKakaoLogin}
+            disabled={loading}
+            activeOpacity={0.85}
+            style={{
+              backgroundColor: '#FEE500',
+              paddingVertical: 14,
+              borderRadius: 12,
+              alignItems: 'center',
+              marginBottom: 12,
+            }}>
+            <Text style={{ color: '#191919', fontSize: 15, fontWeight: '800' }}>
+              💬 카카오로 시작하기
+            </Text>
+          </TouchableOpacity>
 
           {/* 회원가입 버튼 */}
           <Link href="/auth/register" asChild>

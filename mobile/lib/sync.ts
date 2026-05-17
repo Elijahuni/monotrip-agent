@@ -12,8 +12,9 @@ export { useNetworkListener as useNetworkSync, useIsOnline } from '@/store/netwo
  */
 export async function syncAll(): Promise<void> {
   try {
-    const remote = await api.trips.getAll();
-    await syncTrips(remote);
+    // 첫 페이지(최신 20개)만 동기화 — 주기적 백그라운드 sync 용도
+    const page = await api.trips.getAll({ limit: 20 });
+    await syncTrips(page.items);
   } catch {
     // 인증 만료 or 네트워크 오류 → 로컬 데이터 유지
   }

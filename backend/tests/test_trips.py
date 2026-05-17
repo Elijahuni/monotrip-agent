@@ -9,6 +9,8 @@
 - DELETE /trips/{id}/locations/{loc_id}
 """
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from httpx import AsyncClient
 
@@ -25,6 +27,7 @@ TRIP_PAYLOAD = {
 
 # ─── 헬퍼 ──────────────────────────────────────────────────────────────────────
 
+
 async def create_trip(client: AsyncClient, token: str, payload: dict | None = None) -> dict:
     payload = payload or TRIP_PAYLOAD
     res = await client.post("/trips", json=payload, headers={"Authorization": f"Bearer {token}"})
@@ -33,6 +36,7 @@ async def create_trip(client: AsyncClient, token: str, payload: dict | None = No
 
 
 # ─── 인증 가드 ─────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_list_trips_requires_auth(client: AsyncClient):
@@ -48,10 +52,13 @@ async def test_create_trip_requires_auth(client: AsyncClient):
 
 # ─── 여행 생성 ─────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_create_trip(client: AsyncClient):
     token = await register_and_login(client, "trip1@test.com", "pass1234", "U1")
-    res = await client.post("/trips", json=TRIP_PAYLOAD, headers={"Authorization": f"Bearer {token}"})
+    res = await client.post(
+        "/trips", json=TRIP_PAYLOAD, headers={"Authorization": f"Bearer {token}"}
+    )
     assert res.status_code == 201
     body = res.json()
     assert body["success"] is True
@@ -60,6 +67,7 @@ async def test_create_trip(client: AsyncClient):
 
 
 # ─── 여행 목록 ─────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_list_trips(client: AsyncClient):
@@ -74,6 +82,7 @@ async def test_list_trips(client: AsyncClient):
 
 
 # ─── 여행 상세 ─────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_get_trip_detail(client: AsyncClient):
@@ -96,6 +105,7 @@ async def test_get_trip_not_found(client: AsyncClient):
 
 # ─── 여행 수정 ─────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_update_trip(client: AsyncClient):
     token = await register_and_login(client, "trip4@test.com", "pass1234", "U4")
@@ -112,6 +122,7 @@ async def test_update_trip(client: AsyncClient):
 
 # ─── 여행 삭제 ─────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_delete_trip(client: AsyncClient):
     token = await register_and_login(client, "trip5@test.com", "pass1234", "U5")
@@ -126,6 +137,7 @@ async def test_delete_trip(client: AsyncClient):
 
 
 # ─── 타인 여행 접근 금지 ────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_cannot_access_others_trip(client: AsyncClient):
@@ -209,5 +221,107 @@ async def test_delete_location(client: AsyncClient):
 
     # 삭제 후 상세에서 없어야 함
     detail = await client.get(f"/trips/{trip['id']}", headers={"Authorization": f"Bearer {token}"})
-    loc_ids = [l["id"] for l in detail.json()["data"]["locations"]]
+    loc_ids = [loc["id"] for loc in detail.json()["data"]["locations"]]
     assert loc_id not in loc_ids
+
+
+# ─── 공유 토큰 ─────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.asyncio
+async def test_share_trip_creates_token(client: AsyncClient):
+    """공유 토큰 발급 시 토큰과 만료일이 반환된다."""
+    token = await register_and_login(client, "share1@test.com", "pass1234", "SH1")
+    trip = await create_trip(client, token)
+
+    res = await client.post(
+        f"/trips/{trip['id']}/share", headers={"Authorization": f"Bearer {token}"}
+    )
+    assert res.status_code == 200
+    data = res.json()["data"]
+    assert "share_token" in data
+    assert "expires_at" in data
+    assert data["share_token"] is not None
+    assert data["expires_at"] is not None
+
+
+@pytest.mark.asyncio
+async def test_get_shared_trip_valid(client: AsyncClient):
+    """유효한 공유 토큰으로 여행을 열람할 수 있다."""
+    token = await register_and_login(client, "share2@test.com", "pass1234", "SH2")
+    trip = await create_trip(client, token)
+
+    share_res = await client.post(
+        f"/trips/{trip['id']}/share", headers={"Authorization": f"Bearer {token}"}
+    )
+    share_token = share_res.json()["data"]["share_token"]
+
+    res = await client.get(f"/trips/shared/{share_token}")
+    assert res.status_code == 200
+    assert res.json()["data"]["trip"]["id"] == trip["id"]
+
+
+@pytest.mark.asyncio
+async def test_get_shared_trip_expired(client: AsyncClient, db_session):
+    """만료된 공유 토큰은 410을 반환한다."""
+    from sqlalchemy import update
+    from app.models.trip import Trip
+
+    token = await register_and_login(client, "share3@test.com", "pass1234", "SH3")
+    trip = await create_trip(client, token)
+
+    share_res = await client.post(
+        f"/trips/{trip['id']}/share", headers={"Authorization": f"Bearer {token}"}
+    )
+    share_token = share_res.json()["data"]["share_token"]
+
+    # DB에서 직접 만료 시각을 과거로 설정
+    await db_session.execute(
+        update(Trip)
+        .where(Trip.share_token == share_token)
+        .values(share_token_expires_at=datetime.now(timezone.utc) - timedelta(days=1))
+    )
+    await db_session.commit()
+
+    res = await client.get(f"/trips/shared/{share_token}")
+    assert res.status_code == 410
+
+
+@pytest.mark.asyncio
+async def test_get_shared_trip_null_expiry(client: AsyncClient, db_session):
+    """expires_at이 NULL인 공유 토큰은 만료로 간주해 410을 반환한다."""
+    from sqlalchemy import update
+    from app.models.trip import Trip
+
+    token = await register_and_login(client, "share4@test.com", "pass1234", "SH4")
+    trip = await create_trip(client, token)
+
+    share_res = await client.post(
+        f"/trips/{trip['id']}/share", headers={"Authorization": f"Bearer {token}"}
+    )
+    share_token = share_res.json()["data"]["share_token"]
+
+    # expires_at을 NULL로 강제
+    await db_session.execute(
+        update(Trip).where(Trip.share_token == share_token).values(share_token_expires_at=None)
+    )
+    await db_session.commit()
+
+    res = await client.get(f"/trips/shared/{share_token}")
+    assert res.status_code == 410
+
+
+@pytest.mark.asyncio
+async def test_share_token_reused_when_valid(client: AsyncClient):
+    """유효한 토큰이 있으면 재발급하지 않고 동일 토큰을 반환한다."""
+    token = await register_and_login(client, "share5@test.com", "pass1234", "SH5")
+    trip = await create_trip(client, token)
+
+    res1 = await client.post(
+        f"/trips/{trip['id']}/share", headers={"Authorization": f"Bearer {token}"}
+    )
+    res2 = await client.post(
+        f"/trips/{trip['id']}/share", headers={"Authorization": f"Bearer {token}"}
+    )
+
+    assert res1.json()["data"]["share_token"] == res2.json()["data"]["share_token"]

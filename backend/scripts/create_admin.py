@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import bcrypt
-from sqlalchemy import select, text
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
 
@@ -22,7 +22,7 @@ from app.models.user import User
 from app.database import Base
 
 # ── 생성할 계정 정보 ──────────────────────────────────────────────────────────
-ADMIN_EMAIL    = "admin@gmail.com"
+ADMIN_EMAIL = "admin@gmail.com"
 ADMIN_PASSWORD = "admin1234"
 ADMIN_NICKNAME = "관리자"
 # ─────────────────────────────────────────────────────────────────────────────

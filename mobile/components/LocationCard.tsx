@@ -1,6 +1,7 @@
 import { Alert, Text, TouchableOpacity, View } from 'react-native';
 
 import { categoryIcon } from '@/lib/categories';
+import { isTicketable, openTicketSearch } from '@/lib/ticket-links';
 
 interface BaseLocation {
   name: string;
@@ -18,6 +19,10 @@ interface LocationCardProps<T extends BaseLocation> {
   onDelete?: (loc: T) => void;
   /** 그룹 내 첫 항목이면 false → 상단 구분선 숨김 */
   showDivider?: boolean;
+  /**
+   * 여행 목적지명 (예: "도쿄"). 제공 시 관광지·액티비티 카테고리에 🎟️ 티켓 검색 버튼 표시.
+   */
+  destination?: string;
 }
 
 /**
@@ -30,8 +35,10 @@ export function LocationCard<T extends BaseLocation>({
   index,
   onDelete,
   showDivider = true,
+  destination,
 }: LocationCardProps<T>) {
   const order = loc.visit_order || index + 1;
+  const showTicket = !!destination && isTicketable(loc.category);
 
   function handleDelete() {
     Alert.alert('장소 삭제', `"${loc.name}"을 삭제하시겠어요?`, [
@@ -63,6 +70,18 @@ export function LocationCard<T extends BaseLocation>({
           <Text className="text-xs text-tx-secondary mt-1 leading-relaxed" numberOfLines={3}>
             {loc.notes}
           </Text>
+        ) : null}
+
+        {/* 관광지·액티비티 → 티켓 최저가 검색 */}
+        {showTicket ? (
+          <TouchableOpacity
+            onPress={() => openTicketSearch(loc.name, destination!)}
+            activeOpacity={0.75}
+            className="flex-row items-center gap-1 mt-2 self-start
+                       bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-1.5">
+            <Text className="text-xs">🎟️</Text>
+            <Text className="text-xs font-semibold text-amber-700">티켓 최저가</Text>
+          </TouchableOpacity>
         ) : null}
       </View>
 

@@ -16,10 +16,19 @@ class Settings(BaseSettings):
     # 외부 API — 장소 검색
     google_places_api_key: str = ""
 
+    # OAuth — 카카오 로그인
+    kakao_client_id: str = ""  # 카카오 디벨로퍼스 REST API 키
+    kakao_client_secret: str = ""  # 선택 — 보안 설정 사용 시
+    kakao_redirect_uri: str = ""  # 모바일: tripleapp://oauth/kakao, 웹: https://...
+
+    # Redis (멀티 워커 WebSocket pub/sub). 비워두면 단일 워커 인메모리 폴백.
+    redis_url: str = ""  # 예: redis://localhost:6379/0
+
     # Auth (JWT)
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
-    jwt_expire_minutes: int = 60 * 24 * 30  # 30일
+    jwt_expire_minutes: int = 15  # access token: 15분 (짧게, 보안)
+    jwt_refresh_expire_days: int = 7  # refresh token: 7일 (DB 저장, rotation)
 
     # App
     app_env: str = "development"
@@ -27,6 +36,12 @@ class Settings(BaseSettings):
 
     # CORS (콤마 구분 문자열 또는 "*" 전부 허용)
     cors_origins: str = "*"
+
+    # ── 에러 모니터링 ────────────────────────────────────────────────────────────
+    # 미설정 시 Sentry 비활성화 (개발/로컬 환경). 빈 문자열 = 비활성화.
+    sentry_dsn: str = ""
+    # 성능 트레이싱 샘플 비율 (0.0 ~ 1.0). 0.1 = 10% 트랜잭션 추적.
+    sentry_traces_sample_rate: float = 0.1
 
     # ── Cloudflare R2 (S3 호환 이미지 저장소) ──────────────────────────────────
     r2_account_id: str = ""

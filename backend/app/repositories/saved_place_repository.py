@@ -7,7 +7,11 @@ from app.schemas.saved_place import SavedPlaceCreate
 
 class SavedPlaceRepository:
     async def get_all_by_user(self, db: AsyncSession, user_id: int) -> list[SavedPlace]:
-        stmt = select(SavedPlace).where(SavedPlace.user_id == user_id).order_by(SavedPlace.created_at.desc())
+        stmt = (
+            select(SavedPlace)
+            .where(SavedPlace.user_id == user_id)
+            .order_by(SavedPlace.created_at.desc())
+        )
         result = await db.execute(stmt)
         return list(result.scalars().all())
 

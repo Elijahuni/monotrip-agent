@@ -63,8 +63,8 @@ function AddToTripModal({
     setSelectedTrip(null);
     setSelectedDay(1);
     setLoading(true);
-    api.trips.getAll()
-      .then(setTrips)
+    api.trips.getAll({ limit: 100 })
+      .then((page) => setTrips(page.items))
       .catch(() => setTrips([]))
       .finally(() => setLoading(false));
   }, [visible]);
