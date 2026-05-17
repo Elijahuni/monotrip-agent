@@ -5,6 +5,7 @@
 - 1차 출시: 검색 URL 딥링크 빌더 + 시뮬레이션 가격으로 UX 완결.
 - 향후 각 Provider 클래스에서 실제 HTTP 호출로 치환 가능 (인터페이스 유지).
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -26,14 +27,22 @@ logger = logging.getLogger(__name__)
 # ── 도시 → IATA / 영문명 매핑 (호텔 검색용) ───────────────────────────────────
 # 한글/영문 양쪽 입력 지원.
 CITY_TO_BOOKING_QUERY: dict[str, str] = {
-    "tokyo": "Tokyo, Japan", "도쿄": "Tokyo, Japan",
-    "osaka": "Osaka, Japan", "오사카": "Osaka, Japan",
-    "kyoto": "Kyoto, Japan", "교토": "Kyoto, Japan",
-    "fukuoka": "Fukuoka, Japan", "후쿠오카": "Fukuoka, Japan",
-    "seoul": "Seoul, South Korea", "서울": "Seoul, South Korea",
-    "busan": "Busan, South Korea", "부산": "Busan, South Korea",
-    "jeju": "Jeju, South Korea", "제주": "Jeju, South Korea",
-    "gangneung": "Gangneung, South Korea", "강릉": "Gangneung, South Korea",
+    "tokyo": "Tokyo, Japan",
+    "도쿄": "Tokyo, Japan",
+    "osaka": "Osaka, Japan",
+    "오사카": "Osaka, Japan",
+    "kyoto": "Kyoto, Japan",
+    "교토": "Kyoto, Japan",
+    "fukuoka": "Fukuoka, Japan",
+    "후쿠오카": "Fukuoka, Japan",
+    "seoul": "Seoul, South Korea",
+    "서울": "Seoul, South Korea",
+    "busan": "Busan, South Korea",
+    "부산": "Busan, South Korea",
+    "jeju": "Jeju, South Korea",
+    "제주": "Jeju, South Korea",
+    "gangneung": "Gangneung, South Korea",
+    "강릉": "Gangneung, South Korea",
 }
 
 
@@ -43,6 +52,7 @@ def normalize_city_for_hotels(city: str) -> str:
 
 
 # ── 딥링크 빌더 ──────────────────────────────────────────────────────────────
+
 
 def skyscanner_flight_url(q: FlightSearchQuery) -> str:
     """Skyscanner 검색 URL. 어필리에이트 키 없이도 동작 (장기적으론 partner.skyscanner)."""
@@ -123,6 +133,7 @@ def yanolja_hotel_url(q: HotelSearchQuery) -> str:
 # 실제 API 통합 전까지 UX 완결을 위한 합성 데이터.
 # 해시 기반 결정론적 — 같은 검색은 항상 같은 결과 (캐싱 친화적).
 
+
 def _det_hash(seed: str) -> int:
     return int(hashlib.sha256(seed.encode()).hexdigest()[:8], 16)
 
@@ -140,13 +151,13 @@ def _mock_flight_offers(q: FlightSearchQuery) -> list[FlightOffer]:
     base_price = int(base_price * (0.85 + (h % 30) / 100))  # ±15% 변동
 
     airlines = [
-        ("Korean Air",     "KE", "skyscanner"),
-        ("Asiana",         "OZ", "naver"),
-        ("Jeju Air",       "7C", "skyscanner"),
-        ("T'way Air",      "TW", "kayak"),
-        ("Jin Air",        "LJ", "naver"),
-        ("ANA",            "NH", "skyscanner"),
-        ("JAL",            "JL", "google_flights"),
+        ("Korean Air", "KE", "skyscanner"),
+        ("Asiana", "OZ", "naver"),
+        ("Jeju Air", "7C", "skyscanner"),
+        ("T'way Air", "TW", "kayak"),
+        ("Jin Air", "LJ", "naver"),
+        ("ANA", "NH", "skyscanner"),
+        ("JAL", "JL", "google_flights"),
     ]
 
     offers: list[FlightOffer] = []
@@ -187,18 +198,20 @@ def _mock_flight_offers(q: FlightSearchQuery) -> list[FlightOffer]:
         else:
             link = google_flights_url(q)
 
-        offers.append(FlightOffer(
-            id=f"{source}:{code}{i}:{base_seed[:8]}",
-            price_krw=price,
-            airline=airline_name,
-            stops=stops,
-            depart_time=depart_dt,
-            arrive_time=arrive_dt,
-            duration_minutes=duration_min,
-            segments=segments,
-            deeplink=link,
-            affiliate_source=source,
-        ))
+        offers.append(
+            FlightOffer(
+                id=f"{source}:{code}{i}:{base_seed[:8]}",
+                price_krw=price,
+                airline=airline_name,
+                stops=stops,
+                depart_time=depart_dt,
+                arrive_time=arrive_dt,
+                duration_minutes=duration_min,
+                segments=segments,
+                deeplink=link,
+                affiliate_source=source,
+            )
+        )
 
     return offers
 
@@ -208,17 +221,26 @@ def _mock_hotel_offers(q: HotelSearchQuery) -> list[HotelOffer]:
     h = _det_hash(seed)
     nights = max(1, (q.checkout - q.checkin).days)
 
-    is_japan = q.city.lower() in {"tokyo", "osaka", "kyoto", "fukuoka", "도쿄", "오사카", "교토", "후쿠오카"}
+    is_japan = q.city.lower() in {
+        "tokyo",
+        "osaka",
+        "kyoto",
+        "fukuoka",
+        "도쿄",
+        "오사카",
+        "교토",
+        "후쿠오카",
+    }
     base_per_night = 180_000 if is_japan else 120_000
 
     hotels = [
-        ("호텔 그랑디아",         "booking",  4, True,  True),
-        ("MyStays 인",            "agoda",    3, True,  True),
-        ("야놀자 시그니처",       "yanolja",  4, False, True),
-        ("Capsule Stay",          "booking",  2, True,  True),
-        ("Ladies Floor Hotel",    "booking",  4, True,  True),
-        ("Royal Park",            "agoda",    5, False, False),
-        ("로컬 호스텔",           "booking",  2, False, True),
+        ("호텔 그랑디아", "booking", 4, True, True),
+        ("MyStays 인", "agoda", 3, True, True),
+        ("야놀자 시그니처", "yanolja", 4, False, True),
+        ("Capsule Stay", "booking", 2, True, True),
+        ("Ladies Floor Hotel", "booking", 4, True, True),
+        ("Royal Park", "agoda", 5, False, False),
+        ("로컬 호스텔", "booking", 2, False, True),
     ]
 
     offers: list[HotelOffer] = []
@@ -230,51 +252,61 @@ def _mock_hotel_offers(q: HotelSearchQuery) -> list[HotelOffer]:
         rating = 3.8 + ((h + i * 5) % 12) / 10  # 3.8 ~ 5.0
         review_count = 100 + ((h + i * 17) % 9000)
 
-        offers.append(HotelOffer(
-            id=f"{source}:hotel{i}:{seed[:6]}",
-            name=name,
-            price_per_night_krw=per_night,
-            total_price_krw=per_night * nights,
-            rating=round(rating, 1),
-            review_count=review_count,
-            star_rating=star,
-            address=f"{q.city} 시내",
-            thumbnail=None,
-            deeplink=(
-                booking_hotel_url(q) if source == "booking"
-                else agoda_hotel_url(q) if source == "agoda"
-                else yanolja_hotel_url(q)
-            ),
-            affiliate_source=source,
-            women_floor=women_floor,
-            solo_friendly=solo,
-        ))
+        offers.append(
+            HotelOffer(
+                id=f"{source}:hotel{i}:{seed[:6]}",
+                name=name,
+                price_per_night_krw=per_night,
+                total_price_krw=per_night * nights,
+                rating=round(rating, 1),
+                review_count=review_count,
+                star_rating=star,
+                address=f"{q.city} 시내",
+                thumbnail=None,
+                deeplink=(
+                    booking_hotel_url(q)
+                    if source == "booking"
+                    else agoda_hotel_url(q)
+                    if source == "agoda"
+                    else yanolja_hotel_url(q)
+                ),
+                affiliate_source=source,
+                women_floor=women_floor,
+                solo_friendly=solo,
+            )
+        )
 
     return offers
 
 
 # ── Provider 인터페이스 + 구현 ─────────────────────────────────────────────────
 
+
 class FlightProvider(ABC):
     name: str
+
     @abstractmethod
     async def search(self, q: FlightSearchQuery) -> list[FlightOffer]: ...
 
 
 class HotelProvider(ABC):
     name: str
+
     @abstractmethod
     async def search(self, q: HotelSearchQuery) -> list[HotelOffer]: ...
 
 
 class MockFlightProvider(FlightProvider):
     """결정론적 시뮬레이션 — 실제 어필리에이트 API 도입 전까지의 stub."""
+
     name = "mock"
+
     async def search(self, q: FlightSearchQuery) -> list[FlightOffer]:
         return _mock_flight_offers(q)
 
 
 class MockHotelProvider(HotelProvider):
     name = "mock"
+
     async def search(self, q: HotelSearchQuery) -> list[HotelOffer]:
         return _mock_hotel_offers(q)

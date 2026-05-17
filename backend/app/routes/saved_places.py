@@ -12,7 +12,9 @@ _service = SavedPlaceService()
 
 
 @router.get("", response_model=ApiResponse[list[SavedPlaceResponse]])
-async def list_saved(current_user: CurrentUser, db: DbSession) -> ApiResponse[list[SavedPlaceResponse]]:
+async def list_saved(
+    current_user: CurrentUser, db: DbSession
+) -> ApiResponse[list[SavedPlaceResponse]]:
     items = await _service.get_all(db, current_user.id)
     return ApiResponse(data=items)
 
@@ -33,7 +35,9 @@ async def remove_saved(
     return ApiResponse(data=None, message="삭제되었습니다.")
 
 
-@router.post("/{saved_place_id}/add-to-trip", response_model=ApiResponse[LocationResponse], status_code=201)
+@router.post(
+    "/{saved_place_id}/add-to-trip", response_model=ApiResponse[LocationResponse], status_code=201
+)
 async def add_to_trip(
     saved_place_id: int, body: AddToTripRequest, current_user: CurrentUser, db: DbSession
 ) -> ApiResponse[LocationResponse]:

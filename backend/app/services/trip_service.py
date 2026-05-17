@@ -5,7 +5,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import AsyncSessionLocal
 from app.repositories.trip_repository import TripRepository
-from app.schemas.trip import LocationCreate, LocationResponse, LocationUpdate, TripCreate, TripPage, TripResponse, TripSummary, TripUpdate
+from app.schemas.trip import (
+    LocationCreate,
+    LocationResponse,
+    LocationUpdate,
+    TripCreate,
+    TripPage,
+    TripResponse,
+    TripSummary,
+    TripUpdate,
+)
 from app.services.ai.embedding_service import embed_place, embed_query
 
 logger = logging.getLogger(__name__)
@@ -40,9 +49,7 @@ class TripService:
         self._assert_accessible(trip, trip_id, user_id)
         return TripResponse.model_validate(trip)
 
-    async def create_trip(
-        self, db: AsyncSession, user_id: int, data: TripCreate
-    ) -> TripResponse:
+    async def create_trip(self, db: AsyncSession, user_id: int, data: TripCreate) -> TripResponse:
         trip = await self.repo.create(db, user_id, data)
         if data.locations:
             await self.repo.create_locations_bulk(db, trip.id, data.locations)
@@ -50,7 +57,9 @@ class TripService:
             refreshed = await self.repo.get_by_id_with_locations(db, trip.id)
             logger.info(
                 "Trip created with %d locations: id=%s user_id=%s",
-                len(data.locations), trip.id, user_id,
+                len(data.locations),
+                trip.id,
+                user_id,
             )
             return TripResponse.model_validate(refreshed)
         logger.info("Trip created: id=%s user_id=%s", trip.id, user_id)
@@ -174,9 +183,7 @@ class TripService:
         await self.repo.delete_location(db, location)
         logger.info("Location deleted: id=%s trip_id=%s", location_id, trip_id)
 
-    async def duplicate_trip(
-        self, db: AsyncSession, trip_id: int, user_id: int
-    ) -> TripResponse:
+    async def duplicate_trip(self, db: AsyncSession, trip_id: int, user_id: int) -> TripResponse:
         """여행과 장소를 모두 복사해 새 여행으로 반환. 날짜·공유토큰은 초기화."""
         trip = await self.repo.get_by_id_with_locations(db, trip_id)
         self._assert_accessible(trip, trip_id, user_id)

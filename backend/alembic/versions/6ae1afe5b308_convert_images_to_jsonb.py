@@ -23,12 +23,10 @@ def upgrade() -> None:
     """Upgrade schema."""
     # NULLIF 처리: 빈 문자열이 있을 경우 NULL로 변환 후 jsonb 캐스팅
     op.execute(
-        "ALTER TABLE locations ALTER COLUMN images TYPE JSONB "
-        "USING NULLIF(images, '')::jsonb"
+        "ALTER TABLE locations ALTER COLUMN images TYPE JSONB USING NULLIF(images, '')::jsonb"
     )
     op.execute(
-        "ALTER TABLE saved_places ALTER COLUMN images TYPE JSONB "
-        "USING NULLIF(images, '')::jsonb"
+        "ALTER TABLE saved_places ALTER COLUMN images TYPE JSONB USING NULLIF(images, '')::jsonb"
     )
 
 

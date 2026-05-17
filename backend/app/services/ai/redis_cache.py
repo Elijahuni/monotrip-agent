@@ -6,6 +6,7 @@
 
 Redis 미설정(redis_url 빈 문자열)이면 모든 함수가 graceful no-op으로 동작.
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -15,12 +16,13 @@ from typing import Any
 
 logger = logging.getLogger(__name__)
 
-_RESPONSE_TTL = 6 * 3600       # 6시간
+_RESPONSE_TTL = 6 * 3600  # 6시간
 _RECENT_REC_TTL = 7 * 24 * 3600  # 7일
-_MAX_RECENT = 3                  # 최근 N회 추천 보관
+_MAX_RECENT = 3  # 최근 N회 추천 보관
 
 try:
     import redis.asyncio as aioredis
+
     _REDIS_LIB = True
 except ImportError:
     _REDIS_LIB = False
@@ -28,6 +30,7 @@ except ImportError:
 
 def _get_client() -> "aioredis.Redis | None":
     from app.config import get_settings
+
     settings = get_settings()
     if not settings.redis_url or not _REDIS_LIB:
         return None
@@ -48,6 +51,7 @@ def _recent_key(user_id: int) -> str:
 
 
 # ─── Gemini 응답 캐시 ─────────────────────────────────────────────────────────
+
 
 async def get_cached_response(prompt: str) -> str | None:
     """캐시된 Gemini 응답 반환. 없거나 오류 시 None."""
@@ -83,6 +87,7 @@ async def set_cached_response(prompt: str, response: str) -> None:
 
 # ─── 사용자 최근 추천 캐시 ───────────────────────────────────────────────────
 
+
 async def get_recent_recommendations(user_id: int) -> list[str]:
     """사용자의 최근 추천 목적지 이름 목록 (최대 3개). 없으면 빈 리스트."""
     client = _get_client()
@@ -101,7 +106,9 @@ async def get_recent_recommendations(user_id: int) -> list[str]:
         await client.aclose()
 
 
-async def push_recent_recommendation(user_id: int, destination: str, location_names: list[str]) -> None:
+async def push_recent_recommendation(
+    user_id: int, destination: str, location_names: list[str]
+) -> None:
     """새 추천 결과를 최근 목록에 추가 (LIFO, 최대 3개 유지)."""
     client = _get_client()
     if client is None:

@@ -7,6 +7,7 @@
 
 Redis 미설정 환경에서도 단일 워커 폴백으로 동작 — 개발/테스트 친화.
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -24,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 try:
     import redis.asyncio as redis  # noqa: F401
+
     _REDIS_LIB = True
 except ImportError:
     _REDIS_LIB = False
@@ -91,20 +93,28 @@ class TripConnectionManager:
     # ── 룸 관리 ───────────────────────────────────────────────────────────────
 
     async def connect(
-        self, trip_id: int, ws: WebSocket, user_id: int, nickname: str | None = None,
+        self,
+        trip_id: int,
+        ws: WebSocket,
+        user_id: int,
+        nickname: str | None = None,
     ) -> None:
         await self.ensure_started()
         async with self._lock:
             self._rooms[trip_id].add((ws, user_id))
             if nickname:
                 self._nicknames[user_id] = nickname
-        await self.broadcast(trip_id, {
-            "type": "presence",
-            "event": "join",
-            "user_id": user_id,
-            "active_users": await self.active_user_ids(trip_id),
-            "active": await self.active_users(trip_id),
-        }, exclude_ws=None)
+        await self.broadcast(
+            trip_id,
+            {
+                "type": "presence",
+                "event": "join",
+                "user_id": user_id,
+                "active_users": await self.active_user_ids(trip_id),
+                "active": await self.active_users(trip_id),
+            },
+            exclude_ws=None,
+        )
 
     async def disconnect(self, trip_id: int, ws: WebSocket, user_id: int) -> None:
         async with self._lock:
@@ -116,13 +126,17 @@ class TripConnectionManager:
             if not still_in:
                 self._nicknames.pop(user_id, None)
         try:
-            await self.broadcast(trip_id, {
-                "type": "presence",
-                "event": "leave",
-                "user_id": user_id,
-                "active_users": await self.active_user_ids(trip_id),
-                "active": await self.active_users(trip_id),
-            }, exclude_ws=None)
+            await self.broadcast(
+                trip_id,
+                {
+                    "type": "presence",
+                    "event": "leave",
+                    "user_id": user_id,
+                    "active_users": await self.active_user_ids(trip_id),
+                    "active": await self.active_users(trip_id),
+                },
+                exclude_ws=None,
+            )
         except Exception:
             pass
 
@@ -169,7 +183,8 @@ class TripConnectionManager:
         targets: list[WebSocket]
         async with self._lock:
             targets = [
-                ws for ws, _ in self._rooms.get(trip_id, set())
+                ws
+                for ws, _ in self._rooms.get(trip_id, set())
                 if exclude_ws_id is None or id(ws) != exclude_ws_id
             ]
         for ws in targets:

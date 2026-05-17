@@ -13,6 +13,7 @@ from tests.conftest import register_and_login
 
 # ─── 픽스처 ───────────────────────────────────────────────────────────────────
 
+
 async def _make_trip(client: AsyncClient, token: str) -> int:
     res = await client.post(
         "/trips",
@@ -24,6 +25,7 @@ async def _make_trip(client: AsyncClient, token: str) -> int:
 
 
 # ─── 테스트 ───────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_add_checklist_item(client: AsyncClient):
@@ -50,8 +52,12 @@ async def test_list_checklist_items(client: AsyncClient):
     hdrs = {"Authorization": f"Bearer {token}"}
 
     # 2개 추가
-    await client.post(f"/trips/{trip_id}/checklist", json={"category": "서류", "text": "여권"}, headers=hdrs)
-    await client.post(f"/trips/{trip_id}/checklist", json={"category": "짐", "text": "충전기"}, headers=hdrs)
+    await client.post(
+        f"/trips/{trip_id}/checklist", json={"category": "서류", "text": "여권"}, headers=hdrs
+    )
+    await client.post(
+        f"/trips/{trip_id}/checklist", json={"category": "짐", "text": "충전기"}, headers=hdrs
+    )
 
     res = await client.get(f"/trips/{trip_id}/checklist", headers=hdrs)
     assert res.status_code == 200

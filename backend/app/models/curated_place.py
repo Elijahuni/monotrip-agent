@@ -3,6 +3,7 @@
 사용자별 SavedPlace(찜)와 분리. city/category/vibe_tags 필터 + 임베딩 유사도 검색용.
 2030 여성 타겟 메타데이터(women_friendly, tax_free, safety_score, instagram_hashtag) 포함.
 """
+
 from datetime import datetime
 
 from sqlalchemy import Boolean, Float, Index, JSON, String, Text, func
@@ -22,8 +23,12 @@ class CuratedPlace(Base):
 
     # ── 지역 ──
     country: Mapped[str] = mapped_column(String(2), nullable=False, default="JP")  # ISO: KR / JP
-    city: Mapped[str] = mapped_column(String(50), nullable=False)  # 정규화 키: tokyo, osaka, seoul, jeju
-    region: Mapped[str | None] = mapped_column(String(80), nullable=True)  # 자유 라벨: 시부야, 강남, 한적한 골목
+    city: Mapped[str] = mapped_column(
+        String(50), nullable=False
+    )  # 정규화 키: tokyo, osaka, seoul, jeju
+    region: Mapped[str | None] = mapped_column(
+        String(80), nullable=True
+    )  # 자유 라벨: 시부야, 강남, 한적한 골목
 
     # ── 기본 정보 ──
     name: Mapped[str] = mapped_column(String(200), nullable=False)
@@ -61,7 +66,9 @@ class CuratedPlace(Base):
     # ── 운영 ──
     is_published: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
     created_at: Mapped[datetime] = mapped_column(default=func.now(), nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        default=func.now(), onupdate=func.now(), nullable=False
+    )
 
     # ── 임베딩 ──
     # 768차원, name + description + vibe_tags 합쳐서 생성. NULL이면 큐레이션만, 의미 검색 제외.

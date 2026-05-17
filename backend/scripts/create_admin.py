@@ -22,7 +22,7 @@ from app.models.user import User
 from app.database import Base
 
 # ── 생성할 계정 정보 ──────────────────────────────────────────────────────────
-ADMIN_EMAIL    = "admin@gmail.com"
+ADMIN_EMAIL = "admin@gmail.com"
 ADMIN_PASSWORD = "admin1234"
 ADMIN_NICKNAME = "관리자"
 # ─────────────────────────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@
 text-embedding-004 (768차원). vibe_tags도 입력 텍스트에 포함하여
 "빈티지 카페" 같은 검색이 매칭되도록 한다.
 """
+
 import argparse
 import asyncio
 import sys
@@ -90,7 +91,9 @@ async def main(force_all: bool, city_filter: str | None) -> None:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--all", dest="force_all", action="store_true", help="이미 임베딩 있어도 재생성")
+    parser.add_argument(
+        "--all", dest="force_all", action="store_true", help="이미 임베딩 있어도 재생성"
+    )
     parser.add_argument("--city", help="특정 도시만 (tokyo/osaka/seoul/...)")
     args = parser.parse_args()
     asyncio.run(main(force_all=args.force_all, city_filter=args.city))

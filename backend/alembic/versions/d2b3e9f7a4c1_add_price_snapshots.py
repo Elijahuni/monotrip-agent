@@ -4,6 +4,7 @@ Revision ID: d2b3e9f7a4c1
 Revises: c1a7d9e3b2f0
 Create Date: 2026-05-17 00:00:00.000000
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -30,8 +31,11 @@ def upgrade() -> None:
         sa.Column("sample_size", sa.Integer(), nullable=False, server_default="0"),
         sa.Column("captured_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
     )
-    op.create_index("ix_flight_snapshot_route_depart", "flight_price_snapshots",
-                    ["from_iata", "to_iata", "depart_date"])
+    op.create_index(
+        "ix_flight_snapshot_route_depart",
+        "flight_price_snapshots",
+        ["from_iata", "to_iata", "depart_date"],
+    )
     op.create_index("ix_flight_snapshot_captured_at", "flight_price_snapshots", ["captured_at"])
 
     op.create_table(

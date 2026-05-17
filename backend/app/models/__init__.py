@@ -10,8 +10,19 @@ from app.models.trip import Trip
 from app.models.user import User
 
 __all__ = [
-    "User", "Trip", "Location", "SavedPlace", "ChecklistItem", "RefreshToken",
-    "CuratedPlace", "FlightPriceSnapshot", "HotelPriceSnapshot",
-    "TripCollaborator", "TripInvite",
-    "CommunityPost", "CommunityComment", "CommunityPostLike", "CommunityReport",
+    "User",
+    "Trip",
+    "Location",
+    "SavedPlace",
+    "ChecklistItem",
+    "RefreshToken",
+    "CuratedPlace",
+    "FlightPriceSnapshot",
+    "HotelPriceSnapshot",
+    "TripCollaborator",
+    "TripInvite",
+    "CommunityPost",
+    "CommunityComment",
+    "CommunityPostLike",
+    "CommunityReport",
 ]

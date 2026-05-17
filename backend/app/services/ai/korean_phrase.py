@@ -2,6 +2,7 @@
 
 일본인 관광객이 한국에서 사용할 자연스러운 한국어 + 한글 + 로마자(RR) 표기.
 """
+
 import json
 import logging
 
@@ -14,7 +15,12 @@ from .prompt_builder import sanitize_user_input
 logger = logging.getLogger(__name__)
 
 VALID_CONTEXTS: tuple[str, ...] = (
-    "restaurant", "shopping", "transport", "hotel", "emergency", "casual",
+    "restaurant",
+    "shopping",
+    "transport",
+    "hotel",
+    "emergency",
+    "casual",
 )
 VALID_FORMALITY: tuple[str, ...] = ("polite", "casual")
 

@@ -1,4 +1,5 @@
 """RefreshToken CRUD — DB 기반 refresh token 관리."""
+
 from datetime import datetime, timezone
 
 from sqlalchemy import select, update

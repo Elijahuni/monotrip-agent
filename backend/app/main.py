@@ -69,6 +69,7 @@ else:
 
 # ─── 스케줄러 lifespan ────────────────────────────────────────────────────────
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # 시작: 알림 스케줄러 등록 + 시작
@@ -106,6 +107,7 @@ app.add_middleware(
 
 # ─── 보안 헤더 미들웨어 ──────────────────────────────────────────────────────
 
+
 @app.middleware("http")
 async def security_headers_middleware(request: Request, call_next):
     response = await call_next(request)
@@ -117,6 +119,7 @@ async def security_headers_middleware(request: Request, call_next):
 
 
 # ─── request_id + 요청 로깅 미들웨어 ─────────────────────────────────────────
+
 
 @app.middleware("http")
 async def request_logging_middleware(request: Request, call_next):
@@ -141,6 +144,7 @@ async def request_logging_middleware(request: Request, call_next):
 
 
 # ─── 글로벌 예외 핸들러 ──────────────────────────────────────────────────────
+
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception) -> JSONResponse:
@@ -180,6 +184,7 @@ app.include_router(community_router)
 
 
 # ─── 헬스체크 ────────────────────────────────────────────────────────────────
+
 
 @app.get("/health")
 async def health() -> dict[str, str]:

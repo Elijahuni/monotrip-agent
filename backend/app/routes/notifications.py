@@ -33,6 +33,7 @@ class PushTokenBody(BaseModel):
 
 # ── 토큰 등록 / 갱신 ──────────────────────────────────────────────────────────
 
+
 @router.post("/push-token", response_model=ApiResponse[None])
 @limiter.limit("10/minute")
 async def register_push_token(
@@ -57,6 +58,7 @@ async def register_push_token(
 
 # ── 토큰 제거 ─────────────────────────────────────────────────────────────────
 
+
 @router.delete("/push-token", response_model=ApiResponse[None])
 async def unregister_push_token(
     current_user: CurrentUser,
@@ -69,6 +71,7 @@ async def unregister_push_token(
 
 
 # ── 테스트 알림 (개발/스테이징 전용) ─────────────────────────────────────────
+
 
 @router.post("/test", response_model=ApiResponse[dict])
 @limiter.limit("3/minute")
@@ -93,13 +96,15 @@ async def send_test_notification(
             detail="등록된 푸시 토큰이 없습니다. 앱에서 알림 권한을 허용해 주세요.",
         )
 
-    result = await send_push_notifications([
-        PushMessage(
-            to=user.expo_push_token,
-            title="🔔 모노트립 테스트 알림",
-            body="알림이 정상적으로 수신되었습니다!",
-            data={"type": "test"},
-        )
-    ])
+    result = await send_push_notifications(
+        [
+            PushMessage(
+                to=user.expo_push_token,
+                title="🔔 모노트립 테스트 알림",
+                body="알림이 정상적으로 수신되었습니다!",
+                data={"type": "test"},
+            )
+        ]
+    )
 
     return ApiResponse(data={"sent": result.sent, "failed": result.failed})

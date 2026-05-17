@@ -1,4 +1,5 @@
 """Google Search Grounding 기반 실시간 트렌딩 장소 조회."""
+
 import asyncio
 import logging
 from datetime import datetime, timezone

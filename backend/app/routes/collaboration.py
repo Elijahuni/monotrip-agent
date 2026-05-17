@@ -1,4 +1,5 @@
 """공동 편집 초대/수락/협업자 목록 라우트."""
+
 from datetime import datetime
 from typing import Literal
 
@@ -61,12 +62,14 @@ async def create_invite(
     invite = await _service.create_invite(
         db, trip_id=trip_id, inviter_id=current_user.id, role=body.role
     )
-    return ApiResponse(data=InviteResponse(
-        token=invite.token,
-        role=invite.role,
-        expires_at=invite.expires_at,
-        share_url=_share_url(invite.token),
-    ))
+    return ApiResponse(
+        data=InviteResponse(
+            token=invite.token,
+            role=invite.role,
+            expires_at=invite.expires_at,
+            share_url=_share_url(invite.token),
+        )
+    )
 
 
 @router.post("/trips/invite/accept", response_model=ApiResponse[CollaboratorResponse])

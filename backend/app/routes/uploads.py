@@ -24,7 +24,9 @@ async def upload_photo_endpoint(
     Returns: { url, width, height, key }
     """
     if not file.content_type:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Content-Type이 없습니다.")
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Content-Type이 없습니다."
+        )
 
     try:
         result = upload_photo(file.file, file.content_type, prefix=f"users/{current_user.id}")

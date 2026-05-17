@@ -26,7 +26,7 @@ _CHUNK_SIZE = 100  # Expo 권장 최대값
 class PushMessage:
     """Expo 푸시 메시지 한 건."""
 
-    to: str           # ExponentPushToken[xxx]
+    to: str  # ExponentPushToken[xxx]
     title: str
     body: str
     data: dict | None = None

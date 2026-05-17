@@ -1,39 +1,89 @@
 """프롬프트 구성 유틸리티 — 입력 정제·스타일·날씨 제약·템플릿."""
+
 import re
 from datetime import datetime, timezone
 
 # ─── wttr.in weatherCode 전체 유효 집합 (CRITICAL-2: 클라이언트 입력 whitelist) ─
 # https://www.worldweatheronline.com/weather-api/api/docs/weather-description-codes.aspx
-VALID_WEATHER_CODES: frozenset[int] = frozenset({
-    113, 116, 119, 122,                        # 맑음 / 구름
-    143, 248, 260,                             # 안개
-    176, 179, 182, 185,                        # 가벼운 비·눈·진눈깨비
-    200,                                        # 천둥
-    227, 230,                                  # 눈보라
-    263, 266,                                  # 가랑비
-    281, 284,                                  # 얼어붙는 이슬비
-    293, 296, 299, 302, 305, 308,             # 비
-    311, 314, 317, 320,                        # 어는 비·진눈깨비
-    323, 326, 329, 332, 335, 338, 350,        # 눈·얼음 입자
-    353, 356, 359,                             # 소나기
-    362, 365, 368, 371, 374, 377,             # 눈·진눈깨비 소나기
-    386, 389, 392, 395,                        # 뇌우 동반
-})
+VALID_WEATHER_CODES: frozenset[int] = frozenset(
+    {
+        113,
+        116,
+        119,
+        122,  # 맑음 / 구름
+        143,
+        248,
+        260,  # 안개
+        176,
+        179,
+        182,
+        185,  # 가벼운 비·눈·진눈깨비
+        200,  # 천둥
+        227,
+        230,  # 눈보라
+        263,
+        266,  # 가랑비
+        281,
+        284,  # 얼어붙는 이슬비
+        293,
+        296,
+        299,
+        302,
+        305,
+        308,  # 비
+        311,
+        314,
+        317,
+        320,  # 어는 비·진눈깨비
+        323,
+        326,
+        329,
+        332,
+        335,
+        338,
+        350,  # 눈·얼음 입자
+        353,
+        356,
+        359,  # 소나기
+        362,
+        365,
+        368,
+        371,
+        374,
+        377,  # 눈·진눈깨비 소나기
+        386,
+        389,
+        392,
+        395,  # 뇌우 동반
+    }
+)
 
 # ─── 눈·결빙 wttr.in weatherCode 집합 (모듈 상수 — 호출마다 재생성 방지) ───────
-SNOW_CODES: frozenset[int] = frozenset({
-    179, 182, 185, 281, 284,   # 얼음/진눈깨비
-    311, 314, 317, 320,        # 슬릿/눈비
-    362, 365, 374, 377,        # 눈
-})
+SNOW_CODES: frozenset[int] = frozenset(
+    {
+        179,
+        182,
+        185,
+        281,
+        284,  # 얼음/진눈깨비
+        311,
+        314,
+        317,
+        320,  # 슬릿/눈비
+        362,
+        365,
+        374,
+        377,  # 눈
+    }
+)
 
 # ─── 모바일 travel_style key → 한국어 레이블 ─────────────────────────────────
 STYLE_KEY_MAP: dict[str, str] = {
-    "food":     "미식 맛집",
+    "food": "미식 맛집",
     "shopping": "쇼핑",
-    "nature":   "자연 힐링",
+    "nature": "자연 힐링",
     "activity": "액티비티",
-    "history":  "역사 문화",
+    "history": "역사 문화",
 }
 
 # ─── 여행 일정 프롬프트 템플릿 ────────────────────────────────────────────────
@@ -178,6 +228,7 @@ BY_WEATHER_TEMPLATE = """\
 
 # ─── 유틸리티 함수들 ───────────────────────────────────────────────────────────
 
+
 def sanitize_user_input(text: str, max_len: int = 200) -> str:
     """프롬프트 인젝션 방어 — HTML 태그와 LLM 역할 전환 키워드 제거."""
     if not text:
@@ -195,9 +246,12 @@ def sanitize_user_input(text: str, max_len: int = 200) -> str:
 def get_current_season() -> str:
     """UTC 기준 현재 월 → 시즌 문자열."""
     month = datetime.now(timezone.utc).month
-    if month in (3, 4, 5):   return "봄 (벚꽃·나들이 시즌)"
-    if month in (6, 7, 8):   return "여름 (더위·휴가 시즌)"
-    if month in (9, 10, 11): return "가을 (단풍·선선한 날씨)"
+    if month in (3, 4, 5):
+        return "봄 (벚꽃·나들이 시즌)"
+    if month in (6, 7, 8):
+        return "여름 (더위·휴가 시즌)"
+    if month in (9, 10, 11):
+        return "가을 (단풍·선선한 날씨)"
     return "겨울 (연말·크리스마스 시즌)"
 
 
@@ -294,8 +348,7 @@ def build_style_constraints(style_context: str) -> str:
 
     if any(k in p for k in ["쇼핑", "마켓", "백화점"]):
         return (
-            "- 쇼핑몰·마켓·거리 쇼핑 장소를 하루에 2~3개 포함\n"
-            "- 숙소는 하루에 1개, 음식점은 1~2개"
+            "- 쇼핑몰·마켓·거리 쇼핑 장소를 하루에 2~3개 포함\n- 숙소는 하루에 1개, 음식점은 1~2개"
         )
 
     if any(k in p for k in ["역사", "문화", "박물관", "유적", "전통"]):

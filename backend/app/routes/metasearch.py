@@ -1,4 +1,5 @@
 """Phase 2 메타서치 라우트 — 항공/숙소 가격비교."""
+
 from __future__ import annotations
 
 import logging
@@ -6,7 +7,6 @@ import statistics
 from datetime import date
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Query, Request
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import AsyncSessionLocal
 from app.dependencies.auth import get_current_user
@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 
 # ── BackgroundTasks: 가격 스냅샷 적재 (검색 응답 차단하지 않음) ──────────────
+
 
 async def _persist_flight_snapshot(q: FlightSearchQuery, result: FlightSearchResult) -> None:
     if not result.offers:
@@ -76,6 +77,7 @@ async def _persist_hotel_snapshot(q: HotelSearchQuery, result: HotelSearchResult
 
 # ── 항공 ─────────────────────────────────────────────────────────────────────
 
+
 @router.get("/flights", response_model=ApiResponse[FlightSearchResult])
 @limiter.limit("30/hour")
 async def get_flights(
@@ -105,7 +107,9 @@ async def get_flights(
         try:
             tr = await analyze_flight_price(
                 db,
-                from_iata=q.from_iata, to_iata=q.to_iata, depart_date=q.depart_date,
+                from_iata=q.from_iata,
+                to_iata=q.to_iata,
+                depart_date=q.depart_date,
                 current_min=min(o.price_krw for o in result.offers),
             )
             result.trend = PriceTrend(**tr.model_dump())
@@ -118,6 +122,7 @@ async def get_flights(
 
 
 # ── 숙소 ─────────────────────────────────────────────────────────────────────
+
 
 @router.get("/hotels", response_model=ApiResponse[HotelSearchResult])
 @limiter.limit("30/hour")
@@ -148,7 +153,9 @@ async def get_hotels(
     if result.offers and db is not None:
         try:
             tr = await analyze_hotel_price(
-                db, city=q.city, checkin=q.checkin,
+                db,
+                city=q.city,
+                checkin=q.checkin,
                 current_min_per_night=min(o.price_per_night_krw for o in result.offers),
             )
             result.trend = PriceTrend(**tr.model_dump())

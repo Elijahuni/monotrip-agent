@@ -1,4 +1,5 @@
 """CuratedPlaceService — 큐레이션 장소 조회 + vibe 가중 랭킹 + 개인화."""
+
 import logging
 import math
 import unicodedata
@@ -17,38 +18,71 @@ logger = logging.getLogger(__name__)
 # city 별칭 정규화 (사용자가 한글로 입력해도 매핑)
 CITY_ALIASES: dict[str, str] = {
     # Japan
-    "도쿄": "tokyo", "동경": "tokyo", "tokyo": "tokyo",
-    "오사카": "osaka", "osaka": "osaka",
-    "교토": "kyoto", "kyoto": "kyoto",
-    "후쿠오카": "fukuoka", "fukuoka": "fukuoka",
-    "삿포로": "sapporo", "sapporo": "sapporo",
-    "오키나와": "okinawa", "okinawa": "okinawa",
-    "나고야": "nagoya", "nagoya": "nagoya",
-    "요코하마": "yokohama", "yokohama": "yokohama",
-    "고베": "kobe", "kobe": "kobe",
-    "히로시마": "hiroshima", "hiroshima": "hiroshima",
+    "도쿄": "tokyo",
+    "동경": "tokyo",
+    "tokyo": "tokyo",
+    "오사카": "osaka",
+    "osaka": "osaka",
+    "교토": "kyoto",
+    "kyoto": "kyoto",
+    "후쿠오카": "fukuoka",
+    "fukuoka": "fukuoka",
+    "삿포로": "sapporo",
+    "sapporo": "sapporo",
+    "오키나와": "okinawa",
+    "okinawa": "okinawa",
+    "나고야": "nagoya",
+    "nagoya": "nagoya",
+    "요코하마": "yokohama",
+    "yokohama": "yokohama",
+    "고베": "kobe",
+    "kobe": "kobe",
+    "히로시마": "hiroshima",
+    "hiroshima": "hiroshima",
     # Korea
-    "서울": "seoul", "seoul": "seoul",
-    "부산": "busan", "busan": "busan",
-    "제주": "jeju", "제주도": "jeju", "jeju": "jeju",
-    "강릉": "gangneung", "gangneung": "gangneung",
-    "경주": "gyeongju", "gyeongju": "gyeongju",
-    "여수": "yeosu", "yeosu": "yeosu",
-    "전주": "jeonju", "jeonju": "jeonju",
+    "서울": "seoul",
+    "seoul": "seoul",
+    "부산": "busan",
+    "busan": "busan",
+    "제주": "jeju",
+    "제주도": "jeju",
+    "jeju": "jeju",
+    "강릉": "gangneung",
+    "gangneung": "gangneung",
+    "경주": "gyeongju",
+    "gyeongju": "gyeongju",
+    "여수": "yeosu",
+    "yeosu": "yeosu",
+    "전주": "jeonju",
+    "jeonju": "jeonju",
     # Southeast Asia
-    "방콕": "bangkok", "bangkok": "bangkok",
-    "발리": "bali", "bali": "bali",
-    "싱가포르": "singapore", "singapore": "singapore",
-    "하노이": "hanoi", "hanoi": "hanoi",
-    "호치민": "hochiminh", "호찌민": "hochiminh", "hochiminh": "hochiminh",
-    "쿠알라룸푸르": "kuala_lumpur", "kl": "kuala_lumpur", "kuala_lumpur": "kuala_lumpur",
+    "방콕": "bangkok",
+    "bangkok": "bangkok",
+    "발리": "bali",
+    "bali": "bali",
+    "싱가포르": "singapore",
+    "singapore": "singapore",
+    "하노이": "hanoi",
+    "hanoi": "hanoi",
+    "호치민": "hochiminh",
+    "호찌민": "hochiminh",
+    "hochiminh": "hochiminh",
+    "쿠알라룸푸르": "kuala_lumpur",
+    "kl": "kuala_lumpur",
+    "kuala_lumpur": "kuala_lumpur",
     # Europe
-    "파리": "paris", "paris": "paris",
-    "런던": "london", "london": "london",
-    "암스테르담": "amsterdam", "amsterdam": "amsterdam",
-    "바르셀로나": "barcelona", "barcelona": "barcelona",
-    "로마": "rome", "rome": "rome",
-    "프라하": "prague", "prague": "prague",
+    "파리": "paris",
+    "paris": "paris",
+    "런던": "london",
+    "london": "london",
+    "암스테르담": "amsterdam",
+    "amsterdam": "amsterdam",
+    "바르셀로나": "barcelona",
+    "barcelona": "barcelona",
+    "로마": "rome",
+    "rome": "rome",
+    "프라하": "prague",
+    "prague": "prague",
 }
 
 
@@ -126,7 +160,9 @@ class CuratedPlaceService:
         """주어진 큐레이션 장소와 의미적으로 유사한 장소들. 임베딩 필요."""
         base = await self.repo.get_by_id(db, place_id)
         if base is None or not base.is_published:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="장소를 찾을 수 없습니다.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="장소를 찾을 수 없습니다."
+            )
         # pgvector는 numpy array를 반환할 수 있어 직접 truthy 평가 금지
         if base.embedding is None or len(base.embedding) == 0:
             return []
@@ -144,7 +180,9 @@ class CuratedPlaceService:
     async def get_detail(self, db: AsyncSession, place_id: int) -> CuratedPlaceResponse:
         obj = await self.repo.get_by_id(db, place_id)
         if obj is None or not obj.is_published:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="장소를 찾을 수 없습니다.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="장소를 찾을 수 없습니다."
+            )
         return CuratedPlaceResponse.model_validate(obj)
 
     async def add_to_trip(
@@ -160,17 +198,27 @@ class CuratedPlaceService:
         """큐레이션 장소를 사용자 여행 일정의 Location으로 복제."""
         place = await self.repo.get_by_id(db, place_id)
         if place is None or not place.is_published:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="장소를 찾을 수 없습니다.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="장소를 찾을 수 없습니다."
+            )
 
         trip = await self.trip_repo.get_by_id(db, trip_id)
         if trip is None or trip.user_id != user_id:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="여행을 찾을 수 없습니다.")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="여행을 찾을 수 없습니다."
+            )
 
         # 카테고리 매핑: 큐레이션 카테고리 → Location 카테고리 한글
         category_label = {
-            "cafe": "카페", "dessert": "카페", "restaurant": "음식점",
-            "bar": "음식점", "shopping": "쇼핑", "photospot": "관광지",
-            "culture": "문화", "nature": "자연", "hotel": "숙소",
+            "cafe": "카페",
+            "dessert": "카페",
+            "restaurant": "음식점",
+            "bar": "음식점",
+            "shopping": "쇼핑",
+            "photospot": "관광지",
+            "culture": "문화",
+            "nature": "자연",
+            "hotel": "숙소",
         }.get(place.category, "관광지")
 
         loc_data = LocationCreate(

@@ -9,7 +9,6 @@ Create Date: 2026-05-16 18:06:54.405195
 from typing import Sequence, Union
 
 from alembic import op
-import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
@@ -24,9 +23,7 @@ def upgrade() -> None:
     op.execute("CREATE EXTENSION IF NOT EXISTS vector")
 
     # embedding 컬럼 추가: 768차원 (text-embedding-004 기본 차원)
-    op.execute(
-        "ALTER TABLE locations ADD COLUMN IF NOT EXISTS embedding vector(768)"
-    )
+    op.execute("ALTER TABLE locations ADD COLUMN IF NOT EXISTS embedding vector(768)")
 
     # 코사인 유사도 검색용 IVFFlat 인덱스 (100개 이상 데이터 기준 권장)
     # lists=100: 클러스터 수, probes는 쿼리 시 SET ivfflat.probes 로 조정

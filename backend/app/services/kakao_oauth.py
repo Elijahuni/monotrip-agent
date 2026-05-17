@@ -5,6 +5,7 @@
   2) 모바일이 /auth/kakao로 access_token(또는 code) 전송
   3) 백엔드가 카카오 API로 프로필 조회 → user upsert → triple JWT 발급
 """
+
 from __future__ import annotations
 
 import logging
@@ -56,7 +57,9 @@ async def exchange_code_for_token(code: str) -> str:
 
     access_token = payload.get("access_token")
     if not access_token:
-        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail="카카오 응답이 비어있어요.")
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY, detail="카카오 응답이 비어있어요."
+        )
     return access_token
 
 
@@ -106,11 +109,17 @@ async def upsert_kakao_user(db: AsyncSession, profile: dict[str, Any]) -> User:
     pid = profile["provider_user_id"]
 
     # 1) OAuth 식별자로 조회
-    existing = (await db.execute(
-        select(User)
-        .where(User.auth_provider == "kakao")
-        .where(User.provider_user_id == pid)
-    )).scalars().first()
+    existing = (
+        (
+            await db.execute(
+                select(User)
+                .where(User.auth_provider == "kakao")
+                .where(User.provider_user_id == pid)
+            )
+        )
+        .scalars()
+        .first()
+    )
     if existing:
         # 닉네임/이미지가 바뀌었을 수 있으니 동기화
         if profile.get("nickname") and existing.nickname != profile["nickname"]:
@@ -123,9 +132,7 @@ async def upsert_kakao_user(db: AsyncSession, profile: dict[str, Any]) -> User:
     # 2) 같은 email의 local 사용자 → 카카오로 연동
     email = profile.get("email")
     if email:
-        same_email = (await db.execute(
-            select(User).where(User.email == email)
-        )).scalars().first()
+        same_email = (await db.execute(select(User).where(User.email == email))).scalars().first()
         if same_email:
             same_email.auth_provider = "kakao"
             same_email.provider_user_id = pid

@@ -23,6 +23,7 @@ class CuratedAddToTripRequest(BaseModel):
     day_index: int = Field(default=1, ge=1)
     visit_order: int = Field(default=0, ge=0)
 
+
 router = APIRouter(prefix="/places", tags=["places"])
 _curated_service = CuratedPlaceService()
 
@@ -57,9 +58,12 @@ async def search_places(
 async def list_curated_places(
     request: Request,
     db: DbSession,
-    city: str = Query(..., min_length=1, max_length=50, description="도시 키 또는 한글명 (예: tokyo, 도쿄)"),
+    city: str = Query(
+        ..., min_length=1, max_length=50, description="도시 키 또는 한글명 (예: tokyo, 도쿄)"
+    ),
     category: CuratedCategory | None = Query(
-        None, description="카테고리 (cafe/dessert/photospot/shopping/restaurant/bar/culture/nature/hotel)"
+        None,
+        description="카테고리 (cafe/dessert/photospot/shopping/restaurant/bar/culture/nature/hotel)",
     ),
     vibes: list[str] | None = Query(
         None,

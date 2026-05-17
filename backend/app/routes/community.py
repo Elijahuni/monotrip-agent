@@ -2,13 +2,13 @@
 
 신고 누적 시 자동 숨김(3건) — 1차 모더레이션. Gemini 자동 분류는 후속.
 """
+
 from datetime import datetime
 from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import desc, func, select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import AsyncSessionLocal
 from app.dependencies.auth import CurrentUser
@@ -24,15 +24,21 @@ from app.schemas.common import ApiResponse
 from app.services.ai.moderation import moderate_text
 
 import logging
+
 _logger = logging.getLogger(__name__)
 
 
 # ── 비동기 모더레이션 작업 ─────────────────────────────────────────────────────
 
+
 async def _moderate_post_bg(post_id: int) -> None:
     """글 작성 후 BackgroundTask. 자체 세션으로 실행."""
     async with AsyncSessionLocal() as db:
-        post = (await db.execute(select(CommunityPost).where(CommunityPost.id == post_id))).scalars().first()
+        post = (
+            (await db.execute(select(CommunityPost).where(CommunityPost.id == post_id)))
+            .scalars()
+            .first()
+        )
         if post is None:
             return
         result = await moderate_text(post.title, post.body)
@@ -46,9 +52,11 @@ async def _moderate_post_bg(post_id: int) -> None:
 
 async def _moderate_comment_bg(comment_id: int) -> None:
     async with AsyncSessionLocal() as db:
-        comment = (await db.execute(
-            select(CommunityComment).where(CommunityComment.id == comment_id)
-        )).scalars().first()
+        comment = (
+            (await db.execute(select(CommunityComment).where(CommunityComment.id == comment_id)))
+            .scalars()
+            .first()
+        )
         if comment is None:
             return
         # 댓글은 제목 없으므로 body만
@@ -60,10 +68,12 @@ async def _moderate_comment_bg(comment_id: int) -> None:
         await db.commit()
         _logger.info("Comment %s moderated: %s", comment_id, result.verdict)
 
+
 router = APIRouter(prefix="/community", tags=["community"])
 
 
 # ── 스키마 ────────────────────────────────────────────────────────────────────
+
 
 class PostCreate(BaseModel):
     category: Literal["qna", "review", "photospot"] = "qna"
@@ -107,6 +117,7 @@ class ReportCreate(BaseModel):
 
 # ── 피드 ─────────────────────────────────────────────────────────────────────
 
+
 @router.get("/feed", response_model=ApiResponse[list[PostResponse]])
 async def feed(
     current_user: CurrentUser,
@@ -133,6 +144,7 @@ async def feed(
 
 
 # ── 게시글 ───────────────────────────────────────────────────────────────────
+
 
 @router.post("/posts", response_model=ApiResponse[PostResponse], status_code=201)
 @limiter.limit("10/hour")
@@ -165,11 +177,15 @@ async def get_post(
     current_user: CurrentUser,
     db: DbSession,
 ) -> ApiResponse[PostResponse]:
-    post = (await db.execute(
-        select(CommunityPost).where(CommunityPost.id == post_id)
-    )).scalars().first()
+    post = (
+        (await db.execute(select(CommunityPost).where(CommunityPost.id == post_id)))
+        .scalars()
+        .first()
+    )
     if post is None or post.is_hidden:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="게시글을 찾을 수 없습니다.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="게시글을 찾을 수 없습니다."
+        )
     return ApiResponse(data=PostResponse.model_validate(post))
 
 
@@ -179,11 +195,15 @@ async def delete_post(
     current_user: CurrentUser,
     db: DbSession,
 ) -> ApiResponse[None]:
-    post = (await db.execute(
-        select(CommunityPost).where(CommunityPost.id == post_id)
-    )).scalars().first()
+    post = (
+        (await db.execute(select(CommunityPost).where(CommunityPost.id == post_id)))
+        .scalars()
+        .first()
+    )
     if post is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="게시글을 찾을 수 없습니다.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="게시글을 찾을 수 없습니다."
+        )
     if post.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="삭제 권한이 없습니다.")
     await db.delete(post)
@@ -192,18 +212,25 @@ async def delete_post(
 
 # ── 댓글 ─────────────────────────────────────────────────────────────────────
 
+
 @router.get("/posts/{post_id}/comments", response_model=ApiResponse[list[CommentResponse]])
 async def list_comments(
     post_id: int,
     current_user: CurrentUser,
     db: DbSession,
 ) -> ApiResponse[list[CommentResponse]]:
-    rows = (await db.execute(
-        select(CommunityComment)
-        .where(CommunityComment.post_id == post_id)
-        .where(CommunityComment.is_hidden.is_(False))
-        .order_by(CommunityComment.created_at.asc())
-    )).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(CommunityComment)
+                .where(CommunityComment.post_id == post_id)
+                .where(CommunityComment.is_hidden.is_(False))
+                .order_by(CommunityComment.created_at.asc())
+            )
+        )
+        .scalars()
+        .all()
+    )
     return ApiResponse(data=[CommentResponse.model_validate(r) for r in rows])
 
 
@@ -221,11 +248,15 @@ async def create_comment(
     current_user: CurrentUser,
     db: DbSession,
 ) -> ApiResponse[CommentResponse]:
-    post = (await db.execute(
-        select(CommunityPost).where(CommunityPost.id == post_id)
-    )).scalars().first()
+    post = (
+        (await db.execute(select(CommunityPost).where(CommunityPost.id == post_id)))
+        .scalars()
+        .first()
+    )
     if post is None or post.is_hidden:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="게시글을 찾을 수 없습니다.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="게시글을 찾을 수 없습니다."
+        )
     comment = CommunityComment(post_id=post_id, user_id=current_user.id, body=body.body)
     db.add(comment)
     post.comment_count = (post.comment_count or 0) + 1
@@ -237,22 +268,33 @@ async def create_comment(
 
 # ── 좋아요 ───────────────────────────────────────────────────────────────────
 
+
 @router.post("/posts/{post_id}/like", response_model=ApiResponse[dict])
 async def toggle_like(
     post_id: int,
     current_user: CurrentUser,
     db: DbSession,
 ) -> ApiResponse[dict]:
-    post = (await db.execute(
-        select(CommunityPost).where(CommunityPost.id == post_id)
-    )).scalars().first()
+    post = (
+        (await db.execute(select(CommunityPost).where(CommunityPost.id == post_id)))
+        .scalars()
+        .first()
+    )
     if post is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="게시글을 찾을 수 없습니다.")
-    existing = (await db.execute(
-        select(CommunityPostLike)
-        .where(CommunityPostLike.post_id == post_id)
-        .where(CommunityPostLike.user_id == current_user.id)
-    )).scalars().first()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="게시글을 찾을 수 없습니다."
+        )
+    existing = (
+        (
+            await db.execute(
+                select(CommunityPostLike)
+                .where(CommunityPostLike.post_id == post_id)
+                .where(CommunityPostLike.user_id == current_user.id)
+            )
+        )
+        .scalars()
+        .first()
+    )
     if existing:
         await db.delete(existing)
         post.like_count = max(0, (post.like_count or 0) - 1)
@@ -279,22 +321,31 @@ async def report_post(
     current_user: CurrentUser,
     db: DbSession,
 ) -> ApiResponse[None]:
-    post = (await db.execute(
-        select(CommunityPost).where(CommunityPost.id == post_id)
-    )).scalars().first()
+    post = (
+        (await db.execute(select(CommunityPost).where(CommunityPost.id == post_id)))
+        .scalars()
+        .first()
+    )
     if post is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="게시글을 찾을 수 없습니다.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="게시글을 찾을 수 없습니다."
+        )
 
     report = CommunityReport(
-        reporter_id=current_user.id, post_id=post_id, reason=body.reason, detail=body.detail,
+        reporter_id=current_user.id,
+        post_id=post_id,
+        reason=body.reason,
+        detail=body.detail,
     )
     db.add(report)
     await db.flush()
 
     # 누적 신고 ≥ 3건이면 자동 숨김 (운영자 검토 대기)
-    count = (await db.execute(
-        select(func.count(CommunityReport.id)).where(CommunityReport.post_id == post_id)
-    )).scalar() or 0
+    count = (
+        await db.execute(
+            select(func.count(CommunityReport.id)).where(CommunityReport.post_id == post_id)
+        )
+    ).scalar() or 0
     if count >= _AUTO_HIDE_THRESHOLD:
         post.is_hidden = True
         await db.flush()

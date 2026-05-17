@@ -6,10 +6,12 @@
   Southeast Asia (6): 방콕·발리·싱가포르·하노이·호치민·쿠알라룸푸르
   Europe  (6): 파리·런던·암스테르담·바르셀로나·로마·프라하
 """
+
 # Japan (existing)
 from .tokyo import TOKYO_SEED
 from .osaka import OSAKA_SEED
 from .kyoto import KYOTO_SEED
+
 # Japan (new)
 from .fukuoka import FUKUOKA_SEED
 from .sapporo import SAPPORO_SEED
@@ -18,27 +20,42 @@ from .nagoya import NAGOYA_SEED
 from .yokohama import YOKOHAMA_SEED
 from .kobe import KOBE_SEED
 from .hiroshima import HIROSHIMA_SEED
+
 # Korea (existing)
 from .seoul import SEOUL_SEED
 from .busan import BUSAN_SEED
 from .jeju import JEJU_SEED
+
 # Korea (new)
 from .gangneung import GANGNEUNG_SEED
 from .gyeongju import GYEONGJU_SEED
 from .yeosu import YEOSU_SEED
 from .jeonju import JEONJU_SEED
+
 # Southeast Asia & Europe (new)
 from .southeast_asia import SOUTHEAST_ASIA_SEED
 from .europe import EUROPE_SEED
 
 ALL_SEEDS = [
     # Japan
-    *TOKYO_SEED, *OSAKA_SEED, *KYOTO_SEED,
-    *FUKUOKA_SEED, *SAPPORO_SEED, *OKINAWA_SEED,
-    *NAGOYA_SEED, *YOKOHAMA_SEED, *KOBE_SEED, *HIROSHIMA_SEED,
+    *TOKYO_SEED,
+    *OSAKA_SEED,
+    *KYOTO_SEED,
+    *FUKUOKA_SEED,
+    *SAPPORO_SEED,
+    *OKINAWA_SEED,
+    *NAGOYA_SEED,
+    *YOKOHAMA_SEED,
+    *KOBE_SEED,
+    *HIROSHIMA_SEED,
     # Korea
-    *SEOUL_SEED, *BUSAN_SEED, *JEJU_SEED,
-    *GANGNEUNG_SEED, *GYEONGJU_SEED, *YEOSU_SEED, *JEONJU_SEED,
+    *SEOUL_SEED,
+    *BUSAN_SEED,
+    *JEJU_SEED,
+    *GANGNEUNG_SEED,
+    *GYEONGJU_SEED,
+    *YEOSU_SEED,
+    *JEONJU_SEED,
     # Southeast Asia
     *SOUTHEAST_ASIA_SEED,
     # Europe

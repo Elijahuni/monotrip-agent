@@ -35,6 +35,7 @@ async def _make_trip(client: AsyncClient, token: str) -> int:
 
 # ─── 테스트 ───────────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_save_place(client: AsyncClient):
     token = await register_and_login(client, email="sp1@ex.com")

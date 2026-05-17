@@ -1,4 +1,5 @@
 """CuratedPlaceRepository — DB 접근만 담당. 비즈니스 로직 금지."""
+
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 

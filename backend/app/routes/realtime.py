@@ -5,6 +5,7 @@
 - 사용자가 trip owner 또는 협업자인지 확인
 - 클라이언트가 보낸 op 메시지를 같은 방의 다른 참여자에게 브로드캐스트
 """
+
 from __future__ import annotations
 
 import logging

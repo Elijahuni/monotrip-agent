@@ -2,6 +2,7 @@
 
 여러 OTA Provider의 응답을 단일 형식으로 정규화한다.
 """
+
 from datetime import date, datetime
 from typing import Literal
 
@@ -9,11 +10,13 @@ from pydantic import BaseModel, Field
 
 # ── 항공 ─────────────────────────────────────────────────────────────────────
 
+
 class FlightSegment(BaseModel):
     """편도 한 구간 (직항이면 1개, 경유면 2개 이상)."""
+
     airline: str
     flight_number: str
-    depart_airport: str   # IATA
+    depart_airport: str  # IATA
     arrive_airport: str
     depart_time: datetime
     arrive_time: datetime
@@ -21,16 +24,16 @@ class FlightSegment(BaseModel):
 
 
 class FlightOffer(BaseModel):
-    id: str               # provider 내부 식별자 (제공자별 prefix)
-    price_krw: int        # 통일 통화: KRW (원)
+    id: str  # provider 내부 식별자 (제공자별 prefix)
+    price_krw: int  # 통일 통화: KRW (원)
     currency: str = "KRW"
-    airline: str          # 대표 캐리어 (혼합 캐리어 시 첫 구간)
-    stops: int = 0        # 경유 수 (0=직항)
+    airline: str  # 대표 캐리어 (혼합 캐리어 시 첫 구간)
+    stops: int = 0  # 경유 수 (0=직항)
     depart_time: datetime
     arrive_time: datetime
     duration_minutes: int
     segments: list[FlightSegment] = Field(default_factory=list)
-    deeplink: str         # 예약 페이지 URL (어필리에이트 파라미터 포함)
+    deeplink: str  # 예약 페이지 URL (어필리에이트 파라미터 포함)
     affiliate_source: str  # "skyscanner" | "naver" | "kayak" | "google_flights" | ...
 
 
@@ -57,11 +60,12 @@ class FlightSearchResult(BaseModel):
 
 # ── 숙소 ─────────────────────────────────────────────────────────────────────
 
+
 class HotelOffer(BaseModel):
     id: str
     name: str
     price_per_night_krw: int
-    total_price_krw: int   # nights × per_night + fees
+    total_price_krw: int  # nights × per_night + fees
     currency: str = "KRW"
     rating: float | None = None
     review_count: int | None = None
@@ -87,6 +91,7 @@ class HotelSearchResult(BaseModel):
 
 
 # ── 검색 요청 (서비스 내부용) ──────────────────────────────────────────────────
+
 
 class FlightSearchQuery(BaseModel):
     from_iata: str = Field(min_length=3, max_length=3)

@@ -13,7 +13,11 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from httpx import AsyncClient
 
-from app.services.ai_service import _build_style_constraints, _build_weather_constraints, _resolve_travel_style
+from app.services.ai_service import (
+    _build_style_constraints,
+    _build_weather_constraints,
+    _resolve_travel_style,
+)
 from tests.conftest import register_and_login
 
 # ─── Mock 응답 픽스처 ────────────────────────────────────────────────────────
@@ -81,11 +85,15 @@ def _make_mock_client(response_json: dict):
 
 # ─── /ai/recommend ───────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_ai_recommend_success(client: AsyncClient):
     token = await register_and_login(client, email="ai1@ex.com")
 
-    with patch("app.services.ai.gemini_client.genai.Client", return_value=_make_mock_client(MOCK_TRIP_PLAN_JSON)):
+    with patch(
+        "app.services.ai.gemini_client.genai.Client",
+        return_value=_make_mock_client(MOCK_TRIP_PLAN_JSON),
+    ):
         res = await client.get(
             "/ai/recommend",
             params={"destination": "도쿄", "days": 3, "preferences": "맛집 위주"},
@@ -122,6 +130,7 @@ async def test_ai_recommend_validation(client: AsyncClient):
 
 
 # ─── CRITICAL-2: 날씨 파라미터 서버사이드 검증 ──────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_weather_temp_too_high(client: AsyncClient):
@@ -164,7 +173,10 @@ async def test_weather_code_unknown_but_in_range_ignored(client: AsyncClient):
     """wttr.in 범위(100~500)지만 알 수 없는 코드 → 200 (서비스가 무시하고 정상 처리)."""
     token = await register_and_login(client, email="wv4@ex.com")
 
-    with patch("app.services.ai.gemini_client.genai.Client", return_value=_make_mock_client(MOCK_TRIP_PLAN_JSON)):
+    with patch(
+        "app.services.ai.gemini_client.genai.Client",
+        return_value=_make_mock_client(MOCK_TRIP_PLAN_JSON),
+    ):
         res = await client.get(
             "/ai/recommend",
             params={"destination": "도쿄", "days": 3, "weather_temp_c": 20, "weather_code": 200},
@@ -188,12 +200,16 @@ async def test_rain_chance_out_of_range(client: AsyncClient):
 
 # ─── /ai/recommend/refine ────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_ai_refine_success(client: AsyncClient):
     token = await register_and_login(client, email="ai3@ex.com")
 
     keep = [MOCK_TRIP_PLAN_JSON["locations"][0]]
-    with patch("app.services.ai.gemini_client.genai.Client", return_value=_make_mock_client(MOCK_TRIP_PLAN_JSON)):
+    with patch(
+        "app.services.ai.gemini_client.genai.Client",
+        return_value=_make_mock_client(MOCK_TRIP_PLAN_JSON),
+    ):
         res = await client.post(
             "/ai/recommend/refine",
             json={
@@ -213,11 +229,15 @@ async def test_ai_refine_success(client: AsyncClient):
 
 # ─── /ai/destination-guide ───────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_destination_guide_success(client: AsyncClient):
     token = await register_and_login(client, email="ai4@ex.com")
 
-    with patch("app.services.ai.gemini_client.genai.Client", return_value=_make_mock_client(MOCK_GUIDE_JSON)):
+    with patch(
+        "app.services.ai.gemini_client.genai.Client",
+        return_value=_make_mock_client(MOCK_GUIDE_JSON),
+    ):
         res = await client.get(
             "/ai/destination-guide",
             params={"destination": "도쿄"},
@@ -236,7 +256,10 @@ async def test_sanitize_prompt_injection(client: AsyncClient):
     """프롬프트 인젝션 시도 — 200 반환되되 서버가 뻗지 않아야 함."""
     token = await register_and_login(client, email="ai5@ex.com")
 
-    with patch("app.services.ai.gemini_client.genai.Client", return_value=_make_mock_client(MOCK_TRIP_PLAN_JSON)):
+    with patch(
+        "app.services.ai.gemini_client.genai.Client",
+        return_value=_make_mock_client(MOCK_TRIP_PLAN_JSON),
+    ):
         res = await client.get(
             "/ai/recommend",
             params={
@@ -258,7 +281,9 @@ async def test_ai_recommend_billing_cap(client: AsyncClient):
     # generate_content가 429 RESOURCE_EXHAUSTED 예외를 던지도록 mock
     mock_models = MagicMock()
     mock_models.generate_content = AsyncMock(
-        side_effect=Exception("429 RESOURCE_EXHAUSTED: Your project has exceeded its monthly spending cap.")
+        side_effect=Exception(
+            "429 RESOURCE_EXHAUSTED: Your project has exceeded its monthly spending cap."
+        )
     )
     mock_aio = MagicMock()
     mock_aio.models = mock_models
@@ -280,6 +305,7 @@ async def test_ai_recommend_billing_cap(client: AsyncClient):
 # ─── _build_style_constraints 단위 테스트 ────────────────────────────────────
 
 # ─── _resolve_travel_style 테스트 ────────────────────────────────────────────
+
 
 def test_resolve_travel_style_key_food():
     """모바일 key 'food' → '미식 맛집'으로 변환"""
@@ -307,6 +333,7 @@ def test_resolve_travel_style_none():
 
 
 # ─── _build_style_constraints 단위 테스트 ────────────────────────────────────
+
 
 def test_style_constraints_food():
     """미식 키워드 → 음식점 3~4개 제약"""
@@ -361,6 +388,7 @@ def test_style_constraints_food_key_only():
 
 
 # ─── _build_weather_constraints 단위 테스트 ──────────────────────────────────
+
 
 def test_weather_constraints_none_temp():
     """기온 없음 → 빈 문자열 반환 (날씨 정보 없을 때 프롬프트에 섹션 없음)"""
@@ -436,7 +464,10 @@ async def test_by_weather_success(client: AsyncClient):
     """날씨 조건 snow → 설경 여행지 3곳 추천 (200)"""
     token = await register_and_login(client, email="bw1@ex.com")
 
-    with patch("app.services.ai.gemini_client.genai.Client", return_value=_make_mock_client(MOCK_BY_WEATHER_JSON)):
+    with patch(
+        "app.services.ai.gemini_client.genai.Client",
+        return_value=_make_mock_client(MOCK_BY_WEATHER_JSON),
+    ):
         res = await client.get(
             "/ai/recommend/by-weather",
             params={"weather_condition": "snow"},

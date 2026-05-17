@@ -4,6 +4,7 @@
     uv run python scripts/seed_curated_places.py
     uv run python scripts/seed_curated_places.py --reset   # 기존 시드 삭제 후 재적재
 """
+
 import argparse
 import asyncio
 import sys
@@ -30,9 +31,7 @@ async def main(reset: bool = False) -> None:
     async with session_factory() as db:
         if reset:
             # source_id가 seed:* 패턴인 것만 안전하게 삭제 (운영 데이터 보호)
-            await db.execute(
-                delete(CuratedPlace).where(CuratedPlace.source_id.like("seed:%"))
-            )
+            await db.execute(delete(CuratedPlace).where(CuratedPlace.source_id.like("seed:%")))
             await db.commit()
             print("🗑️  Reset: seed:* rows deleted")
 

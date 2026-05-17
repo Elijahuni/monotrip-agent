@@ -9,6 +9,7 @@
 
 비동기 갱신은 background_task로 호출 — 실패해도 사용자 응답에 영향 없음.
 """
+
 from __future__ import annotations
 
 import logging
@@ -70,10 +71,7 @@ async def _merge_embedding(db: AsyncSession, user_id: int, new_vec: list[float])
         # 누적 평균 (running average, weight=0.3 for recency bias)
         # 완전 평균보다 최근 행동에 약간 더 무게를 둠
         alpha = 0.3
-        merged = [
-            alpha * nv + (1 - alpha) * cv
-            for nv, cv in zip(new_vec, current)
-        ]
+        merged = [alpha * nv + (1 - alpha) * cv for nv, cv in zip(new_vec, current)]
         user.preference_embedding = merged
 
     await db.commit()

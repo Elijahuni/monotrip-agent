@@ -67,7 +67,7 @@ def setup_scheduler(enabled: bool = True) -> None:
     _scheduler.add_job(
         send_daily_trip_reminders,
         trigger="cron",
-        hour=23,     # UTC 23:00 = KST 08:00 (다음날)
+        hour=23,  # UTC 23:00 = KST 08:00 (다음날)
         minute=0,
         id="daily_trip_reminders",
         replace_existing=True,
@@ -152,10 +152,6 @@ async def _invalidate_tokens(db: AsyncSession, tokens: list[str]) -> None:
     """DeviceNotRegistered 토큰을 users 테이블에서 NULL로 초기화한다."""
     from sqlalchemy import update
 
-    stmt = (
-        update(User)
-        .where(User.expo_push_token.in_(tokens))
-        .values(expo_push_token=None)
-    )
+    stmt = update(User).where(User.expo_push_token.in_(tokens)).values(expo_push_token=None)
     await db.execute(stmt)
     logger.info("tokens_invalidated count=%d", len(tokens))

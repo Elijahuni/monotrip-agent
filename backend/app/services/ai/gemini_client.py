@@ -1,4 +1,5 @@
 """Gemini API 클라이언트 — 모델 폴백·에러 분류·파싱·Redis 캐싱 담당."""
+
 import asyncio
 import json
 import logging
@@ -16,9 +17,9 @@ logger = logging.getLogger(__name__)
 # ─── 모델 우선순위 목록 ────────────────────────────────────────────────────────
 # 상위부터 순서대로 시도 → 404 시 다음 모델로 자동 전환.
 CANDIDATE_MODELS: list[str] = [
-    "gemini-2.5-flash",       # 최신 안정 (신규 계정 사용 가능 ✅ 실증)
+    "gemini-2.5-flash",  # 최신 안정 (신규 계정 사용 가능 ✅ 실증)
     "gemini-2.5-flash-lite",  # 경량 2.5 (신규 계정 사용 가능 ✅ 실증)
-    "gemini-2.5-pro",         # Pro — 위 둘 실패 시 최후 수단
+    "gemini-2.5-pro",  # Pro — 위 둘 실패 시 최후 수단
 ]
 
 _GEMINI_TIMEOUT = 50  # 초 (모바일 클라이언트 60s 타임아웃보다 여유 있게)
@@ -95,7 +96,8 @@ async def call_gemini(client: genai.Client, prompt: str, *, use_cache: bool = Tr
             if "404" in err_str or "NOT_FOUND" in err_str or "not found" in err_str.lower():
                 logger.warning(
                     "Model %s not available, trying next. err=%s",
-                    model, err_str[:150],
+                    model,
+                    err_str[:150],
                 )
                 last_err = e
                 continue
@@ -105,9 +107,7 @@ async def call_gemini(client: genai.Client, prompt: str, *, use_cache: bool = Tr
                 or "RESOURCE_EXHAUSTED" in err_str
                 or "spending cap" in err_str.lower()
             ):
-                logger.error(
-                    "Gemini billing cap exceeded (model=%s): %s", model, err_str[:300]
-                )
+                logger.error("Gemini billing cap exceeded (model=%s): %s", model, err_str[:300])
                 raise HTTPException(
                     status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail=(
@@ -126,7 +126,8 @@ async def call_gemini(client: genai.Client, prompt: str, *, use_cache: bool = Tr
     # 모든 후보 모델 실패
     logger.error(
         "All Gemini candidate models unavailable: %s. last_err=%s",
-        CANDIDATE_MODELS, last_err,
+        CANDIDATE_MODELS,
+        last_err,
     )
     raise HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

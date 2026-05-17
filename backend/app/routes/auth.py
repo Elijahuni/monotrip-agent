@@ -20,18 +20,14 @@ _service = AuthService()
 
 @router.post("/register", response_model=ApiResponse[UserResponse], status_code=201)
 @limiter.limit("3/minute")
-async def register(
-    request: Request, body: UserCreate, db: DbSession
-) -> ApiResponse[UserResponse]:
+async def register(request: Request, body: UserCreate, db: DbSession) -> ApiResponse[UserResponse]:
     user = await _service.register(db, body)
     return ApiResponse(data=user)
 
 
 @router.post("/login", response_model=ApiResponse[TokenResponse])
 @limiter.limit("5/minute")
-async def login(
-    request: Request, body: UserLogin, db: DbSession
-) -> ApiResponse[TokenResponse]:
+async def login(request: Request, body: UserLogin, db: DbSession) -> ApiResponse[TokenResponse]:
     token = await _service.login(db, body)
     return ApiResponse(data=token)
 
@@ -39,6 +35,7 @@ async def login(
 class KakaoLoginRequest(BaseModel):
     """모바일이 카카오 SDK로 access_token을 받으면 그대로 전달.
     웹/대안 흐름: code만 받으면 백엔드가 token으로 교환."""
+
     access_token: str | None = Field(default=None, min_length=10)
     code: str | None = Field(default=None, min_length=4)
 
@@ -46,11 +43,14 @@ class KakaoLoginRequest(BaseModel):
 @router.post("/kakao", response_model=ApiResponse[TokenResponse])
 @limiter.limit("10/minute")
 async def kakao_login(
-    request: Request, body: KakaoLoginRequest, db: DbSession,
+    request: Request,
+    body: KakaoLoginRequest,
+    db: DbSession,
 ) -> ApiResponse[TokenResponse]:
     """카카오 OAuth 로그인. access_token이 있으면 그대로 사용, 없으면 code 교환."""
     if not body.access_token and not body.code:
         from fastapi import HTTPException, status
+
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="access_token 또는 code 중 하나는 필수입니다.",

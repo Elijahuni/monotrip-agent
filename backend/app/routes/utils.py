@@ -1,4 +1,5 @@
 """Phase 1-2 공용 유틸리티 라우트 (환율 등). 인증 필요."""
+
 from __future__ import annotations
 
 import logging
@@ -31,9 +32,9 @@ _rate_cache: dict[str, tuple[float, dict[str, float]]] = {}
 class ExchangeRateResponse(BaseModel):
     base: str
     target: str
-    rate: float          # 1 base = rate * target
-    fetched_at: float    # epoch seconds — 클라이언트가 신선도 판단
-    cached: bool         # 캐시 적중 여부 (디버그용)
+    rate: float  # 1 base = rate * target
+    fetched_at: float  # epoch seconds — 클라이언트가 신선도 판단
+    cached: bool  # 캐시 적중 여부 (디버그용)
 
 
 @router.get("/exchange-rate", response_model=ApiResponse[ExchangeRateResponse])
@@ -56,11 +57,18 @@ async def get_exchange_rate(
     if cached_entry and now - cached_entry[0] < _EXCHANGE_CACHE_TTL:
         rates = cached_entry[1]
         if target_u not in rates:
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="지원하지 않는 통화입니다.")
-        return ApiResponse(data=ExchangeRateResponse(
-            base=base_u, target=target_u,
-            rate=rates[target_u], fetched_at=cached_entry[0], cached=True,
-        ))
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="지원하지 않는 통화입니다."
+            )
+        return ApiResponse(
+            data=ExchangeRateResponse(
+                base=base_u,
+                target=target_u,
+                rate=rates[target_u],
+                fetched_at=cached_entry[0],
+                cached=True,
+            )
+        )
 
     # 캐시 미스 → 외부 API 호출
     try:
@@ -76,8 +84,11 @@ async def get_exchange_rate(
             if target_u in rates:
                 return ApiResponse(
                     data=ExchangeRateResponse(
-                        base=base_u, target=target_u,
-                        rate=rates[target_u], fetched_at=cached_entry[0], cached=True,
+                        base=base_u,
+                        target=target_u,
+                        rate=rates[target_u],
+                        fetched_at=cached_entry[0],
+                        cached=True,
                     ),
                     message="stale cache (외부 환율 API 오류)",
                 )
@@ -96,9 +107,16 @@ async def get_exchange_rate(
     _rate_cache[base_u] = (now, rates)
 
     if target_u not in rates:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="지원하지 않는 통화입니다.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="지원하지 않는 통화입니다."
+        )
 
-    return ApiResponse(data=ExchangeRateResponse(
-        base=base_u, target=target_u,
-        rate=rates[target_u], fetched_at=now, cached=False,
-    ))
+    return ApiResponse(
+        data=ExchangeRateResponse(
+            base=base_u,
+            target=target_u,
+            rate=rates[target_u],
+            fetched_at=now,
+            cached=False,
+        )
+    )

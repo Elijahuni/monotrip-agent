@@ -18,6 +18,7 @@ logger = logging.getLogger(__name__)
 
 # ─── 내부 헬퍼 ───────────────────────────────────────────────────────────────
 
+
 def _hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode(), bcrypt.gensalt()).decode()
 
@@ -50,6 +51,7 @@ def _hash_refresh_token(raw: str) -> str:
 
 
 # ─── Service ─────────────────────────────────────────────────────────────────
+
 
 class AuthService:
     def __init__(
@@ -93,7 +95,11 @@ class AuthService:
     async def login(self, db: AsyncSession, data: UserLogin) -> TokenResponse:
         user = await self.repo.get_by_email(db, data.email)
         # OAuth 사용자는 hashed_password가 None이므로 명시적으로 거부
-        if not user or user.hashed_password is None or not _verify_password(data.password, user.hashed_password):
+        if (
+            not user
+            or user.hashed_password is None
+            or not _verify_password(data.password, user.hashed_password)
+        ):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="이메일 또는 비밀번호가 올바르지 않습니다.",

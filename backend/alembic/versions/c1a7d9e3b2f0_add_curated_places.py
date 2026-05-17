@@ -51,12 +51,8 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
         sa.Column("updated_at", sa.DateTime(), nullable=False, server_default=sa.func.now()),
     )
-    op.create_index(
-        "ix_curated_places_city_category", "curated_places", ["city", "category"]
-    )
-    op.create_index(
-        "ix_curated_places_country_city", "curated_places", ["country", "city"]
-    )
+    op.create_index("ix_curated_places_city_category", "curated_places", ["city", "category"])
+    op.create_index("ix_curated_places_country_city", "curated_places", ["country", "city"])
 
     # pgvector embedding (PostgreSQL 전용; SQLite는 컬럼 추가 불가능하므로 raw SQL로 분기)
     bind = op.get_bind()

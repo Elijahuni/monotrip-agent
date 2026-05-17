@@ -1,7 +1,8 @@
 """검색마다 최저가 스냅샷을 적재. Phase 3 시세 예측 모델의 학습 데이터."""
+
 from datetime import date, datetime
 
-from sqlalchemy import Date, Float, Index, String, func
+from sqlalchemy import Date, Index, String, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -12,7 +13,7 @@ class FlightPriceSnapshot(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     from_iata: Mapped[str] = mapped_column(String(3), nullable=False)
-    to_iata:   Mapped[str] = mapped_column(String(3), nullable=False)
+    to_iata: Mapped[str] = mapped_column(String(3), nullable=False)
     depart_date: Mapped[date] = mapped_column(Date, nullable=False)
     return_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     cabin: Mapped[str] = mapped_column(String(20), nullable=False, default="economy")
@@ -33,7 +34,7 @@ class HotelPriceSnapshot(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     city: Mapped[str] = mapped_column(String(50), nullable=False)
-    checkin:  Mapped[date] = mapped_column(Date, nullable=False)
+    checkin: Mapped[date] = mapped_column(Date, nullable=False)
     checkout: Mapped[date] = mapped_column(Date, nullable=False)
 
     min_price_per_night_krw: Mapped[int] = mapped_column(nullable=False)

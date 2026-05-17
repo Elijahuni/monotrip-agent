@@ -7,6 +7,7 @@
 
 오류 시 항상 safe로 폴백 — 모더레이션 장애로 글이 사라지지 않도록.
 """
+
 import json
 import logging
 from typing import Literal
@@ -24,7 +25,7 @@ ModerationVerdict = Literal["safe", "review", "hide"]
 class ModerationResult(BaseModel):
     verdict: ModerationVerdict
     categories: list[str]  # 감지된 위반 카테고리 (hate/spam/sexual/violence/personal_info/etc)
-    confidence: float       # 0.0 ~ 1.0
+    confidence: float  # 0.0 ~ 1.0
     reason: str | None = None
 
 
@@ -73,7 +74,9 @@ async def moderate_text(title: str, body: str) -> ModerationResult:
         return ModerationResult.model_validate(data)
     except (json.JSONDecodeError, ValueError) as e:
         logger.warning("Moderation parse failed (defaulting safe): %s", e)
-        return ModerationResult(verdict="safe", categories=[], confidence=0.0, reason="parse_failed")
+        return ModerationResult(
+            verdict="safe", categories=[], confidence=0.0, reason="parse_failed"
+        )
     except Exception as e:
         logger.warning("Moderation call failed (defaulting safe): %s", e)
         return ModerationResult(verdict="safe", categories=[], confidence=0.0, reason="call_failed")

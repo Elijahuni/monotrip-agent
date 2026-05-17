@@ -1,4 +1,5 @@
 """커뮤니티 모델: 게시글·댓글·좋아요·신고. 도시별 피드."""
+
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -8,7 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from app.database import Base
 
 if TYPE_CHECKING:
-    from app.models.user import User
+    pass
 
 
 class CommunityPost(Base):
@@ -42,7 +43,9 @@ class CommunityComment(Base):
     __tablename__ = "community_comments"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    post_id: Mapped[int] = mapped_column(ForeignKey("community_posts.id", ondelete="CASCADE"), nullable=False)
+    post_id: Mapped[int] = mapped_column(
+        ForeignKey("community_posts.id", ondelete="CASCADE"), nullable=False
+    )
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
     is_hidden: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
@@ -50,16 +53,16 @@ class CommunityComment(Base):
     moderation_categories: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=func.now(), nullable=False)
 
-    __table_args__ = (
-        Index("ix_comment_post", "post_id", "created_at"),
-    )
+    __table_args__ = (Index("ix_comment_post", "post_id", "created_at"),)
 
 
 class CommunityPostLike(Base):
     __tablename__ = "community_post_likes"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    post_id: Mapped[int] = mapped_column(ForeignKey("community_posts.id", ondelete="CASCADE"), nullable=False)
+    post_id: Mapped[int] = mapped_column(
+        ForeignKey("community_posts.id", ondelete="CASCADE"), nullable=False
+    )
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     created_at: Mapped[datetime] = mapped_column(default=func.now(), nullable=False)
 
@@ -70,9 +73,15 @@ class CommunityReport(Base):
     __tablename__ = "community_reports"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    reporter_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
-    post_id: Mapped[int | None] = mapped_column(ForeignKey("community_posts.id", ondelete="CASCADE"), nullable=True)
-    comment_id: Mapped[int | None] = mapped_column(ForeignKey("community_comments.id", ondelete="CASCADE"), nullable=True)
+    reporter_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
+    )
+    post_id: Mapped[int | None] = mapped_column(
+        ForeignKey("community_posts.id", ondelete="CASCADE"), nullable=True
+    )
+    comment_id: Mapped[int | None] = mapped_column(
+        ForeignKey("community_comments.id", ondelete="CASCADE"), nullable=True
+    )
     reason: Mapped[str] = mapped_column(String(40), nullable=False)  # spam | hate | sexual | other
     detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=func.now(), nullable=False)

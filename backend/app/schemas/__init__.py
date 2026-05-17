@@ -5,7 +5,16 @@ from app.schemas.user import TokenResponse, UserCreate, UserLogin, UserResponse
 
 __all__ = [
     "ApiResponse",
-    "UserCreate", "UserLogin", "UserResponse", "TokenResponse",
-    "TripCreate", "TripUpdate", "TripSummary", "TripResponse", "LocationResponse",
-    "AiRecommendQuery", "AiTripPlan", "AiLocationPlan",
+    "UserCreate",
+    "UserLogin",
+    "UserResponse",
+    "TokenResponse",
+    "TripCreate",
+    "TripUpdate",
+    "TripSummary",
+    "TripResponse",
+    "LocationResponse",
+    "AiRecommendQuery",
+    "AiTripPlan",
+    "AiLocationPlan",
 ]

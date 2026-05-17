@@ -4,6 +4,7 @@ Gemini text-embedding-004 모델 사용.
 - 차원: 768 (Location.embedding 컬럼과 일치)
 - 용도: 코사인 유사도로 의미적으로 가까운 장소 검색
 """
+
 import asyncio
 import logging
 from functools import lru_cache
@@ -18,7 +19,7 @@ logger = logging.getLogger(__name__)
 # text-embedding-004는 2025년 v1beta에서 NOT_FOUND. gemini-embedding-001로 마이그레이션.
 # 디폴트 출력 차원은 3072이므로 명시적으로 768로 축소 (DB 컬럼과 호환).
 _EMBEDDING_MODEL = "gemini-embedding-001"
-_EMBEDDING_DIM   = 768
+_EMBEDDING_DIM = 768
 
 
 @lru_cache(maxsize=1)

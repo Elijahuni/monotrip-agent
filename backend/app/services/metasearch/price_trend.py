@@ -3,6 +3,7 @@
 축적된 snapshots를 7/30일 윈도우로 집계해 현재 가격과 비교한다.
 샘플 부족(<5)이면 'insufficient_data' 반환.
 """
+
 from __future__ import annotations
 
 import logging
@@ -29,7 +30,9 @@ class PriceTrendResult(BaseModel):
     message: str  # 한국어 안내
 
 
-def _classify(current: int, avg_7d: int | None, avg_30d: int | None, samples: int) -> tuple[PriceSignal, str]:
+def _classify(
+    current: int, avg_7d: int | None, avg_30d: int | None, samples: int
+) -> tuple[PriceSignal, str]:
     if samples < 5:
         return "insufficient_data", "가격 데이터가 모이는 중이에요"
 
@@ -72,8 +75,9 @@ async def analyze_flight_price(
     )
 
     avg_7d_q = await db.execute(
-        select(func.avg(FlightPriceSnapshot.min_price_krw))
-        .select_from(base.where(FlightPriceSnapshot.captured_at >= win_7).subquery())
+        select(func.avg(FlightPriceSnapshot.min_price_krw)).select_from(
+            base.where(FlightPriceSnapshot.captured_at >= win_7).subquery()
+        )
     )
     avg_30d_q = await db.execute(
         select(
@@ -119,8 +123,9 @@ async def analyze_hotel_price(
     )
 
     avg_7d_q = await db.execute(
-        select(func.avg(HotelPriceSnapshot.min_price_per_night_krw))
-        .select_from(base.where(HotelPriceSnapshot.captured_at >= win_7).subquery())
+        select(func.avg(HotelPriceSnapshot.min_price_per_night_krw)).select_from(
+            base.where(HotelPriceSnapshot.captured_at >= win_7).subquery()
+        )
     )
     avg_30d_q = await db.execute(
         select(

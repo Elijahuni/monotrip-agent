@@ -2,6 +2,7 @@
 
 상황·격식 수준에 따라 자연스러운 일본어 + 히라가나/로마자 발음을 함께 반환.
 """
+
 import json
 import logging
 
@@ -14,7 +15,12 @@ from .prompt_builder import sanitize_user_input
 logger = logging.getLogger(__name__)
 
 VALID_CONTEXTS: tuple[str, ...] = (
-    "restaurant", "shopping", "transport", "hotel", "emergency", "casual",
+    "restaurant",
+    "shopping",
+    "transport",
+    "hotel",
+    "emergency",
+    "casual",
 )
 VALID_FORMALITY: tuple[str, ...] = ("polite", "casual")
 

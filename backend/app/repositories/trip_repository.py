@@ -84,9 +84,7 @@ class TripRepository:
 
     # ── Location CRUD ──────────────────────────────────────────────────────────
 
-    async def get_location(
-        self, db: AsyncSession, location_id: int
-    ) -> Location | None:
+    async def get_location(self, db: AsyncSession, location_id: int) -> Location | None:
         stmt = select(Location).where(Location.id == location_id)
         result = await db.execute(stmt)
         return result.scalars().first()
@@ -148,9 +146,7 @@ class TripRepository:
     ) -> None:
         """Location.embedding 컬럼만 갱신. 별도 커밋 없이 flush만."""
         await db.execute(
-            update(Location)
-            .where(Location.id == location_id)
-            .values(embedding=vector)
+            update(Location).where(Location.id == location_id).values(embedding=vector)
         )
         await db.flush()
 
@@ -166,12 +162,7 @@ class TripRepository:
         embedding IS NOT NULL인 장소만 대상으로 하며, 거리 오름차순 정렬.
         SQLite에서는 빈 리스트를 반환한다.
         """
-        # dialect 확인: SQLite에서는 pgvector 연산자가 없음
-        if db.bind is None:
-            conn_info = db.get_bind()
-        else:
-            conn_info = db.bind
-        # SQLAlchemy 2.x: engine dialect name 확인
+        # SQLAlchemy 2.x: engine dialect name 확인 (SQLite는 pgvector 미지원)
         try:
             dialect_name = db.get_bind().dialect.name  # type: ignore[union-attr]
         except Exception:
@@ -194,9 +185,7 @@ class TripRepository:
 
     # ── 사용자 선호 추정 ───────────────────────────────────────────────────────
 
-    async def get_top_categories(
-        self, db: AsyncSession, user_id: int, limit: int = 3
-    ) -> list[str]:
+    async def get_top_categories(self, db: AsyncSession, user_id: int, limit: int = 3) -> list[str]:
         """사용자가 과거 등록한 장소의 카테고리 상위 N개. AI 프롬프트 보강용."""
         stmt = (
             select(Location.category, func.count(Location.id).label("cnt"))

@@ -44,14 +44,13 @@ async def db_session():
 @pytest_asyncio.fixture
 async def client(db_session: AsyncSession):
     """FastAPI 앱에 테스트 DB 세션 주입 후 AsyncClient 제공."""
+
     async def override_get_db():
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
 
-    async with AsyncClient(
-        transport=ASGITransport(app=app), base_url="http://test"
-    ) as ac:
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as ac:
         yield ac
 
     app.dependency_overrides.clear()
@@ -66,10 +65,15 @@ TEST_USER = {
 }
 
 
-async def register_and_login(client: AsyncClient, email: str = TEST_USER["email"],
-                             password: str = TEST_USER["password"],
-                             nickname: str = TEST_USER["nickname"]) -> str:
+async def register_and_login(
+    client: AsyncClient,
+    email: str = TEST_USER["email"],
+    password: str = TEST_USER["password"],
+    nickname: str = TEST_USER["nickname"],
+) -> str:
     """회원가입 → 로그인 → access_token 반환."""
-    await client.post("/auth/register", json={"email": email, "password": password, "nickname": nickname})
+    await client.post(
+        "/auth/register", json={"email": email, "password": password, "nickname": nickname}
+    )
     res = await client.post("/auth/login", json={"email": email, "password": password})
     return res.json()["data"]["access_token"]

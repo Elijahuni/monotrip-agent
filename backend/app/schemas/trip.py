@@ -76,7 +76,9 @@ def _validate_date_range(start: date | None, end: date | None) -> None:
 
 class TripCreate(BaseModel):
     title: str = Field(min_length=1, max_length=200)
-    destination: str | None = Field(default=None, max_length=200, description="목적지 도시/국가명 (항공권·날씨 검색용)")
+    destination: str | None = Field(
+        default=None, max_length=200, description="목적지 도시/국가명 (항공권·날씨 검색용)"
+    )
     description: str | None = None
     start_date: date | None = None
     end_date: date | None = None

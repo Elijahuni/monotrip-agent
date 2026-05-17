@@ -15,6 +15,7 @@ from tests.conftest import TEST_USER, register_and_login
 
 # ─── /auth/register ────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_register_success(client: AsyncClient):
     res = await client.post("/auth/register", json=TEST_USER)
@@ -46,15 +47,19 @@ async def test_register_missing_fields(client: AsyncClient):
 
 # ─── /auth/login ───────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_login_success(client: AsyncClient):
     # 먼저 등록
     await client.post("/auth/register", json=TEST_USER)
 
-    res = await client.post("/auth/login", json={
-        "email": TEST_USER["email"],
-        "password": TEST_USER["password"],
-    })
+    res = await client.post(
+        "/auth/login",
+        json={
+            "email": TEST_USER["email"],
+            "password": TEST_USER["password"],
+        },
+    )
     assert res.status_code == 200
     body = res.json()
     assert body["success"] is True
@@ -65,10 +70,13 @@ async def test_login_success(client: AsyncClient):
 @pytest.mark.asyncio
 async def test_login_wrong_password(client: AsyncClient):
     await client.post("/auth/register", json=TEST_USER)
-    res = await client.post("/auth/login", json={
-        "email": TEST_USER["email"],
-        "password": "wrongpassword",
-    })
+    res = await client.post(
+        "/auth/login",
+        json={
+            "email": TEST_USER["email"],
+            "password": "wrongpassword",
+        },
+    )
     assert res.status_code == 401
     # 401은 FastAPI HTTPException으로 반환될 수 있으므로 success 필드는 선택적
     body = res.json()
@@ -77,14 +85,18 @@ async def test_login_wrong_password(client: AsyncClient):
 
 @pytest.mark.asyncio
 async def test_login_unknown_email(client: AsyncClient):
-    res = await client.post("/auth/login", json={
-        "email": "nobody@example.com",
-        "password": "anypassword",
-    })
+    res = await client.post(
+        "/auth/login",
+        json={
+            "email": "nobody@example.com",
+            "password": "anypassword",
+        },
+    )
     assert res.status_code == 401
 
 
 # ─── /auth/me ──────────────────────────────────────────────────────────────────
+
 
 @pytest.mark.asyncio
 async def test_get_me_authenticated(client: AsyncClient):
@@ -104,13 +116,17 @@ async def test_get_me_unauthenticated(client: AsyncClient):
 
 # ─── /auth/refresh ─────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_login_returns_refresh_token(client: AsyncClient):
     await client.post("/auth/register", json=TEST_USER)
-    res = await client.post("/auth/login", json={
-        "email": TEST_USER["email"],
-        "password": TEST_USER["password"],
-    })
+    res = await client.post(
+        "/auth/login",
+        json={
+            "email": TEST_USER["email"],
+            "password": TEST_USER["password"],
+        },
+    )
     assert res.status_code == 200
     body = res.json()
     assert body["success"] is True
@@ -125,10 +141,13 @@ async def test_login_returns_refresh_token(client: AsyncClient):
 async def test_refresh_token_rotation(client: AsyncClient):
     """refresh 성공 → 새 쌍 발급, 기존 refresh token 재사용 시 401."""
     await client.post("/auth/register", json=TEST_USER)
-    login_res = await client.post("/auth/login", json={
-        "email": TEST_USER["email"],
-        "password": TEST_USER["password"],
-    })
+    login_res = await client.post(
+        "/auth/login",
+        json={
+            "email": TEST_USER["email"],
+            "password": TEST_USER["password"],
+        },
+    )
     old_refresh = login_res.json()["data"]["refresh_token"]
 
     # 새 쌍 발급
@@ -154,22 +173,24 @@ async def test_refresh_invalid_token(client: AsyncClient):
 
 # ─── /auth/logout ──────────────────────────────────────────────────────────────
 
+
 @pytest.mark.asyncio
 async def test_logout_revokes_refresh_token(client: AsyncClient):
     """logout 후 refresh token으로 갱신 시도 → 401."""
     token = await register_and_login(client)
 
     # 먼저 refresh token 취득
-    login_res = await client.post("/auth/login", json={
-        "email": TEST_USER["email"],
-        "password": TEST_USER["password"],
-    })
+    login_res = await client.post(
+        "/auth/login",
+        json={
+            "email": TEST_USER["email"],
+            "password": TEST_USER["password"],
+        },
+    )
     refresh_token = login_res.json()["data"]["refresh_token"]
 
     # 로그아웃 (access token 사용)
-    logout_res = await client.post(
-        "/auth/logout", headers={"Authorization": f"Bearer {token}"}
-    )
+    logout_res = await client.post("/auth/logout", headers={"Authorization": f"Bearer {token}"})
     assert logout_res.status_code == 200
 
     # refresh token 재사용 시도 → 401

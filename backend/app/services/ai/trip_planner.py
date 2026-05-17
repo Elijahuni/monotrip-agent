@@ -1,4 +1,5 @@
 """여행 일정 생성 및 부분 재생성 (generate_trip_plan / refine_trip_plan)."""
+
 import asyncio
 import json
 import logging
@@ -83,14 +84,18 @@ async def generate_trip_plan(
     # — 동기 코드로 trending I/O와 동시에 진행
     if weather_temp_c is not None:
         rain_hint = f", 강우확률 {rain_chance}%" if rain_chance is not None else ""
-        weather_constraints = build_weather_constraints(weather_temp_c, safe_weather_code, rain_chance)
+        weather_constraints = build_weather_constraints(
+            weather_temp_c, safe_weather_code, rain_chance
+        )
         weather_section = (
-            f"[현재 목적지 날씨] 기온: {weather_temp_c:.0f}°C{rain_hint}\n"
-            f"{weather_constraints}"
+            f"[현재 목적지 날씨] 기온: {weather_temp_c:.0f}°C{rain_hint}\n{weather_constraints}"
         )
         logger.info(
             "Weather injected for %s: temp=%.1f code=%s rain=%s",
-            safe_destination, weather_temp_c, safe_weather_code, rain_chance,
+            safe_destination,
+            weather_temp_c,
+            safe_weather_code,
+            rain_chance,
         )
     else:
         weather_section = ""
@@ -99,9 +104,7 @@ async def generate_trip_plan(
     # (네트워크 I/O는 이미 진행 중이므로 대기 시간이 단축됨)
     trending_spots = await trending_task
     trending_section = (
-        f"[실시간 트렌딩 장소 — 가능하면 일정에 포함]\n{trending_spots}"
-        if trending_spots
-        else ""
+        f"[실시간 트렌딩 장소 — 가능하면 일정에 포함]\n{trending_spots}" if trending_spots else ""
     )
 
     prompt = TRIP_PLAN_TEMPLATE.format(
@@ -163,6 +166,7 @@ async def generate_trip_plan(
     # 결과 장소 이름을 최근 추천 캐시에 저장 (비동기, 실패 무시)
     if user_id is not None:
         import asyncio as _asyncio
+
         _asyncio.create_task(
             push_recent_recommendation(
                 user_id,
