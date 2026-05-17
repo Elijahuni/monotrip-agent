@@ -569,6 +569,14 @@ export const api = {
       );
       return res.data.data ?? [];
     },
+    async getInviteInfo(token: string): Promise<{
+      trip_title: string; inviter_nickname: string; expires_at: string;
+    }> {
+      const res = await client.get<ApiResponse<{
+        trip_title: string; inviter_nickname: string; expires_at: string;
+      }>>(`/trips/invite/info/${token}`);
+      return res.data.data;
+    },
   },
 
   metasearch: {
@@ -598,6 +606,34 @@ export const api = {
         params, timeout: 12_000,
       });
       return res.data.data;
+    },
+
+    async subscribeFlightAlert(params: {
+      from_iata: string;
+      to_iata: string;
+      depart_date: string;      // YYYY-MM-DD
+      return_date?: string;
+      cabin?: string;
+      adults?: number;
+      drop_threshold_pct?: number;
+    }): Promise<{ id: number; from_iata: string; to_iata: string; depart_date: string; is_active: boolean }> {
+      const res = await client.post<ApiResponse<{
+        id: number; from_iata: string; to_iata: string; depart_date: string; is_active: boolean;
+      }>>('/metasearch/alerts/flights', params);
+      return res.data.data;
+    },
+
+    async unsubscribeFlightAlert(alertId: number): Promise<void> {
+      await client.delete(`/metasearch/alerts/flights/${alertId}`);
+    },
+
+    async listFlightAlerts(): Promise<Array<{
+      id: number; from_iata: string; to_iata: string; depart_date: string; is_active: boolean;
+    }>> {
+      const res = await client.get<ApiResponse<Array<{
+        id: number; from_iata: string; to_iata: string; depart_date: string; is_active: boolean;
+      }>>>('/metasearch/alerts/flights');
+      return res.data.data ?? [];
     },
   },
 

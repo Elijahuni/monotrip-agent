@@ -43,6 +43,15 @@ class Settings(BaseSettings):
     # 성능 트레이싱 샘플 비율 (0.0 ~ 1.0). 0.1 = 10% 트랜잭션 추적.
     sentry_traces_sample_rate: float = 0.1
 
+    # ── 메타서치 어필리에이트 API ──────────────────────────────────────────────
+    # RapidAPI → Skyscanner Flight Search (Flights Live Prices v2)
+    # https://rapidapi.com/skyscanner/api/skyscanner50
+    rapidapi_key: str = ""  # RapidAPI 헤더: X-RapidAPI-Key
+    # Booking.com Affiliate API (Demand API v2)
+    # https://developers.booking.com/affiliate
+    booking_affiliate_id: str = ""
+    booking_affiliate_secret: str = ""  # OAuth2 client_secret
+
     # ── Cloudflare R2 (S3 호환 이미지 저장소) ──────────────────────────────────
     r2_account_id: str = ""
     r2_access_key_id: str = ""

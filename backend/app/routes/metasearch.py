@@ -164,3 +164,143 @@ async def get_hotels(
 
     background.add_task(_persist_hotel_snapshot, q, result)
     return ApiResponse(data=result)
+
+
+# ── 항공권 가격 알림 구독 ──────────────────────────────────────────────────────
+
+from pydantic import BaseModel  # noqa: E402
+from sqlalchemy import select  # noqa: E402
+
+from app.models.price_alert import FlightPriceAlert  # noqa: E402
+
+
+class AlertSubscribeBody(BaseModel):
+    from_iata: str
+    to_iata: str
+    depart_date: date
+    return_date: date | None = None
+    cabin: str = "economy"
+    adults: int = 1
+    drop_threshold_pct: int = 10  # 알림 기준 하락률 (기본 10%)
+
+
+class AlertResponse(BaseModel):
+    id: int
+    from_iata: str
+    to_iata: str
+    depart_date: date
+    is_active: bool
+
+
+@router.post("/alerts/flights", response_model=ApiResponse[AlertResponse])
+async def subscribe_flight_alert(
+    body: AlertSubscribeBody,
+    current_user: User = Depends(get_current_user),
+    db: DbSession = None,  # type: ignore[assignment]
+) -> ApiResponse[AlertResponse]:
+    """항공권 가격 알림 구독 — 매일 가격 체크 후 설정 하락률 이상이면 push 전송."""
+
+    if db is None:
+        from app.database import AsyncSessionLocal
+
+        async with AsyncSessionLocal() as db:
+            return await _upsert_alert(db, current_user.id, body)
+    return await _upsert_alert(db, current_user.id, body)
+
+
+async def _upsert_alert(db, user_id: int, body: AlertSubscribeBody) -> ApiResponse[AlertResponse]:
+    from sqlalchemy.dialects.postgresql import insert as pg_insert
+
+    stmt = (
+        pg_insert(FlightPriceAlert)
+        .values(
+            user_id=user_id,
+            from_iata=body.from_iata.upper(),
+            to_iata=body.to_iata.upper(),
+            depart_date=body.depart_date,
+            return_date=body.return_date,
+            cabin=body.cabin,
+            adults=body.adults,
+            drop_threshold_pct=body.drop_threshold_pct,
+            is_active=True,
+        )
+        .on_conflict_do_update(
+            index_elements=["user_id", "from_iata", "to_iata", "depart_date", "cabin"],
+            set_={"is_active": True, "drop_threshold_pct": body.drop_threshold_pct},
+        )
+        .returning(FlightPriceAlert)
+    )
+    result = await db.execute(stmt)
+    alert = result.scalars().first()
+    await db.commit()
+    return ApiResponse(
+        data=AlertResponse(
+            id=alert.id,
+            from_iata=alert.from_iata,
+            to_iata=alert.to_iata,
+            depart_date=alert.depart_date,
+            is_active=alert.is_active,
+        )
+    )
+
+
+@router.delete("/alerts/flights/{alert_id}", response_model=ApiResponse[dict])
+async def unsubscribe_flight_alert(
+    alert_id: int,
+    current_user: User = Depends(get_current_user),
+    db: DbSession = None,  # type: ignore[assignment]
+) -> ApiResponse[dict]:
+    """항공권 가격 알림 해제."""
+    if db is None:
+        async with AsyncSessionLocal() as db:
+            return await _deactivate_alert(db, alert_id, current_user.id)
+    return await _deactivate_alert(db, alert_id, current_user.id)
+
+
+async def _deactivate_alert(db, alert_id: int, user_id: int) -> ApiResponse[dict]:
+    from sqlalchemy import update
+
+    stmt = (
+        update(FlightPriceAlert)
+        .where(FlightPriceAlert.id == alert_id)
+        .where(FlightPriceAlert.user_id == user_id)
+        .values(is_active=False)
+    )
+    await db.execute(stmt)
+    await db.commit()
+    return ApiResponse(data={"deleted": True})
+
+
+@router.get("/alerts/flights", response_model=ApiResponse[list[AlertResponse]])
+async def list_flight_alerts(
+    current_user: User = Depends(get_current_user),
+    db: DbSession = None,  # type: ignore[assignment]
+) -> ApiResponse[list[AlertResponse]]:
+    """내 항공권 가격 알림 목록."""
+    if db is None:
+        async with AsyncSessionLocal() as db:
+            return await _list_alerts(db, current_user.id)
+    return await _list_alerts(db, current_user.id)
+
+
+async def _list_alerts(db, user_id: int) -> ApiResponse[list[AlertResponse]]:
+    stmt = (
+        select(FlightPriceAlert)
+        .where(FlightPriceAlert.user_id == user_id)
+        .where(FlightPriceAlert.is_active.is_(True))
+        .order_by(FlightPriceAlert.depart_date)
+    )
+    result = await db.execute(stmt)
+    alerts = result.scalars().all()
+    return ApiResponse(
+        data=[
+            AlertResponse(
+                id=a.id,
+                from_iata=a.from_iata,
+                to_iata=a.to_iata,
+                depart_date=a.depart_date,
+                is_active=a.is_active,
+            )
+            for a in alerts
+        ]
+    )

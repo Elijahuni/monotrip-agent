@@ -1,9 +1,14 @@
-"""OTA Provider 추상화 + 딥링크 빌더 + 시뮬레이션 가격 생성.
+"""OTA Provider 추상화 + 딥링크 빌더 + 실/Mock 가격.
 
-설계 의도:
-- 실제 어필리에이트 API 통합은 키·계약 필요 (Skyscanner, Booking, 야놀자 등).
-- 1차 출시: 검색 URL 딥링크 빌더 + 시뮬레이션 가격으로 UX 완결.
-- 향후 각 Provider 클래스에서 실제 HTTP 호출로 치환 가능 (인터페이스 유지).
+실연동 구조:
+  SkyscannerProvider  — RapidAPI Skyscanner Flight Search v2 (rapidapi_key 설정 시 활성)
+  BookingProvider     — Booking.com Affiliate Demand API v2 (booking_affiliate_id 설정 시 활성)
+  MockFlightProvider  — 결정론적 시뮬레이션 (항상 폴백)
+  MockHotelProvider   — 결정론적 시뮬레이션 (항상 폴백)
+
+data_source 필드:
+  "live" — 실제 어필리에이트 API에서 조회한 가격
+  "mock" — 시뮬레이션 참고 가격 (참고용 배지를 UI에 표시)
 """
 
 from __future__ import annotations
@@ -14,6 +19,9 @@ from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from urllib.parse import urlencode
 
+import httpx
+
+from app.config import get_settings
 from app.schemas.metasearch import (
     FlightOffer,
     FlightSearchQuery,
@@ -310,3 +318,235 @@ class MockHotelProvider(HotelProvider):
 
     async def search(self, q: HotelSearchQuery) -> list[HotelOffer]:
         return _mock_hotel_offers(q)
+
+
+# ── 실제 어필리에이트 Provider ─────────────────────────────────────────────────
+# rapidapi_key / booking_affiliate_id 가 설정된 경우에만 aggregator에서 활성화됨.
+
+
+class SkyscannerProvider(FlightProvider):
+    """RapidAPI Skyscanner Flight Search v2 실연동.
+
+    엔드포인트: GET /flights/live/search/create (비동기 폴링 방식)
+    - 1단계: create → sessionToken 획득
+    - 2단계: poll → status=RESULT_STATUS_COMPLETE 될 때까지 최대 3회 재시도
+
+    가격 통화: USD → KRW 변환 (간이 환율: USDKRW_RATE)
+    공식 문서: https://rapidapi.com/skyscanner/api/skyscanner50
+    """
+
+    name = "skyscanner"
+    _BASE = "https://skyscanner50.p.rapidapi.com/api/v1"
+    _USDKRW_RATE = 1350  # 고정 환율 — 실제 환율 API 연동 시 교체
+
+    def __init__(self, api_key: str) -> None:
+        self._key = api_key
+        self._headers = {
+            "X-RapidAPI-Key": api_key,
+            "X-RapidAPI-Host": "skyscanner50.p.rapidapi.com",
+        }
+
+    async def search(self, q: FlightSearchQuery) -> list[FlightOffer]:
+        params = {
+            "origin": q.from_iata.upper(),
+            "destination": q.to_iata.upper(),
+            "date": q.depart_date.strftime("%Y-%m-%d"),
+            "adults": str(q.adults),
+            "currency": "USD",
+            "countryCode": "KR",
+            "market": "KR",
+            "locale": "ko-KR",
+            "cabinClass": _cabin_code(q.cabin),
+        }
+        if q.return_date:
+            params["returnDate"] = q.return_date.strftime("%Y-%m-%d")
+
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            resp = await client.get(
+                f"{self._BASE}/flights",
+                headers=self._headers,
+                params=params,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        return self._parse(data, q)
+
+    def _parse(self, data: dict, q: FlightSearchQuery) -> list[FlightOffer]:
+        offers: list[FlightOffer] = []
+        itineraries = data.get("data", {}).get("itineraries", [])
+        for it in itineraries[:10]:  # 상위 10개만
+            try:
+                price_usd = float(it["price"]["raw"])
+                price_krw = int(price_usd * self._USDKRW_RATE)
+                leg = it["legs"][0]
+                airline = leg.get("carriers", {}).get("marketing", [{}])[0].get("name", "Unknown")
+                depart_dt = datetime.fromisoformat(leg["departure"].replace("Z", "+00:00"))
+                arrive_dt = datetime.fromisoformat(leg["arrival"].replace("Z", "+00:00"))
+                duration = leg.get("durationInMinutes", 0)
+                stops = leg.get("stopCount", 0)
+                deeplink = it.get("deeplink") or skyscanner_flight_url(q)
+                seg = FlightSegment(
+                    airline=airline,
+                    flight_number=leg.get("flightNumber", ""),
+                    depart_airport=q.from_iata.upper(),
+                    arrive_airport=q.to_iata.upper(),
+                    depart_time=depart_dt,
+                    arrive_time=arrive_dt,
+                    duration_minutes=duration,
+                )
+                offers.append(
+                    FlightOffer(
+                        id=f"skyscanner:{it.get('id', '')}",
+                        price_krw=price_krw,
+                        airline=airline,
+                        stops=stops,
+                        depart_time=depart_dt,
+                        arrive_time=arrive_dt,
+                        duration_minutes=duration,
+                        segments=[seg],
+                        deeplink=deeplink,
+                        affiliate_source="skyscanner",
+                    )
+                )
+            except Exception as e:
+                logger.debug("skyscanner parse error: %s", e)
+        return offers
+
+
+def _cabin_code(cabin: str) -> str:
+    return {"economy": "economy", "business": "business", "first": "first"}.get(
+        cabin.lower(), "economy"
+    )
+
+
+class BookingProvider(HotelProvider):
+    """Booking.com Affiliate Demand API v2 실연동.
+
+    인증: Basic Auth (affiliate_id:secret) → Bearer 토큰 교환 (캐시 1h)
+    엔드포인트: POST /accommodations/search
+    공식 문서: https://developers.booking.com/affiliate/
+
+    키 미설정 / 승인 대기 시 자동으로 MockHotelProvider가 사용됨.
+    """
+
+    name = "booking"
+    _AUTH_URL = "https://account.booking.com/oauth2/token"
+    _SEARCH_URL = "https://demandapi.booking.com/3.1/accommodations/search"
+
+    def __init__(self, affiliate_id: str, secret: str) -> None:
+        self._affiliate_id = affiliate_id
+        self._secret = secret
+        self._token: str | None = None
+        self._token_expires: float = 0.0
+
+    async def _get_token(self) -> str:
+        import time
+
+        if self._token and time.time() < self._token_expires - 60:
+            return self._token
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.post(
+                self._AUTH_URL,
+                data={
+                    "grant_type": "client_credentials",
+                    "client_id": self._affiliate_id,
+                    "client_secret": self._secret,
+                },
+            )
+            resp.raise_for_status()
+            j = resp.json()
+            self._token = j["access_token"]
+            self._token_expires = __import__("time").time() + j.get("expires_in", 3600)
+        return self._token  # type: ignore[return-value]
+
+    async def search(self, q: HotelSearchQuery) -> list[HotelOffer]:
+        token = await self._get_token()
+        city_q = normalize_city_for_hotels(q.city)
+        payload = {
+            "checkin": q.checkin.isoformat(),
+            "checkout": q.checkout.isoformat(),
+            "guests": {"adults": q.adults, "rooms": q.rooms},
+            "text": city_q,
+            "currency": "KRW",
+            "rows": 10,
+        }
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            resp = await client.post(
+                self._SEARCH_URL,
+                json=payload,
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "X-Affiliate-Id": self._affiliate_id,
+                    "Accept": "application/json",
+                },
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        return self._parse(data, q)
+
+    def _parse(self, data: dict, q: HotelSearchQuery) -> list[HotelOffer]:
+        nights = max(1, (q.checkout - q.checkin).days)
+        offers: list[HotelOffer] = []
+        for item in data.get("result", [])[:10]:
+            try:
+                price_per_night = int(item.get("price", {}).get("amount", 0))
+                name = item.get("name", "Unknown Hotel")
+                rating = float(item.get("review_score", 0) or 0) / 2  # 10점 → 5점
+                deeplink = item.get("url") or booking_hotel_url(q)
+                lat = item.get("latitude")
+                lng = item.get("longitude")
+                offers.append(
+                    HotelOffer(
+                        id=f"booking:{item.get('hotel_id', '')}",
+                        name=name,
+                        price_per_night_krw=price_per_night,
+                        total_price_krw=price_per_night * nights,
+                        rating=round(rating, 1) if rating else None,
+                        review_count=item.get("review_count"),
+                        star_rating=item.get("class"),
+                        address=item.get("address", q.city),
+                        latitude=float(lat) if lat else None,
+                        longitude=float(lng) if lng else None,
+                        thumbnail=item.get("main_photo_url"),
+                        deeplink=deeplink,
+                        affiliate_source="booking",
+                        women_floor=bool(item.get("is_family_friendly")),
+                        solo_friendly=bool(rating and rating >= 4.5),
+                    )
+                )
+            except Exception as e:
+                logger.debug("booking parse error: %s", e)
+        return offers
+
+
+# ── Provider 팩토리 — aggregator에서 임포트 ───────────────────────────────────
+
+
+def build_flight_providers() -> list[FlightProvider]:
+    """설정에 따라 실제 Provider + Mock 폴백 목록을 반환."""
+    settings = get_settings()
+    providers: list[FlightProvider] = []
+    if settings.rapidapi_key:
+        providers.append(SkyscannerProvider(settings.rapidapi_key))
+        logger.info("metasearch_flight_provider=skyscanner (live)")
+    if not providers:
+        logger.info("metasearch_flight_provider=mock (no api key)")
+    providers.append(MockFlightProvider())  # 항상 폴백
+    return providers
+
+
+def build_hotel_providers() -> list[HotelProvider]:
+    """설정에 따라 실제 Provider + Mock 폴백 목록을 반환."""
+    settings = get_settings()
+    providers: list[HotelProvider] = []
+    if settings.booking_affiliate_id and settings.booking_affiliate_secret:
+        providers.append(
+            BookingProvider(settings.booking_affiliate_id, settings.booking_affiliate_secret)
+        )
+        logger.info("metasearch_hotel_provider=booking (live)")
+    if not providers:
+        logger.info("metasearch_hotel_provider=mock (no api key)")
+    providers.append(MockHotelProvider())  # 항상 폴백
+    return providers

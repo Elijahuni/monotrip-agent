@@ -71,7 +71,20 @@ def setup_scheduler(enabled: bool = True) -> None:
         minute=0,
         id="daily_trip_reminders",
         replace_existing=True,
-        misfire_grace_time=3600,  # 1시간 내에 실행 못 했으면 그냥 넘김
+        misfire_grace_time=3600,
+    )
+
+    # 항공권 가격 알림 — 매일 UTC 01:00 (KST 10:00)
+    from app.services.jobs.price_alert import run_price_alert_job
+
+    _scheduler.add_job(
+        run_price_alert_job,
+        trigger="cron",
+        hour=1,
+        minute=0,
+        id="flight_price_alerts",
+        replace_existing=True,
+        misfire_grace_time=3600,
     )
     logger.info("notification_scheduler_registered")
 

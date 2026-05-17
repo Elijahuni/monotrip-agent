@@ -35,6 +35,7 @@ import { useSettings } from '@/lib/settings-context';
 import { categoryEmoji, formatDate, groupByDay } from '@/lib/trip-utils';
 import type { Location, Trip } from '@/lib/types';
 import { useAuthStore } from '@/store';
+import { shareInviteToKakao } from '@/app/trips/invite/[token]';
 
 export default function TripDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -250,32 +251,15 @@ export default function TripDetailScreen() {
 
   async function handleInviteCollaborator() {
     try {
-      const { share_url } = await api.collaboration.createInvite(tripId, 'edit');
+      const { token, share_url } = await api.collaboration.createInvite(tripId, 'edit');
       const title = trip?.title?.trim() || (lang === 'ko' ? '여행' : 'Trip');
-      const period = trip?.start_date && trip?.end_date
-        ? `${formatDate(trip.start_date, lang)} ~ ${formatDate(trip.end_date, lang)}`
-        : '';
-      const locCount = locations.length;
-      const message = lang === 'ko'
-        ? [
-            `✈️ ${title} 함께 짜요`,
-            period && `📅 ${period}`,
-            locCount > 0 && `📍 ${locCount}곳 추가됨`,
-            '',
-            '👇 링크를 누르면 같이 편집할 수 있어요 (7일 후 만료)',
-            share_url,
-          ].filter(Boolean).join('\n')
-        : [
-            `✈️ Let's plan "${title}" together`,
-            period && `📅 ${period}`,
-            locCount > 0 && `📍 ${locCount} places added`,
-            '',
-            '👇 Tap to co-edit (expires in 7 days)',
-            share_url,
-          ].filter(Boolean).join('\n');
-      await Share.share({
-        message,
-        title: lang === 'ko' ? '여행 함께 짜기 초대' : 'Trip co-planning invite',
+      const me = useAuthStore.getState().user;
+
+      // 카카오톡 공유 템플릿 우선 시도 — 실패 시 내부에서 OS Share로 폴백
+      await shareInviteToKakao({
+        token,
+        tripTitle: title,
+        inviterNickname: me?.nickname ?? (lang === 'ko' ? '친구' : 'Friend'),
       });
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } }; message?: string };
