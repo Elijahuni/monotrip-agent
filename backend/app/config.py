@@ -16,6 +16,14 @@ class Settings(BaseSettings):
     # 외부 API — 장소 검색
     google_places_api_key: str = ""
 
+    # OAuth — 카카오 로그인
+    kakao_client_id: str = ""        # 카카오 디벨로퍼스 REST API 키
+    kakao_client_secret: str = ""    # 선택 — 보안 설정 사용 시
+    kakao_redirect_uri: str = ""     # 모바일: tripleapp://oauth/kakao, 웹: https://...
+
+    # Redis (멀티 워커 WebSocket pub/sub). 비워두면 단일 워커 인메모리 폴백.
+    redis_url: str = ""              # 예: redis://localhost:6379/0
+
     # Auth (JWT)
     jwt_secret: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"

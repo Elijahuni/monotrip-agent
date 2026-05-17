@@ -19,7 +19,7 @@ import {
   userSchema,
   type PlaceSearchResult,
 } from '@/lib/schemas';
-import type { ChecklistItem, DestinationGuide, Location, SavedPlace, Trip, UserCache, WeatherDestination } from '@/lib/types';
+import type { ChecklistItem, CommunityComment, CommunityPost, CuratedPlace, DestinationGuide, FlightSearchResult, HotelSearchResult, Location, SavedPlace, Trip, UserCache, WeatherDestination } from '@/lib/types';
 import { z } from 'zod';
 
 // ─── 환경 변수 ────────────────────────────────────────────────────────────────
@@ -209,6 +209,12 @@ export const api = {
     async logout(): Promise<void> {
       await client.post('/auth/logout');
     },
+
+    /** 카카오 OAuth: 모바일 카카오 SDK 또는 WebView로 받은 access_token/code 전달 */
+    async kakao(body: { access_token?: string; code?: string }): Promise<TokenResponse> {
+      const res = await client.post<ApiResponse<TokenResponse>>('/auth/kakao', body);
+      return parseResp(tokenSchema, res.data.data, 'auth.kakao');
+    },
   },
 
   trips: {
@@ -265,10 +271,20 @@ export const api = {
       return parseResp(locationSchema, res.data.data, 'locations.create');
     },
 
-    async update(tripId: number, locationId: number, body: Partial<Location>): Promise<Location> {
+    async update(
+      tripId: number,
+      locationId: number,
+      body: Partial<Location>,
+      opts?: { expectedVersion?: number },
+    ): Promise<Location> {
+      const headers: Record<string, string> = {};
+      if (opts?.expectedVersion !== undefined) {
+        headers['If-Match'] = String(opts.expectedVersion);
+      }
       const res = await client.patch<ApiResponse<Location>>(
         `/trips/${tripId}/locations/${locationId}`,
         body,
+        { headers },
       );
       return parseResp(locationSchema, res.data.data, 'locations.update');
     },
@@ -369,6 +385,51 @@ export const api = {
       const parsed = parseResp(placeSearchResponseSchema, res.data.data, 'places.search');
       return parsed.results;
     },
+
+    /**
+     * Phase 1-1: 큐레이션 장소 목록.
+     * city는 한글("도쿄") 또는 키("tokyo") 모두 가능.
+     * vibes는 반복 파라미터로 직렬화 — axios가 paramsSerializer 없이도 배열을 지원.
+     */
+    async curated(params: {
+      city: string;
+      category?: string;
+      vibes?: string[];
+      women_friendly?: boolean;
+      limit?: number;
+      offset?: number;
+    }): Promise<CuratedPlace[]> {
+      const res = await client.get<ApiResponse<CuratedPlace[]>>('/places/curated', {
+        params,
+        // 배열을 ?vibes=a&vibes=b 형태로 직렬화 (FastAPI 기본 파서 호환)
+        paramsSerializer: { indexes: null },
+      });
+      return res.data.data ?? [];
+    },
+
+    async curatedDetail(placeId: number): Promise<CuratedPlace> {
+      const res = await client.get<ApiResponse<CuratedPlace>>(`/places/curated/${placeId}`);
+      return res.data.data;
+    },
+
+    async curatedSimilar(placeId: number, limit = 6): Promise<CuratedPlace[]> {
+      const res = await client.get<ApiResponse<CuratedPlace[]>>(
+        `/places/curated/${placeId}/similar`,
+        { params: { limit } },
+      );
+      return res.data.data ?? [];
+    },
+
+    async curatedAddToTrip(
+      placeId: number,
+      body: { trip_id: number; day_index: number; visit_order: number },
+    ): Promise<Location> {
+      const res = await client.post<ApiResponse<Location>>(
+        `/places/curated/${placeId}/add-to-trip`,
+        body,
+      );
+      return res.data.data;
+    },
   },
 
   // ─── UP-6: 체크리스트 ────────────────────────────────────────────────────────
@@ -456,6 +517,139 @@ export const api = {
       const res = await client.post<ApiResponse<{ sent: number; failed: number }>>(
         '/notifications/test',
       );
+      return res.data.data;
+    },
+  },
+
+  // ─── Phase 1-2: 일본 여행 도구 ─────────────────────────────────────────────
+  utils: {
+    /** 환율 (서버 1시간 캐시). 1 base = rate target */
+    async exchangeRate(base: string, target: string): Promise<{
+      base: string; target: string; rate: number; fetched_at: number; cached: boolean;
+    }> {
+      const res = await client.get<ApiResponse<{
+        base: string; target: string; rate: number; fetched_at: number; cached: boolean;
+      }>>('/utils/exchange-rate', { params: { base, target } });
+      return res.data.data;
+    },
+  },
+
+  japanese: {
+    /** 한국어 → 일본어 회화 (Gemini). 30회/시간 제한. */
+    async translate(body: {
+      text: string;
+      context?: 'restaurant' | 'shopping' | 'transport' | 'hotel' | 'emergency' | 'casual';
+      formality?: 'polite' | 'casual';
+    }): Promise<{ korean: string; japanese: string; hiragana: string; romaji: string; note: string | null }> {
+      const res = await client.post<ApiResponse<{
+        korean: string; japanese: string; hiragana: string; romaji: string; note: string | null;
+      }>>('/ai/japanese-phrase', body, { timeout: 30_000 });
+      return res.data.data;
+    },
+  },
+
+  collaboration: {
+    async createInvite(tripId: number, role: 'edit' | 'view' = 'edit'): Promise<{
+      token: string; role: string; expires_at: string; share_url: string;
+    }> {
+      const res = await client.post<ApiResponse<{
+        token: string; role: string; expires_at: string; share_url: string;
+      }>>(`/trips/${tripId}/invite`, { role });
+      return res.data.data;
+    },
+    async acceptInvite(token: string): Promise<{ user_id: number; role: string; joined_at: string }> {
+      const res = await client.post<ApiResponse<{ user_id: number; role: string; joined_at: string }>>(
+        '/trips/invite/accept', { token },
+      );
+      return res.data.data;
+    },
+    async listCollaborators(tripId: number): Promise<Array<{ user_id: number; role: string; joined_at: string }>> {
+      const res = await client.get<ApiResponse<Array<{ user_id: number; role: string; joined_at: string }>>>(
+        `/trips/${tripId}/collaborators`,
+      );
+      return res.data.data ?? [];
+    },
+  },
+
+  metasearch: {
+    async flights(params: {
+      from_iata: string;
+      to_iata: string;
+      depart_date: string;        // YYYY-MM-DD
+      return_date?: string;
+      adults?: number;
+      cabin?: 'economy' | 'premium_economy' | 'business' | 'first';
+    }): Promise<FlightSearchResult> {
+      const res = await client.get<ApiResponse<FlightSearchResult>>('/metasearch/flights', {
+        params, timeout: 12_000,
+      });
+      return res.data.data;
+    },
+    async hotels(params: {
+      city: string;
+      checkin: string;
+      checkout: string;
+      adults?: number;
+      rooms?: number;
+      min_rating?: number;
+      women_friendly_only?: boolean;
+    }): Promise<HotelSearchResult> {
+      const res = await client.get<ApiResponse<HotelSearchResult>>('/metasearch/hotels', {
+        params, timeout: 12_000,
+      });
+      return res.data.data;
+    },
+  },
+
+  community: {
+    async feed(params: { city?: string; category?: string; limit?: number; cursor?: number } = {}): Promise<CommunityPost[]> {
+      const res = await client.get<ApiResponse<CommunityPost[]>>('/community/feed', { params });
+      return res.data.data ?? [];
+    },
+    async createPost(body: {
+      category: 'qna' | 'review' | 'photospot';
+      city?: string;
+      title: string;
+      body: string;
+      images?: string[];
+    }): Promise<CommunityPost> {
+      const res = await client.post<ApiResponse<CommunityPost>>('/community/posts', body);
+      return res.data.data;
+    },
+    async getPost(postId: number): Promise<CommunityPost> {
+      const res = await client.get<ApiResponse<CommunityPost>>(`/community/posts/${postId}`);
+      return res.data.data;
+    },
+    async deletePost(postId: number): Promise<void> {
+      await client.delete(`/community/posts/${postId}`);
+    },
+    async listComments(postId: number): Promise<CommunityComment[]> {
+      const res = await client.get<ApiResponse<CommunityComment[]>>(`/community/posts/${postId}/comments`);
+      return res.data.data ?? [];
+    },
+    async createComment(postId: number, body: string): Promise<CommunityComment> {
+      const res = await client.post<ApiResponse<CommunityComment>>(`/community/posts/${postId}/comments`, { body });
+      return res.data.data;
+    },
+    async toggleLike(postId: number): Promise<{ liked: boolean; like_count: number }> {
+      const res = await client.post<ApiResponse<{ liked: boolean; like_count: number }>>(`/community/posts/${postId}/like`);
+      return res.data.data;
+    },
+    async report(postId: number, body: { reason: 'spam' | 'hate' | 'sexual' | 'other'; detail?: string }): Promise<void> {
+      await client.post(`/community/posts/${postId}/report`, body);
+    },
+  },
+
+  korean: {
+    /** 일본어 → 한국어 회화 (Gemini). 일본인 관광객용. */
+    async translate(body: {
+      text: string;
+      context?: 'restaurant' | 'shopping' | 'transport' | 'hotel' | 'emergency' | 'casual';
+      formality?: 'polite' | 'casual';
+    }): Promise<{ japanese: string; korean: string; romanized: string; note: string | null }> {
+      const res = await client.post<ApiResponse<{
+        japanese: string; korean: string; romanized: string; note: string | null;
+      }>>('/ai/korean-phrase', body, { timeout: 30_000 });
       return res.data.data;
     },
   },

@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Request
+from pydantic import BaseModel, Field
 
 from app.dependencies.auth import CurrentUser
 from app.dependencies.db import DbSession
@@ -6,6 +7,11 @@ from app.limiter import limiter
 from app.schemas.common import ApiResponse
 from app.schemas.user import RefreshRequest, TokenResponse, UserCreate, UserLogin, UserResponse
 from app.services.auth_service import AuthService
+from app.services.kakao_oauth import (
+    exchange_code_for_token,
+    fetch_kakao_profile,
+    upsert_kakao_user,
+)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -28,6 +34,33 @@ async def login(
 ) -> ApiResponse[TokenResponse]:
     token = await _service.login(db, body)
     return ApiResponse(data=token)
+
+
+class KakaoLoginRequest(BaseModel):
+    """모바일이 카카오 SDK로 access_token을 받으면 그대로 전달.
+    웹/대안 흐름: code만 받으면 백엔드가 token으로 교환."""
+    access_token: str | None = Field(default=None, min_length=10)
+    code: str | None = Field(default=None, min_length=4)
+
+
+@router.post("/kakao", response_model=ApiResponse[TokenResponse])
+@limiter.limit("10/minute")
+async def kakao_login(
+    request: Request, body: KakaoLoginRequest, db: DbSession,
+) -> ApiResponse[TokenResponse]:
+    """카카오 OAuth 로그인. access_token이 있으면 그대로 사용, 없으면 code 교환."""
+    if not body.access_token and not body.code:
+        from fastapi import HTTPException, status
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="access_token 또는 code 중 하나는 필수입니다.",
+        )
+
+    access_token = body.access_token or await exchange_code_for_token(body.code or "")
+    profile = await fetch_kakao_profile(access_token)
+    user = await upsert_kakao_user(db, profile)
+    tokens = await _service.issue_tokens(db, user.id)
+    return ApiResponse(data=tokens)
 
 
 @router.post("/refresh", response_model=ApiResponse[TokenResponse])

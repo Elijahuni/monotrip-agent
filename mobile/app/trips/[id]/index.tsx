@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useQueryClient } from '@tanstack/react-query';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -15,6 +15,7 @@ import {
 } from 'react-native';
 import MapView, { Callout, Marker } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Toast from 'react-native-toast-message';
 
 import { ItineraryShareCard, type ItineraryShareCardRef } from '@/components/ItineraryShareCard';
 import { WeatherWidget } from '@/components/WeatherWidget';
@@ -28,9 +29,12 @@ import { palette } from '@/lib/design-tokens';
 import { openFlightSearch } from '@/lib/flight-links';
 import { queryKeys } from '@/lib/queries/client';
 import { useDeleteLocation, useDeleteTrip, useTrip } from '@/lib/queries';
+import { connectTripRealtime, type PresenceUser, type TripRealtimeHandle } from '@/lib/realtime';
+import { PresenceStack } from '@/components/PresenceStack';
 import { useSettings } from '@/lib/settings-context';
 import { categoryEmoji, formatDate, groupByDay } from '@/lib/trip-utils';
 import type { Location, Trip } from '@/lib/types';
+import { useAuthStore } from '@/store';
 
 export default function TripDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -53,6 +57,64 @@ export default function TripDetailScreen() {
   const [defaultDay, setDefaultDay] = useState(1);
   const [editingLoc, setEditingLoc] = useState<Location | null>(null);
   const shareCardRef = useRef<ItineraryShareCardRef>(null);
+  const realtimeRef = useRef<TripRealtimeHandle | null>(null);
+  const [activeCollaborators, setActiveCollaborators] = useState<number[]>([]);
+  const [activePresence, setActivePresence] = useState<PresenceUser[]>([]);
+  // 다른 사용자가 방금 변경한 location id — 카드 하이라이트용. 3초 후 자동 클리어.
+  const [recentlyChangedLocId, setRecentlyChangedLocId] = useState<number | null>(null);
+  const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const myUserId = useAuthStore((s) => s.user?.user_id ?? null);
+  const myUserIdRef = useRef<number | null>(myUserId);
+  myUserIdRef.current = myUserId;
+
+  // 실시간 협업 WebSocket — 화면 진입 시 연결, 이탈 시 정리.
+  // 권한 없으면(404/403) 백엔드가 즉시 close하므로 안전.
+  useEffect(() => {
+    let cancelled = false;
+    let handle: TripRealtimeHandle | null = null;
+    (async () => {
+      try {
+        handle = await connectTripRealtime(tripId, {
+          onPresenceChange: (users, rich) => {
+            if (cancelled) return;
+            setActiveCollaborators(users);
+            if (rich) setActivePresence(rich);
+          },
+          onMessage: (msg) => {
+            if (msg.type !== 'location_update') return;
+            // 본인이 보낸 변경(백엔드 echo)이면 무시 — 이미 로컬 캐시에 반영됨
+            const from = (msg as { from_user_id?: number }).from_user_id;
+            if (from != null && myUserIdRef.current != null && from === myUserIdRef.current) return;
+
+            qc.invalidateQueries({ queryKey: queryKeys.trips.detail(tripId) });
+
+            const op = (msg as { op?: string }).op;
+            const locId = (msg as { location_id?: number }).location_id;
+            const label =
+              op === 'create' ? '동료가 장소를 추가했어요'
+              : op === 'patch'  ? '동료가 장소를 수정했어요'
+              : op === 'delete' ? '동료가 장소를 삭제했어요'
+              : '동료가 일정을 변경했어요';
+            Toast.show({ type: 'info', text1: label, position: 'bottom', visibilityTime: 2200 });
+
+            if (typeof locId === 'number' && op !== 'delete') {
+              setRecentlyChangedLocId(locId);
+              if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+              highlightTimerRef.current = setTimeout(() => setRecentlyChangedLocId(null), 3000);
+            }
+          },
+        });
+        if (cancelled) handle.close();
+        else realtimeRef.current = handle;
+      } catch { /* 토큰 없음 등 — 무시 */ }
+    })();
+    return () => {
+      cancelled = true;
+      realtimeRef.current?.close();
+      realtimeRef.current = null;
+      if (highlightTimerRef.current) clearTimeout(highlightTimerRef.current);
+    };
+  }, [tripId, qc]);
 
   const bgBase = isDark ? '#0D0D18' : '#F7F9FC';
   const bgSurf = isDark ? '#141420' : '#FFFFFF';
@@ -186,6 +248,41 @@ export default function TripDetailScreen() {
     } catch { Alert.alert(lang === 'ko' ? '공유 실패' : 'Share failed'); }
   }
 
+  async function handleInviteCollaborator() {
+    try {
+      const { share_url } = await api.collaboration.createInvite(tripId, 'edit');
+      const title = trip?.title?.trim() || (lang === 'ko' ? '여행' : 'Trip');
+      const period = trip?.start_date && trip?.end_date
+        ? `${formatDate(trip.start_date, lang)} ~ ${formatDate(trip.end_date, lang)}`
+        : '';
+      const locCount = locations.length;
+      const message = lang === 'ko'
+        ? [
+            `✈️ ${title} 함께 짜요`,
+            period && `📅 ${period}`,
+            locCount > 0 && `📍 ${locCount}곳 추가됨`,
+            '',
+            '👇 링크를 누르면 같이 편집할 수 있어요 (7일 후 만료)',
+            share_url,
+          ].filter(Boolean).join('\n')
+        : [
+            `✈️ Let's plan "${title}" together`,
+            period && `📅 ${period}`,
+            locCount > 0 && `📍 ${locCount} places added`,
+            '',
+            '👇 Tap to co-edit (expires in 7 days)',
+            share_url,
+          ].filter(Boolean).join('\n');
+      await Share.share({
+        message,
+        title: lang === 'ko' ? '여행 함께 짜기 초대' : 'Trip co-planning invite',
+      });
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { message?: string } }; message?: string };
+      Alert.alert(err?.response?.data?.message ?? '초대 링크 생성 실패');
+    }
+  }
+
   const days = totalDays();
   const groups = groupByDay(locations);
   const filtered = selectedDay === 'all' ? groups : groups.filter((g) => g.day === selectedDay);
@@ -247,6 +344,16 @@ export default function TripDetailScreen() {
         </TouchableOpacity>
         <TouchableOpacity onPress={handleShare} style={S.iconBtn}>
           <Ionicons name="share-outline" size={20} color={txP} />
+        </TouchableOpacity>
+        {/* presence — 나 외 활성 협업자 아바타 (있을 때만) */}
+        <PresenceStack
+          users={activePresence}
+          fallbackUserIds={activeCollaborators}
+          myUserId={myUserId}
+          size={26}
+        />
+        <TouchableOpacity onPress={handleInviteCollaborator} style={S.iconBtn}>
+          <Ionicons name="people-outline" size={20} color={txP} />
         </TouchableOpacity>
         <TouchableOpacity onPress={handleDeleteTrip} style={S.iconBtn}>
           <Ionicons name="trash-outline" size={20} color="#E74C3C" />
@@ -384,6 +491,7 @@ export default function TripDetailScreen() {
                 onMoveDown={() => handleMoveLocation(item, 'down')}
                 canMoveUp={idx > 0}
                 canMoveDown={idx < dayLocs.length - 1}
+                highlighted={recentlyChangedLocId === item.id}
               />
             </View>
           );

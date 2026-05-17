@@ -39,6 +39,9 @@ export interface Location {
   images: string[] | null;
   google_place_id: string | null;
   created_at: string;
+  /** 낙관적 동시성 — PATCH 시 If-Match로 전송 */
+  version?: number;
+  updated_at?: string | null;
 }
 
 /** AsyncStorage에 캐시할 인증 정보 */
@@ -77,6 +80,125 @@ export interface SavedPlace {
   phone: string | null;
   estimated_minutes: number | null;
   created_at: string;
+}
+
+/** Phase 3: 커뮤니티 */
+export interface CommunityPost {
+  id: number;
+  user_id: number;
+  category: 'qna' | 'review' | 'photospot';
+  city: string | null;
+  title: string;
+  body: string;
+  images: string[] | null;
+  like_count: number;
+  comment_count: number;
+  created_at: string;
+}
+
+export interface CommunityComment {
+  id: number;
+  post_id: number;
+  user_id: number;
+  body: string;
+  created_at: string;
+}
+
+/** Phase 2: 메타서치 항공권 결과 */
+export interface FlightOffer {
+  id: string;
+  price_krw: number;
+  currency: string;
+  airline: string;
+  stops: number;
+  depart_time: string;       // ISO datetime
+  arrive_time: string;
+  duration_minutes: number;
+  segments: Array<{
+    airline: string;
+    flight_number: string;
+    depart_airport: string;
+    arrive_airport: string;
+    depart_time: string;
+    arrive_time: string;
+    duration_minutes: number;
+  }>;
+  deeplink: string;
+  affiliate_source: string;
+}
+
+export interface PriceTrend {
+  signal: 'buy_now' | 'cheap' | 'average' | 'expensive' | 'insufficient_data';
+  message: string;
+  current_min: number;
+  avg_7d: number | null;
+  avg_30d: number | null;
+  sample_count_30d: number;
+}
+
+export type DataSource = 'live' | 'mock';
+
+export interface FlightSearchResult {
+  offers: FlightOffer[];
+  providers_succeeded: string[];
+  providers_failed: string[];
+  trend: PriceTrend | null;
+  data_source?: DataSource;
+}
+
+/** Phase 2: 메타서치 호텔 결과 */
+export interface HotelOffer {
+  id: string;
+  name: string;
+  price_per_night_krw: number;
+  total_price_krw: number;
+  currency: string;
+  rating: number | null;
+  review_count: number | null;
+  star_rating: number | null;
+  address: string;
+  latitude: number | null;
+  longitude: number | null;
+  thumbnail: string | null;
+  deeplink: string;
+  affiliate_source: string;
+  women_floor: boolean | null;
+  solo_friendly: boolean | null;
+}
+
+export interface HotelSearchResult {
+  offers: HotelOffer[];
+  providers_succeeded: string[];
+  providers_failed: string[];
+  trend: PriceTrend | null;
+  data_source?: DataSource;
+}
+
+/** Phase 1-1: 큐레이션 장소 (GET /places/curated) */
+export interface CuratedPlace {
+  id: number;
+  country: string;
+  city: string;
+  region: string | null;
+  name: string;
+  name_en: string | null;
+  address: string;
+  latitude: number;
+  longitude: number;
+  category: string;
+  vibe_tags: string[];
+  description: string | null;
+  cover_image: string | null;
+  images: string[] | null;
+  instagram_hashtag: string | null;
+  website: string | null;
+  opening_hours: string | null;
+  rating: number | null;
+  review_count: number;
+  price_level: number | null;
+  women_friendly: boolean;
+  safety_score: number | null;
+  tax_free: boolean;
 }
 
 /** 날씨 조건 기반 추천 여행지 (GET /ai/recommend/by-weather) */

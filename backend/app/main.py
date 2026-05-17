@@ -22,6 +22,11 @@ from app.routes.places import router as places_router
 from app.routes.saved_places import router as saved_places_router
 from app.routes.trips import router as trips_router
 from app.routes.uploads import router as uploads_router
+from app.routes.collaboration import router as collaboration_router
+from app.routes.community import router as community_router
+from app.routes.metasearch import router as metasearch_router
+from app.routes.realtime import router as realtime_router
+from app.routes.utils import router as utils_router
 from app.services.notification_scheduler import get_scheduler, setup_scheduler
 
 # ─── structlog 설정 ──────────────────────────────────────────────────────────
@@ -167,6 +172,11 @@ app.include_router(saved_places_router)
 app.include_router(checklist_router)
 app.include_router(uploads_router)
 app.include_router(notifications_router)
+app.include_router(utils_router)
+app.include_router(metasearch_router)
+app.include_router(collaboration_router)
+app.include_router(realtime_router)
+app.include_router(community_router)
 
 
 # ─── 헬스체크 ────────────────────────────────────────────────────────────────

@@ -62,6 +62,8 @@ class LocationResponse(BaseModel):
     images: list[str] | None = None
     google_place_id: str | None = None
     created_at: datetime
+    version: int = 1
+    updated_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

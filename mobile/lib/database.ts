@@ -99,7 +99,16 @@ export async function createTables(db: SQLite.SQLiteDatabase): Promise<void> {
       last_error  TEXT               -- 마지막 실패 메시지 (디버깅용)
     );
 
+    -- 큐레이션 캐시 (도시별 결과를 직렬화해 저장. 오프라인 읽기 전용)
+    CREATE TABLE IF NOT EXISTS curated_cache (
+      cache_key   TEXT    PRIMARY KEY,  -- 예: "tokyo|cafe|빈티지,감성|women"
+      city        TEXT    NOT NULL,
+      data        TEXT    NOT NULL,     -- JSON.stringify(CuratedPlace[])
+      cached_at   TEXT    NOT NULL
+    );
+
     -- 검색·정렬 성능 향상 인덱스 (day_index 의존 인덱스는 마이그레이션 이후 생성)
+    CREATE INDEX IF NOT EXISTS idx_curated_city       ON curated_cache(city);
     CREATE INDEX IF NOT EXISTS idx_trips_created      ON trips(created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_trips_user         ON trips(user_id);
     CREATE INDEX IF NOT EXISTS idx_locations_trip     ON locations(trip_id);
@@ -134,6 +143,14 @@ export async function createTables(db: SQLite.SQLiteDatabase): Promise<void> {
       last_error  TEXT
     )`,
     "CREATE INDEX IF NOT EXISTS idx_pending_created ON pending_mutations(created_at ASC)",
+    // 큐레이션 캐시 — 기존 DB 마이그레이션
+    `CREATE TABLE IF NOT EXISTS curated_cache (
+      cache_key   TEXT    PRIMARY KEY,
+      city        TEXT    NOT NULL,
+      data        TEXT    NOT NULL,
+      cached_at   TEXT    NOT NULL
+    )`,
+    "CREATE INDEX IF NOT EXISTS idx_curated_city ON curated_cache(city)",
   ];
   for (const sql of migrations) {
     try { await db.execAsync(sql); } catch { /* 컬럼이 이미 있으면 무시 */ }

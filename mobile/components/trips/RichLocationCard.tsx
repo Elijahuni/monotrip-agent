@@ -15,22 +15,25 @@ interface RichLocationCardProps {
   onMoveDown: () => void;
   canMoveUp: boolean;
   canMoveDown: boolean;
+  /** 다른 사용자가 방금 변경 → 잠시 강조 표시 */
+  highlighted?: boolean;
 }
 
 export function RichLocationCard({
   loc, isDark, onDelete, onEdit, onMoveUp, onMoveDown, canMoveUp, canMoveDown,
+  highlighted = false,
 }: RichLocationCardProps) {
   const bgS  = isDark ? '#141420' : '#FFFFFF';
   const txP  = isDark ? '#ECEDEE' : '#1A1A1A';
   const txSc = isDark ? '#9BA7B5' : '#5A6474';
-  const bord = isDark ? '#2A2A3E' : '#E8ECF2';
+  const bord = highlighted ? palette.coral500 : (isDark ? '#2A2A3E' : '#E8ECF2');
   const stars = loc.rating
     ? '★'.repeat(Math.round(loc.rating)) + '☆'.repeat(5 - Math.round(loc.rating))
     : null;
   const images = loc.images ?? [];
 
   return (
-    <View style={[S.locCard, { backgroundColor: bgS, borderColor: bord }]}>
+    <View style={[S.locCard, { backgroundColor: bgS, borderColor: bord, borderWidth: highlighted ? 2 : 1 }]}>
       {/* 순서 배지 + 이동 */}
       <View style={{ alignItems: 'center', gap: 4, marginTop: 2 }}>
         <TouchableOpacity onPress={onMoveUp} disabled={!canMoveUp}

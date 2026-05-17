@@ -16,8 +16,12 @@
  */
 
 import { AxiosError } from 'axios';
+import { router } from 'expo-router';
+import Toast from 'react-native-toast-message';
 
+import { recordConflict } from '@/lib/conflicts';
 import { getDB } from '@/lib/database';
+import type { Location } from '@/lib/types';
 
 // ─── 타입 ─────────────────────────────────────────────────────────────────────
 
@@ -162,6 +166,36 @@ export async function flushMutationQueue(): Promise<FlushResult> {
       await removeMutation(mutation.id);
       flushed++;
     } catch (err) {
+      // 409 Conflict — 다른 사용자가 먼저 수정. 충돌 큐로 이관 후 mutation은 큐에서 제거.
+      // (재시도해도 같은 결과이므로 사용자 결정 필요)
+      if (err instanceof AxiosError && err.response?.status === 409) {
+        const detail = err.response.data?.detail as
+          | { code?: string; current?: Partial<Location> }
+          | undefined;
+        if (detail?.code === 'version_conflict' && mutation.type === 'UPDATE_LOCATION') {
+          await recordConflict({
+            type: 'UPDATE_LOCATION',
+            trip_id: mutation.payload.tripId as number,
+            entity_id: mutation.payload.locationId as number,
+            my_change: mutation.payload.body as Record<string, unknown>,
+            server_state: detail.current ?? {},
+          });
+          await removeMutation(mutation.id);
+          Toast.show({
+            type: 'error',
+            text1: '동기화 충돌 발생',
+            text2: '탭하여 해결 → 동료가 먼저 수정한 항목이 있어요',
+            position: 'top',
+            visibilityTime: 5000,
+            onPress: () => {
+              Toast.hide();
+              try { router.push('/conflicts'); } catch { /* navigation 컨텍스트 미준비 — 무시 */ }
+            },
+          });
+          continue;
+        }
+      }
+
       const msg = err instanceof Error ? err.message : String(err);
       await incrementRetry(mutation.id, msg);
 
@@ -210,6 +244,8 @@ async function executeMutation(
         p.tripId as number,
         p.locationId as number,
         p.body as Parameters<typeof api.locations.update>[2],
+        // 큐잉 시점에 알고 있던 version을 If-Match로 전송 (없으면 검증 생략)
+        p.expectedVersion !== undefined ? { expectedVersion: p.expectedVersion as number } : undefined,
       );
       break;
 

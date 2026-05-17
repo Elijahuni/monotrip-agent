@@ -76,9 +76,24 @@ class AuthService:
         logger.info("User registered: id=%s", user.id)
         return UserResponse.model_validate(user)
 
+    async def issue_tokens(self, db: AsyncSession, user_id: int) -> TokenResponse:
+        """이미 인증된 사용자에게 access + refresh 토큰 발급 (OAuth 등 재사용)."""
+        access_token, expires_in = _create_access_token(user_id)
+        raw_rt, rt_hash = _make_refresh_token()
+        settings = get_settings()
+        rt_expires = datetime.now(timezone.utc) + timedelta(days=settings.jwt_refresh_expire_days)
+        await self.rt_repo.create(db, user_id=user_id, token_hash=rt_hash, expires_at=rt_expires)
+        return TokenResponse(
+            access_token=access_token,
+            refresh_token=raw_rt,
+            token_type="bearer",
+            expires_in=expires_in,
+        )
+
     async def login(self, db: AsyncSession, data: UserLogin) -> TokenResponse:
         user = await self.repo.get_by_email(db, data.email)
-        if not user or not _verify_password(data.password, user.hashed_password):
+        # OAuth 사용자는 hashed_password가 None이므로 명시적으로 거부
+        if not user or user.hashed_password is None or not _verify_password(data.password, user.hashed_password):
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="이메일 또는 비밀번호가 올바르지 않습니다.",

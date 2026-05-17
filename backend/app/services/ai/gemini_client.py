@@ -1,4 +1,4 @@
-"""Gemini API 클라이언트 — 모델 폴백·에러 분류·파싱 담당."""
+"""Gemini API 클라이언트 — 모델 폴백·에러 분류·파싱·Redis 캐싱 담당."""
 import asyncio
 import json
 import logging
@@ -9,6 +9,7 @@ from google import genai
 from google.genai import types
 
 from app.config import get_settings
+from app.services.ai.redis_cache import get_cached_response, set_cached_response
 
 logger = logging.getLogger(__name__)
 
@@ -40,15 +41,21 @@ def parse_json_response(raw: str) -> dict:
     return json.loads(cleaned)
 
 
-async def call_gemini(client: genai.Client, prompt: str) -> str:
+async def call_gemini(client: genai.Client, prompt: str, *, use_cache: bool = True) -> str:
     """Gemini 호출 — CANDIDATE_MODELS 순서대로 시도, 첫 성공 모델의 텍스트 반환.
 
+    use_cache=True(기본): 동일 프롬프트는 Redis에서 6시간 캐시 조회 후 반환.
     에러 분류:
     - 404 / NOT_FOUND  → 해당 계정에서 모델 미지원 → 다음 후보 모델로 재시도
     - 429 / RESOURCE_EXHAUSTED → 월간 billing 한도 초과 → 503 즉시 전파
     - Timeout          → 504 전파
     - 그 외            → 502 전파
     """
+    if use_cache:
+        cached = await get_cached_response(prompt)
+        if cached is not None:
+            return cached
+
     config = types.GenerateContentConfig(
         response_mime_type="application/json",
         temperature=0.7,
@@ -67,7 +74,10 @@ async def call_gemini(client: genai.Client, prompt: str) -> str:
             )
             if model != CANDIDATE_MODELS[0]:
                 logger.warning("Used fallback model %s (primary unavailable)", model)
-            return response.text
+            result = response.text
+            if use_cache:
+                await set_cached_response(prompt, result)
+            return result
 
         except asyncio.TimeoutError:
             logger.error("Gemini timeout after %ss (model=%s)", _GEMINI_TIMEOUT, model)

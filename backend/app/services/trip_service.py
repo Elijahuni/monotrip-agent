@@ -135,6 +135,8 @@ class TripService:
         location_id: int,
         user_id: int,
         data: LocationUpdate,
+        *,
+        expected_version: int | None = None,
     ) -> LocationResponse:
         trip = await self.repo.get_by_id(db, trip_id)
         self._assert_accessible(trip, trip_id, user_id)
@@ -143,6 +145,17 @@ class TripService:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"장소({location_id})를 찾을 수 없습니다.",
+            )
+        # 낙관적 동시성 — 클라가 기대한 version과 다르면 409 Conflict
+        # 본문에 서버의 현재 상태를 함께 담아 클라가 머지 UI를 띄울 수 있게 한다.
+        if expected_version is not None and location.version != expected_version:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail={
+                    "code": "version_conflict",
+                    "message": "다른 사용자가 먼저 수정했어요. 최신 내용을 확인해주세요.",
+                    "current": LocationResponse.model_validate(location).model_dump(mode="json"),
+                },
             )
         updated = await self.repo.update_location(db, location, data)
         return LocationResponse.model_validate(updated)

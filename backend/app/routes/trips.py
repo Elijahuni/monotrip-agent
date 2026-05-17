@@ -1,7 +1,7 @@
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Header, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import selectinload
 
@@ -20,11 +20,38 @@ from app.schemas.trip import (
     TripSummary,
     TripUpdate,
 )
+from app.services.ai.user_profile_embedding import update_user_preference
+from app.services.realtime import manager as realtime_manager
 from app.services.trip_service import TripService
 
 router = APIRouter(prefix="/trips", tags=["trips"])
 
 _service = TripService()
+
+
+async def _broadcast_location_change(
+    trip_id: int,
+    op: str,
+    location_id: int,
+    from_user_id: int,
+    payload: dict | None = None,
+) -> None:
+    """Location 변경을 같은 trip room에 연결된 다른 사용자에게 알림.
+    실패는 무시 — 실시간 알림이 실패해도 본 작업은 성공으로 처리."""
+    try:
+        await realtime_manager.broadcast(
+            trip_id,
+            {
+                "type": "location_update",
+                "op": op,
+                "location_id": location_id,
+                "from_user_id": from_user_id,
+                "payload": payload,
+            },
+            exclude_ws=None,
+        )
+    except Exception:
+        pass
 
 _SHARE_TOKEN_DAYS = 30  # 공유 토큰 유효 기간
 
@@ -88,6 +115,19 @@ async def add_location(
     location = await _service.add_location(db, trip_id, current_user.id, body)
     # 임베딩은 응답 후 별도 세션에서 백그라운드로 처리
     background_tasks.add_task(_service.embed_location_bg, location.id, body)
+    # 같은 trip room에 있는 다른 사용자에게 실시간 알림
+    background_tasks.add_task(
+        _broadcast_location_change, trip_id, "create", location.id, current_user.id, None,
+    )
+    # 사용자 선호 임베딩 갱신 — 장소 추가 행동 누적
+    background_tasks.add_task(
+        update_user_preference,
+        current_user.id,
+        body.name,
+        body.category,
+        body.address,
+        body.notes,
+    )
     return ApiResponse(data=location)
 
 
@@ -99,18 +139,37 @@ async def update_location(
     trip_id: int,
     location_id: int,
     body: LocationUpdate,
+    background_tasks: BackgroundTasks,
     current_user: CurrentUser,
     db: DbSession,
+    if_match: str | None = Header(default=None, alias="If-Match"),
 ) -> ApiResponse[LocationResponse]:
-    location = await _service.update_location(db, trip_id, location_id, current_user.id, body)
+    """If-Match 헤더로 낙관적 동시성. 클라이언트가 보유한 version을 전송하면
+    서버가 다르면 409로 머지 UI를 띄울 수 있도록 현재 상태를 함께 반환."""
+    expected_version: int | None = None
+    if if_match is not None:
+        try:
+            expected_version = int(if_match.strip('"').strip("'"))
+        except ValueError:
+            expected_version = None
+    location = await _service.update_location(
+        db, trip_id, location_id, current_user.id, body, expected_version=expected_version,
+    )
+    background_tasks.add_task(
+        _broadcast_location_change, trip_id, "patch", location.id, current_user.id, None,
+    )
     return ApiResponse(data=location)
 
 
 @router.delete("/{trip_id}/locations/{location_id}", response_model=ApiResponse[None])
 async def delete_location(
-    trip_id: int, location_id: int, current_user: CurrentUser, db: DbSession
+    trip_id: int, location_id: int, background_tasks: BackgroundTasks,
+    current_user: CurrentUser, db: DbSession,
 ) -> ApiResponse[None]:
     await _service.delete_location(db, trip_id, location_id, current_user.id)
+    background_tasks.add_task(
+        _broadcast_location_change, trip_id, "delete", location_id, current_user.id, None,
+    )
     return ApiResponse(data=None, message="장소가 삭제되었습니다.")
 
 

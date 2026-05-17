@@ -15,7 +15,9 @@ from app.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-_EMBEDDING_MODEL = "text-embedding-004"
+# text-embedding-004는 2025년 v1beta에서 NOT_FOUND. gemini-embedding-001로 마이그레이션.
+# 디폴트 출력 차원은 3072이므로 명시적으로 768로 축소 (DB 컬럼과 호환).
+_EMBEDDING_MODEL = "gemini-embedding-001"
 _EMBEDDING_DIM   = 768
 
 
@@ -52,7 +54,10 @@ async def embed_place(
             lambda: client.models.embed_content(
                 model=_EMBEDDING_MODEL,
                 contents=text,
-                config=types.EmbedContentConfig(task_type="RETRIEVAL_DOCUMENT"),
+                config=types.EmbedContentConfig(
+                    task_type="RETRIEVAL_DOCUMENT",
+                    output_dimensionality=_EMBEDDING_DIM,
+                ),
             ),
         )
         return response.embeddings[0].values
@@ -75,7 +80,10 @@ async def embed_query(query: str) -> list[float] | None:
             lambda: client.models.embed_content(
                 model=_EMBEDDING_MODEL,
                 contents=query,
-                config=types.EmbedContentConfig(task_type="RETRIEVAL_QUERY"),
+                config=types.EmbedContentConfig(
+                    task_type="RETRIEVAL_QUERY",
+                    output_dimensionality=_EMBEDDING_DIM,
+                ),
             ),
         )
         return response.embeddings[0].values

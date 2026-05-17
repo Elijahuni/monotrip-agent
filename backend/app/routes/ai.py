@@ -13,6 +13,14 @@ from app.services.ai_service import (
     generate_trip_plan,
     refine_trip_plan,
 )
+from app.services.ai.japanese_phrase import (
+    JapanesePhraseResult,
+    VALID_CONTEXTS,
+    VALID_FORMALITY,
+    translate_phrase,
+)
+from app.services.ai.korean_phrase import KoreanPhraseResult, translate_to_korean
+from pydantic import BaseModel, Field as _Field
 
 router = APIRouter(prefix="/ai", tags=["ai"])
 
@@ -42,6 +50,11 @@ async def recommend_trip(
         description="wttr.in weatherCode (눈/비 감지용, 알 수 없는 값은 무시됨)",
     ),
     rain_chance: int | None = Query(default=None, ge=0, le=100, description="강우 확률 (%, 0~100)"),
+    vibes: list[str] | None = Query(
+        default=None,
+        max_length=6,
+        description="vibe 태그 (반복 파라미터, 예: vibes=빈티지&vibes=감성)",
+    ),
 ) -> ApiResponse[AiTripPlan]:
     # 사용자 과거 트립의 카테고리 빈도 → 프롬프트 보강
     top_categories = await _repo.get_top_categories(db, current_user.id, limit=3)
@@ -51,6 +64,8 @@ async def recommend_trip(
         weather_temp_c=weather_temp_c,
         weather_code=weather_code,
         rain_chance=rain_chance,
+        vibe_preference=vibes,
+        user_id=current_user.id,
     )
     return ApiResponse(data=plan)
 
@@ -77,6 +92,42 @@ async def refine_recommendation(
     """유지할 장소 + 사용자 피드백으로 부분 재생성."""
     plan = await refine_trip_plan(body)
     return ApiResponse(data=plan)
+
+
+class JapanesePhraseRequest(BaseModel):
+    text: str = _Field(min_length=1, max_length=200)
+    context: str = _Field(default="casual")
+    formality: str = _Field(default="polite")
+
+
+@router.post("/japanese-phrase", response_model=ApiResponse[JapanesePhraseResult])
+@limiter.limit("30/hour")
+async def translate_japanese_phrase(
+    request: Request,
+    body: JapanesePhraseRequest,
+    current_user: CurrentUser,
+) -> ApiResponse[JapanesePhraseResult]:
+    """한국어 → 일본어 회화. 상황·격식 컨텍스트 반영."""
+    result = await translate_phrase(body.text, context=body.context, formality=body.formality)
+    return ApiResponse(data=result)
+
+
+class KoreanPhraseRequest(BaseModel):
+    text: str = _Field(min_length=1, max_length=200)
+    context: str = _Field(default="casual")
+    formality: str = _Field(default="polite")
+
+
+@router.post("/korean-phrase", response_model=ApiResponse[KoreanPhraseResult])
+@limiter.limit("30/hour")
+async def translate_korean_phrase(
+    request: Request,
+    body: KoreanPhraseRequest,
+    current_user: CurrentUser,
+) -> ApiResponse[KoreanPhraseResult]:
+    """일본어 → 한국어 회화. 한글 + 로마자(RR) 함께 반환."""
+    result = await translate_to_korean(body.text, context=body.context, formality=body.formality)
+    return ApiResponse(data=result)
 
 
 @router.get("/recommend/by-weather", response_model=ApiResponse[dict])

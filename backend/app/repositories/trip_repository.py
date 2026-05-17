@@ -130,6 +130,8 @@ class TripRepository:
     ) -> Location:
         for field, value in data.model_dump(exclude_unset=True).items():
             setattr(location, field, value)
+        # 낙관적 동시성: version 증가
+        location.version = (location.version or 1) + 1
         db.add(location)
         await db.flush()
         await db.refresh(location)

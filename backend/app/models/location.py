@@ -33,6 +33,9 @@ class Location(Base):
     images: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
     google_place_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
     created_at: Mapped[datetime] = mapped_column(default=func.now(), nullable=False)
+    # 낙관적 동시성 제어 (Phase 3-A 충돌 해소). PATCH 시 클라가 기대한 버전과 비교.
+    version: Mapped[int] = mapped_column(default=1, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(default=func.now(), onupdate=func.now(), nullable=False)
     # 장소 텍스트의 의미 벡터 (768차원). PostgreSQL: native vector, SQLite: JSON 배열.
     embedding: Mapped[list[float] | None] = mapped_column(CompatibleVector(768), nullable=True)
 

@@ -8,6 +8,7 @@ from fastapi import HTTPException, status
 from app.schemas.ai import AiLocationPlan, AiRefineRequest, AiTripPlan
 
 from .gemini_client import call_gemini, get_client, parse_json_response
+from .redis_cache import get_recent_recommendations, push_recent_recommendation
 from .prompt_builder import (
     TRIP_PLAN_TEMPLATE,
     REFINE_TEMPLATE,
@@ -33,6 +34,8 @@ async def generate_trip_plan(
     weather_temp_c: float | None = None,
     weather_code: int | None = None,
     rain_chance: int | None = None,
+    vibe_preference: list[str] | None = None,
+    user_id: int | None = None,
 ) -> AiTripPlan:
     """AI로 여행 일정을 생성.
 
@@ -119,17 +122,56 @@ async def generate_trip_plan(
             + "\n위 카테고리를 일정에 적절히 반영해줘."
         )
 
+    if vibe_preference:
+        # vibe는 사용자가 큐레이션 화면 등에서 선택한 태그.
+        # 화이트리스트 검증은 호출 측(라우터/서비스)에서 이미 수행되었다고 가정하되,
+        # 안전 차원에서 길이를 다시 자른다.
+        safe_vibes = [sanitize_user_input(v, max_len=20) for v in vibe_preference[:6]]
+        prompt += (
+            "\n\n[Vibe 선호 — 선택한 분위기]\n"
+            + ", ".join(safe_vibes)
+            + "\n→ 위 분위기와 어울리는 카페·식당·포토스팟·동선을 우선 추천해줘."
+        )
+
+    # ── 최근 추천 다양성 — 이전 추천 장소는 제외 요청 ─────────────────────────
+    recent_exclude: list[str] = []
+    if user_id is not None:
+        recent = await get_recent_recommendations(user_id)
+        for rec in recent:
+            if isinstance(rec, dict) and rec.get("destination") == safe_destination:
+                names = rec.get("names", [])
+                if names:
+                    recent_exclude.extend(names[:10])
+    if recent_exclude:
+        prompt += (
+            "\n\n[다양성 확보 — 아래 장소들은 이전 추천에 포함된 적 있으니 가능하면 다른 곳을 추천]\n"
+            + ", ".join(recent_exclude[:20])
+        )
+
     raw = await call_gemini(client, prompt)
 
     try:
         data = parse_json_response(raw)
-        return AiTripPlan.model_validate(data)
+        plan = AiTripPlan.model_validate(data)
     except (json.JSONDecodeError, ValueError) as e:
         logger.error("Failed to parse Gemini response: %s | raw=%s", e, raw[:200])
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="AI 응답 파싱에 실패했습니다.",
         )
+
+    # 결과 장소 이름을 최근 추천 캐시에 저장 (비동기, 실패 무시)
+    if user_id is not None:
+        import asyncio as _asyncio
+        _asyncio.create_task(
+            push_recent_recommendation(
+                user_id,
+                safe_destination,
+                [loc.name for loc in plan.locations],
+            )
+        )
+
+    return plan
 
 
 async def refine_trip_plan(req: AiRefineRequest) -> AiTripPlan:

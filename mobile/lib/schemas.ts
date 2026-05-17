@@ -55,6 +55,9 @@ export const locationSchema = z.object({
   images: z.array(z.string()).nullable().optional().transform(v => v ?? null),
   google_place_id: z.string().nullable().optional().transform(v => v ?? null),
   created_at: isoDateTime,
+  // 낙관적 동시성용 — 백엔드가 항상 보내지만 안전 차원에서 optional
+  version: z.number().int().optional().transform(v => v ?? 1),
+  updated_at: isoDateTime.nullable().optional().transform(v => v ?? null),
 });
 
 export const tripDetailSchema = tripSchema.extend({
