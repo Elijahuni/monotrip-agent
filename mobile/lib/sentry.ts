@@ -33,8 +33,8 @@ export function initSentry(): void {
     replaysSessionSampleRate: 0.1,
     replaysOnErrorSampleRate: 1,
     integrations: [
+      // feedbackIntegration은 v7에서 제거됨 — FeedbackWidget 컴포넌트로 대체
       Sentry.mobileReplayIntegration(),
-      Sentry.feedbackIntegration(),
     ],
   });
 }
