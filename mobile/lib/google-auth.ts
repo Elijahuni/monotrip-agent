@@ -29,13 +29,11 @@ import { useEffect } from 'react';
 // 시스템 브라우저 세션 처리 — iOS에서 필수
 WebBrowser.maybeCompleteAuthSession();
 
-const GOOGLE_DISCOVERY = AuthSession.useAutoDiscovery
-  ? undefined
-  : {
-      authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
-      tokenEndpoint: 'https://oauth2.googleapis.com/token',
-      revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
-    };
+const GOOGLE_DISCOVERY = {
+  authorizationEndpoint: 'https://accounts.google.com/o/oauth2/v2/auth',
+  tokenEndpoint: 'https://oauth2.googleapis.com/token',
+  revocationEndpoint: 'https://oauth2.googleapis.com/revoke',
+};
 
 const DISCOVERY = AuthSession.useAutoDiscovery?.('https://accounts.google.com');
 
