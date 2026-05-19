@@ -78,8 +78,7 @@
           "project": "monotrip-mobile",
           "organization": "monotrip"
         }
-      ],
-      "expo-apple-authentication"
+      ]
     ],
     "experiments": {
       "typedRoutes": true,
