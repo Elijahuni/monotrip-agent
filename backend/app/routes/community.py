@@ -13,6 +13,7 @@ from sqlalchemy import desc, func, select
 from app.database import AsyncSessionLocal
 from app.dependencies.auth import CurrentUser
 from app.dependencies.db import DbSession
+from app.models.user import User
 from app.limiter import limiter
 from app.models.community import (
     LIVE_TTL_HOURS,
@@ -120,6 +121,13 @@ class ReportCreate(BaseModel):
     detail: str | None = Field(default=None, max_length=1000)
 
 
+class TrendingPostResponse(PostResponse):
+    """인기 여행기용 — 작성자 정보 포함."""
+
+    nickname: str
+    profile_image_url: str | None
+
+
 # ── 피드 ─────────────────────────────────────────────────────────────────────
 
 
@@ -178,6 +186,46 @@ async def live_feed(
         stmt = stmt.where(CommunityPost.city == city)
     rows = (await db.execute(stmt)).scalars().all()
     return ApiResponse(data=[PostResponse.model_validate(r) for r in rows])
+
+
+@router.get("/trending", response_model=ApiResponse[list[TrendingPostResponse]])
+async def trending_posts(
+    current_user: CurrentUser,
+    db: DbSession,
+    period: Literal["1d", "7d", "30d"] = Query(default="7d"),
+    limit: int = Query(default=10, ge=1, le=30),
+) -> ApiResponse[list[TrendingPostResponse]]:
+    """인기 여행기 — like_count DESC + comment_count*0.3 복합 점수 정렬.
+
+    기간(period)에 따라 최근 N일 내 게시글만 대상.
+    """
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    days = {"1d": 1, "7d": 7, "30d": 30}[period]
+    since = now - timedelta(days=days)
+
+    score_expr = (CommunityPost.like_count + CommunityPost.comment_count * 0.3).label("score")
+
+    stmt = (
+        select(CommunityPost, User.nickname, User.profile_image_url)
+        .join(User, User.id == CommunityPost.user_id)
+        .where(CommunityPost.is_hidden.is_(False))
+        .where(CommunityPost.post_type == "regular")
+        .where(CommunityPost.created_at >= since)
+        .where((CommunityPost.expires_at.is_(None)) | (CommunityPost.expires_at > now))
+        .order_by(score_expr.desc(), desc(CommunityPost.created_at))
+        .limit(limit)
+    )
+
+    rows = (await db.execute(stmt)).all()
+
+    result: list[TrendingPostResponse] = []
+    for post, nickname, profile_image_url in rows:
+        data = PostResponse.model_validate(post).model_dump()
+        data["nickname"] = nickname
+        data["profile_image_url"] = profile_image_url
+        result.append(TrendingPostResponse(**data))
+
+    return ApiResponse(data=result)
 
 
 # ── 게시글 ───────────────────────────────────────────────────────────────────

@@ -98,6 +98,18 @@ export interface CommunityPost {
   created_at: string;
 }
 
+export interface TrendingPost extends CommunityPost {
+  nickname: string;
+  profile_image_url: string | null;
+}
+
+export interface UserStats {
+  trip_count: number;
+  saved_count: number;
+  post_count: number;
+  review_count: number;
+}
+
 export interface CommunityComment {
   id: number;
   post_id: number;

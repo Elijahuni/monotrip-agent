@@ -1,12 +1,17 @@
 from fastapi import APIRouter, HTTPException, Request, status
+from sqlalchemy import func, select
 from pydantic import BaseModel, Field
 
 from app.dependencies.auth import CurrentUser
 from app.dependencies.db import DbSession
 from app.limiter import limiter
+from app.models.community import CommunityPost
+from app.models.saved_place import SavedPlace
+from app.models.trip import Trip
 from app.schemas.common import ApiResponse
-from app.schemas.user import RefreshRequest, TokenResponse, UserCreate, UserLogin, UserResponse
+from app.schemas.user import RefreshRequest, TokenResponse, UserCreate, UserLogin, UserResponse, UserStatsResponse
 from app.services.auth_service import AuthService
+from app.services.apple_oauth import upsert_apple_user, verify_apple_identity_token
 from app.services.google_oauth import upsert_google_user, verify_google_id_token
 from app.services.kakao_oauth import (
     exchange_code_for_token,
@@ -86,6 +91,34 @@ async def google_login(
     return ApiResponse(data=tokens)
 
 
+class AppleLoginRequest(BaseModel):
+    """expo-apple-authentication이 반환하는 identityToken을 전달.
+
+    full_name은 Apple이 최초 로그인 시에만 전달하므로 선택적.
+    """
+
+    identity_token: str = Field(min_length=10)
+    full_name: str | None = Field(default=None, max_length=100)
+
+
+@router.post("/apple", response_model=ApiResponse[TokenResponse])
+@limiter.limit("10/minute")
+async def apple_login(
+    request: Request,
+    body: AppleLoginRequest,
+    db: DbSession,
+) -> ApiResponse[TokenResponse]:
+    """Apple Sign In.
+
+    모바일에서 expo-apple-authentication으로 획득한 identityToken을 검증하고
+    사용자 upsert 후 triple JWT를 발급합니다.
+    """
+    profile = await verify_apple_identity_token(body.identity_token)
+    user = await upsert_apple_user(db, profile, full_name=body.full_name)
+    tokens = await _service.issue_tokens(db, user.id)
+    return ApiResponse(data=tokens)
+
+
 @router.post("/refresh", response_model=ApiResponse[TokenResponse])
 @limiter.limit("30/minute")
 async def refresh_token(
@@ -110,3 +143,44 @@ async def logout(current_user: CurrentUser, db: DbSession) -> ApiResponse[None]:
 @router.get("/me", response_model=ApiResponse[UserResponse])
 async def get_me(current_user: CurrentUser) -> ApiResponse[UserResponse]:
     return ApiResponse(data=UserResponse.model_validate(current_user))
+
+
+@router.get("/me/stats", response_model=ApiResponse[UserStatsResponse])
+async def get_my_stats(current_user: CurrentUser, db: DbSession) -> ApiResponse[UserStatsResponse]:
+    """내 여행·저장·게시글·리뷰 개수를 한 번에 반환."""
+    uid = current_user.id
+
+    trip_count = (
+        await db.execute(select(func.count(Trip.id)).where(Trip.user_id == uid))
+    ).scalar() or 0
+
+    saved_count = (
+        await db.execute(select(func.count(SavedPlace.id)).where(SavedPlace.user_id == uid))
+    ).scalar() or 0
+
+    post_count = (
+        await db.execute(
+            select(func.count(CommunityPost.id))
+            .where(CommunityPost.user_id == uid)
+            .where(CommunityPost.is_hidden.is_(False))
+        )
+    ).scalar() or 0
+
+    # 리뷰 = review 카테고리 게시글 수
+    review_count = (
+        await db.execute(
+            select(func.count(CommunityPost.id))
+            .where(CommunityPost.user_id == uid)
+            .where(CommunityPost.category == "review")
+            .where(CommunityPost.is_hidden.is_(False))
+        )
+    ).scalar() or 0
+
+    return ApiResponse(
+        data=UserStatsResponse(
+            trip_count=trip_count,
+            saved_count=saved_count,
+            post_count=post_count,
+            review_count=review_count,
+        )
+    )

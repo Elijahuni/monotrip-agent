@@ -12,6 +12,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { Button, TextField } from '@/components/ui';
 import { api } from '@/lib/api';
+import { AppleAuthError, isAppleSignInAvailable, startAppleLogin } from '@/lib/apple-auth';
 import { shadow } from '@/lib/design-tokens';
 import { GoogleAuthError, useGoogleAuth } from '@/lib/google-auth';
 import { KakaoAuthError, startKakaoLogin } from '@/lib/kakao-auth';
@@ -29,6 +30,33 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+
+  async function handleAppleLogin() {
+    setError('');
+    setLoading(true);
+    try {
+      const { identityToken, fullName } = await startAppleLogin();
+      const token = await api.auth.apple({ identity_token: identityToken, full_name: fullName });
+      await login(token.access_token, token.refresh_token);
+      router.replace('/(tabs)');
+    } catch (e) {
+      if (e instanceof AppleAuthError) {
+        if (e.reason === 'cancel') {
+          /* 사용자 취소 — 조용히 무시 */
+        } else if (e.reason === 'not_available') {
+          setError('이 기기에서 Apple 로그인을 사용할 수 없어요.');
+        } else {
+          setError('Apple 로그인에 실패했어요. 잠시 후 다시 시도해주세요.');
+        }
+      } else {
+        const err = e as { response?: { data?: { detail?: string } }; message?: string };
+        const msg = err?.response?.data?.detail ?? err?.message ?? 'Apple 로그인 실패';
+        setError(typeof msg === 'string' ? msg : 'Apple 로그인 실패');
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
 
   async function handleGoogleLogin() {
     if (!googleConfigured) {
@@ -172,6 +200,29 @@ export default function LoginScreen() {
             <Text className="text-tx-tertiary text-xs">또는</Text>
             <View className="flex-1 h-px bg-line-default" />
           </View>
+
+          {/* Apple 로그인 (iOS 전용 — App Store 심사 필수) */}
+          {isAppleSignInAvailable && (
+            <TouchableOpacity
+              onPress={handleAppleLogin}
+              disabled={loading}
+              activeOpacity={0.85}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                backgroundColor: '#000000',
+                paddingVertical: 14,
+                borderRadius: 12,
+                marginBottom: 10,
+              }}>
+              <Text style={{ fontSize: 18, color: '#FFFFFF' }}></Text>
+              <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '700' }}>
+                Apple로 시작하기
+              </Text>
+            </TouchableOpacity>
+          )}
 
           {/* 구글 로그인 */}
           {googleConfigured && (

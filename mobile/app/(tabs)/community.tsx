@@ -23,25 +23,21 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
 import { LiveFeedCard } from '@/components/LiveFeedCard';
+import { PostPhotoGrid } from '@/components/PostPhotoGrid';
 import { api } from '@/lib/api';
 import { useThemedColors } from '@/lib/design-tokens';
+import { useSettings } from '@/lib/settings-context';
 import type { CommunityPost } from '@/lib/types';
 
-const CITIES = [
-  { key: '', label: '전체' },
-  { key: 'tokyo', label: '도쿄' },
-  { key: 'osaka', label: '오사카' },
-  { key: 'kyoto', label: '교토' },
-  { key: 'seoul', label: '서울' },
-  { key: 'busan', label: '부산' },
-  { key: 'jeju', label: '제주' },
-];
+// 도시 슬러그 목록 (라벨은 i18n으로 처리)
+const CITY_KEYS = ['tokyo', 'osaka', 'kyoto', 'seoul', 'busan', 'jeju'] as const;
+type CommunityCityKey = (typeof CITY_KEYS)[number];
 
-const CATEGORIES = [
-  { key: '', label: '전체', emoji: '✨' },
-  { key: 'qna', label: '질문', emoji: '❓' },
-  { key: 'review', label: '후기', emoji: '⭐' },
-  { key: 'photospot', label: '포토스팟', emoji: '📷' },
+const CATEGORY_KEYS = [
+  { key: '',          emoji: '✨' },
+  { key: 'qna',       emoji: '❓' },
+  { key: 'review',    emoji: '⭐' },
+  { key: 'photospot', emoji: '📷' },
 ] as const;
 
 type FeedTab = 'all' | 'live';
@@ -52,6 +48,8 @@ export default function CommunityTab() {
   const insets = useSafeAreaInsets();
   const colors = useThemedColors();
   const router = useRouter();
+  const { t, lang } = useSettings();
+
   const [feedTab, setFeedTab] = useState<FeedTab>('all');
   const [city, setCity] = useState('');
   const [category, setCategory] = useState<'' | 'qna' | 'review' | 'photospot'>('');
@@ -118,12 +116,29 @@ export default function CommunityTab() {
 
   const currentPosts = feedTab === 'live' ? livePosts : posts;
 
+  // 도시 표시 이름 (i18n)
+  const cityLabel = (key: string): string => {
+    if (!key) return t('community', 'cityAll');
+    if (CITY_KEYS.includes(key as CommunityCityKey)) {
+      return t('cities', key as CommunityCityKey);
+    }
+    return key;
+  };
+
+  // 카테고리 표시 이름 (i18n)
+  const catLabel = (key: string): string => {
+    if (key === 'qna')       return t('community', 'catQna');
+    if (key === 'review')    return t('community', 'catReview');
+    if (key === 'photospot') return t('community', 'catPhotospot');
+    return t('community', 'catAll');
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: colors.bgBase, paddingTop: insets.top }}>
       {/* 헤더 */}
       <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16 }}>
         <Text style={{ flex: 1, fontSize: 22, fontWeight: '800', color: colors.txPrimary }}>
-          커뮤니티
+          {t('community', 'title')}
         </Text>
         <TouchableOpacity
           onPress={() => setComposing(true)}
@@ -131,11 +146,13 @@ export default function CommunityTab() {
             paddingHorizontal: 14, paddingVertical: 8, borderRadius: 999,
             backgroundColor: colors.brandPrimary,
           }}>
-          <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>+ 글쓰기</Text>
+          <Text style={{ color: '#FFFFFF', fontWeight: '700', fontSize: 13 }}>
+            {t('community', 'write')}
+          </Text>
         </TouchableOpacity>
       </View>
 
-      {/* 피드 탭 (전체 / 지금 ◯◯ LIVE) */}
+      {/* 피드 탭 (전체 / LIVE) */}
       <View style={{ flexDirection: 'row', paddingHorizontal: 16, gap: 8, marginBottom: 4 }}>
         <TouchableOpacity
           onPress={() => setFeedTab('all')}
@@ -148,7 +165,7 @@ export default function CommunityTab() {
             fontSize: 13, fontWeight: '700',
             color: feedTab === 'all' ? colors.bgBase : colors.txSecondary,
           }}>
-            전체 피드
+            {t('community', 'feedAll')}
           </Text>
         </TouchableOpacity>
 
@@ -167,7 +184,7 @@ export default function CommunityTab() {
             fontSize: 13, fontWeight: '700',
             color: feedTab === 'live' ? '#FFFFFF' : colors.txSecondary,
           }}>
-            지금 {city ? `${cityDisplayName(city)} ` : ''}LIVE
+            {city ? `${cityLabel(city)} ` : ''}{t('community', 'feedLive')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -178,12 +195,31 @@ export default function CommunityTab() {
           horizontal showsHorizontalScrollIndicator={false}
           style={{ flexGrow: 0, flexShrink: 0 }}
           contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 4, gap: 6 }}>
-          {CITIES.map((c) => {
-            const active = c.key === city;
+          {/* 전체 */}
+          <TouchableOpacity
+            key="all"
+            onPress={() => setCity('')}
+            style={{
+              flexShrink: 0,
+              paddingHorizontal: 12, paddingVertical: 6,
+              borderRadius: 999, borderWidth: 1,
+              backgroundColor: city === '' ? colors.txPrimary : colors.bgSurface,
+              borderColor: city === '' ? colors.txPrimary : colors.lineDefault,
+            }}>
+            <Text
+              allowFontScaling={false}
+              style={{ fontSize: 12, fontWeight: '700', color: city === '' ? colors.bgBase : colors.txSecondary }}>
+              {t('community', 'cityAll')}
+            </Text>
+          </TouchableOpacity>
+
+          {/* 도시별 */}
+          {CITY_KEYS.map((key) => {
+            const active = key === city;
             return (
               <TouchableOpacity
-                key={c.key || 'all'}
-                onPress={() => setCity(c.key)}
+                key={key}
+                onPress={() => setCity(key)}
                 style={{
                   flexShrink: 0,
                   paddingHorizontal: 12, paddingVertical: 6,
@@ -194,7 +230,7 @@ export default function CommunityTab() {
                 <Text
                   allowFontScaling={false}
                   style={{ fontSize: 12, fontWeight: '700', color: active ? colors.bgBase : colors.txSecondary }}>
-                  {c.label}
+                  {t('cities', key)}
                 </Text>
               </TouchableOpacity>
             );
@@ -209,7 +245,7 @@ export default function CommunityTab() {
             horizontal showsHorizontalScrollIndicator={false}
             style={{ flexGrow: 0, flexShrink: 0 }}
             contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 4, gap: 6 }}>
-            {CATEGORIES.map((c) => {
+            {CATEGORY_KEYS.map((c) => {
               const active = c.key === category;
               return (
                 <TouchableOpacity
@@ -227,7 +263,7 @@ export default function CommunityTab() {
                   <Text
                     allowFontScaling={false}
                     style={{ fontSize: 11, fontWeight: '700', color: active ? '#FFFFFF' : colors.txSecondary }}>
-                    {c.label}
+                    {catLabel(c.key)}
                   </Text>
                 </TouchableOpacity>
               );
@@ -240,7 +276,7 @@ export default function CommunityTab() {
       {feedTab === 'live' && (
         <View style={{ paddingHorizontal: 16, paddingBottom: 4 }}>
           <Text style={{ fontSize: 11, color: colors.txTertiary }}>
-            5분마다 자동 새로고침 · 최근 6시간 이내 글
+            {t('community', 'liveHint')}
           </Text>
         </View>
       )}
@@ -261,18 +297,16 @@ export default function CommunityTab() {
           item.post_type === 'live' || feedTab === 'live' ? (
             <LiveFeedCard
               post={item}
-              onReport={() => handleReport(item.id, feedTab === 'live' ? loadLive : loadAll)}
+              onReport={() => handleReport(item.id, feedTab === 'live' ? loadLive : loadAll, t)}
             />
           ) : (
-            <PostCard post={item} colors={colors} onChanged={loadAll} />
+            <PostCard post={item} colors={colors} catLabel={catLabel} onChanged={loadAll} t={t} />
           )
         }
         ListEmptyComponent={
           loading ? null : (
             <Text style={{ color: colors.txTertiary, textAlign: 'center', marginTop: 40 }}>
-              {feedTab === 'live'
-                ? '지금 올라온 실시간 글이 없어요.\n첫 번째 LIVE 글을 작성해보세요!'
-                : '아직 글이 없어요. 첫 글을 작성해보세요!'}
+              {feedTab === 'live' ? t('community', 'emptyLive') : t('community', 'emptyAll')}
             </Text>
           )
         }
@@ -289,6 +323,7 @@ export default function CommunityTab() {
           else loadAll();
         }}
         colors={colors}
+        catLabel={catLabel}
       />
     </View>
   );
@@ -296,27 +331,24 @@ export default function CommunityTab() {
 
 // ─── 헬퍼 ─────────────────────────────────────────────────────────────────────
 
-function cityDisplayName(key: string): string {
-  const found = CITIES.find((c) => c.key === key);
-  return found?.label ?? key;
-}
+type TFunc = ReturnType<typeof useSettings>['t'];
 
-function handleReport(postId: number, onChanged: () => void) {
-  Alert.alert('신고', '이 게시글을 신고하시겠어요?', [
-    { text: '취소', style: 'cancel' },
+function handleReport(postId: number, onChanged: () => void, t: TFunc) {
+  Alert.alert(t('community', 'report'), t('community', 'reportConfirm'), [
+    { text: t('community', 'reportCancel'), style: 'cancel' },
     {
-      text: '스팸/광고',
+      text: t('community', 'reportSpam'),
       onPress: async () => {
         await api.community.report(postId, { reason: 'spam' });
-        Toast.show({ type: 'success', text1: '신고가 접수되었어요' });
+        Toast.show({ type: 'success', text1: t('community', 'reported') });
         onChanged();
       },
     },
     {
-      text: '혐오/욕설',
+      text: t('community', 'reportHate'),
       onPress: async () => {
         await api.community.report(postId, { reason: 'hate' });
-        Toast.show({ type: 'success', text1: '신고가 접수되었어요' });
+        Toast.show({ type: 'success', text1: t('community', 'reported') });
         onChanged();
       },
       style: 'destructive',
@@ -327,11 +359,13 @@ function handleReport(postId: number, onChanged: () => void) {
 // ─── 일반 게시글 카드 ──────────────────────────────────────────────────────────
 
 function PostCard({
-  post, colors, onChanged,
+  post, colors, catLabel, onChanged, t,
 }: {
   post: CommunityPost;
   colors: ReturnType<typeof useThemedColors>;
+  catLabel: (key: string) => string;
   onChanged: () => void;
+  t: TFunc;
 }) {
   const [likeCount, setLikeCount] = useState(post.like_count);
   const [liked, setLiked] = useState(false);
@@ -353,16 +387,22 @@ function PostCard({
       }}>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
         <Text style={{ fontSize: 11, color: colors.txTertiary }}>
-          {post.city ?? '전체'} · {categoryLabel(post.category)}
+          {post.city ?? t('community', 'cityAll')} · {catLabel(post.category)}
         </Text>
-        <TouchableOpacity onPress={() => handleReport(post.id, onChanged)} hitSlop={8}>
+        <TouchableOpacity onPress={() => handleReport(post.id, onChanged, t)} hitSlop={8}>
           <Text style={{ fontSize: 14, color: colors.txTertiary }}>⋯</Text>
         </TouchableOpacity>
       </View>
       <Text style={{ fontSize: 15, fontWeight: '800', color: colors.txPrimary, marginTop: 4 }}>
         {post.title}
       </Text>
-      <Text style={{ fontSize: 13, color: colors.txSecondary, marginTop: 4, lineHeight: 19 }} numberOfLines={4}>
+      {/* 포토그리드 (이미지 있을 때만) */}
+      {post.images && post.images.length > 0 && (
+        <View style={{ marginTop: 8, borderRadius: 8, overflow: 'hidden' }}>
+          <PostPhotoGrid images={post.images} />
+        </View>
+      )}
+      <Text style={{ fontSize: 13, color: colors.txSecondary, marginTop: 6, lineHeight: 19 }} numberOfLines={4}>
         {post.body}
       </Text>
       <View style={{ flexDirection: 'row', gap: 16, marginTop: 10 }}>
@@ -377,14 +417,10 @@ function PostCard({
   );
 }
 
-function categoryLabel(c: string): string {
-  return c === 'qna' ? '질문' : c === 'review' ? '후기' : c === 'photospot' ? '포토스팟' : c;
-}
-
 // ─── 작성 모달 ────────────────────────────────────────────────────────────────
 
 function ComposeModal({
-  visible, defaultCity, defaultPostType, onClose, onCreated, colors,
+  visible, defaultCity, defaultPostType, onClose, onCreated, colors, catLabel,
 }: {
   visible: boolean;
   defaultCity?: string;
@@ -392,7 +428,9 @@ function ComposeModal({
   onClose: () => void;
   onCreated: () => void;
   colors: ReturnType<typeof useThemedColors>;
+  catLabel: (key: string) => string;
 }) {
+  const { t } = useSettings();
   const [postType, setPostType] = useState<'regular' | 'live'>(defaultPostType ?? 'regular');
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
@@ -419,7 +457,10 @@ function ComposeModal({
       onCreated();
     } catch (e: unknown) {
       const err = e as { response?: { data?: { message?: string } }; message?: string };
-      Alert.alert('작성 실패', err?.response?.data?.message ?? '잠시 후 다시 시도해주세요');
+      Alert.alert(
+        t('community', 'writeFail'),
+        err?.response?.data?.message ?? t('community', 'writeFailMsg'),
+      );
     } finally {
       setSubmitting(false);
     }
@@ -429,7 +470,9 @@ function ComposeModal({
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: colors.bgBase, padding: 16 }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-          <Text style={{ fontSize: 18, fontWeight: '800', color: colors.txPrimary }}>새 글 작성</Text>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: colors.txPrimary }}>
+            {t('community', 'composeTitle')}
+          </Text>
           <TouchableOpacity onPress={onClose} hitSlop={12}>
             <Text style={{ fontSize: 22, color: colors.txSecondary }}>×</Text>
           </TouchableOpacity>
@@ -446,7 +489,7 @@ function ComposeModal({
               borderColor: postType === 'regular' ? colors.txPrimary : colors.lineDefault,
             }}>
             <Text style={{ fontSize: 13, fontWeight: '700', color: postType === 'regular' ? colors.bgBase : colors.txSecondary }}>
-              일반 글
+              {t('community', 'typeRegular')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -462,14 +505,14 @@ function ComposeModal({
               <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#FFFFFF' }} />
             )}
             <Text style={{ fontSize: 13, fontWeight: '700', color: postType === 'live' ? '#FFFFFF' : colors.txSecondary }}>
-              LIVE (6시간)
+              {t('community', 'typeLive')}
             </Text>
           </TouchableOpacity>
         </View>
 
         {postType === 'live' && (
           <Text style={{ fontSize: 11, color: '#FF3B30', marginTop: 4 }}>
-            LIVE 글은 6시간 후 자동 만료됩니다.
+            {t('community', 'liveExpiry')}
           </Text>
         )}
 
@@ -488,7 +531,7 @@ function ComposeModal({
                   borderColor: active ? colors.brandPrimary : colors.lineDefault,
                 }}>
                 <Text style={{ fontSize: 12, fontWeight: '700', color: active ? '#FFFFFF' : colors.txSecondary }}>
-                  {categoryLabel(c)}
+                  {catLabel(c)}
                 </Text>
               </TouchableOpacity>
             );
@@ -498,7 +541,7 @@ function ComposeModal({
         <TextInput
           value={title}
           onChangeText={setTitle}
-          placeholder="제목"
+          placeholder={t('community', 'titlePlaceholder')}
           placeholderTextColor={colors.txTertiary}
           maxLength={200}
           style={{
@@ -511,7 +554,7 @@ function ComposeModal({
         <TextInput
           value={body}
           onChangeText={setBody}
-          placeholder="내용을 입력해주세요"
+          placeholder={t('community', 'bodyPlaceholder')}
           placeholderTextColor={colors.txTertiary}
           multiline
           maxLength={10000}
@@ -538,7 +581,7 @@ function ComposeModal({
             <ActivityIndicator color="#FFFFFF" />
           ) : (
             <Text style={{ color: '#FFFFFF', fontSize: 15, fontWeight: '800' }}>
-              {postType === 'live' ? 'LIVE로 게시하기' : '게시하기'}
+              {postType === 'live' ? t('community', 'postLiveBtn') : t('community', 'postBtn')}
             </Text>
           )}
         </TouchableOpacity>

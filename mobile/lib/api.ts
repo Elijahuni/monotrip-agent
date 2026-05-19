@@ -19,7 +19,7 @@ import {
   userSchema,
   type PlaceSearchResult,
 } from '@/lib/schemas';
-import type { ChecklistItem, CommunityComment, CommunityPost, CuratedPlace, DestinationGuide, FlightSearchResult, HotelSearchResult, Location, SavedPlace, Trip, UserCache, WeatherDestination } from '@/lib/types';
+import type { ChecklistItem, CommunityComment, CommunityPost, CuratedPlace, DestinationGuide, FlightSearchResult, HotelSearchResult, Location, SavedPlace, Trip, TrendingPost, UserCache, UserStats, WeatherDestination } from '@/lib/types';
 import { z } from 'zod';
 
 // ─── 환경 변수 ────────────────────────────────────────────────────────────────
@@ -218,6 +218,10 @@ export const api = {
     async google(body: { id_token: string }): Promise<TokenResponse> {
       const res = await client.post<ApiResponse<TokenResponse>>('/auth/google', body);
       return parseResp(tokenSchema, res.data.data, 'auth.google');
+    },
+    async apple(body: { identity_token: string; full_name?: string | null }): Promise<TokenResponse> {
+      const res = await client.post<ApiResponse<TokenResponse>>('/auth/apple', body);
+      return parseResp(tokenSchema, res.data.data, 'auth.apple');
     },
   },
 
@@ -682,6 +686,17 @@ export const api = {
     },
     async report(postId: number, body: { reason: 'spam' | 'hate' | 'sexual' | 'other'; detail?: string }): Promise<void> {
       await client.post(`/community/posts/${postId}/report`, body);
+    },
+    async trending(params: { period?: '1d' | '7d' | '30d'; limit?: number } = {}): Promise<TrendingPost[]> {
+      const res = await client.get<ApiResponse<TrendingPost[]>>('/community/trending', { params });
+      return res.data.data ?? [];
+    },
+  },
+
+  users: {
+    async stats(): Promise<UserStats> {
+      const res = await client.get<ApiResponse<UserStats>>('/auth/me/stats');
+      return res.data.data;
     },
   },
 

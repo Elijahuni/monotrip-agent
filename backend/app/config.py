@@ -50,6 +50,11 @@ class Settings(BaseSettings):
     google_ios_client_id: str = ""      # iOS 클라이언트 ID (expo app.json에도 입력)
     google_android_client_id: str = ""  # Android 클라이언트 ID
 
+    # ── Apple Sign In ──────────────────────────────────────────────────────────
+    # Apple Developer → Certificates, Identifiers & Profiles → Identifiers → App ID
+    # Bundle ID (예: com.yourcompany.triple). 비어있으면 audience 검증 생략 (개발 환경)
+    apple_client_id: str = ""
+
     # ── 메타서치 어필리에이트 API ──────────────────────────────────────────────
     # RapidAPI → Skyscanner Flight Search (Flights Live Prices v2)
     # https://rapidapi.com/skyscanner/api/skyscanner50
