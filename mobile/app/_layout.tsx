@@ -17,13 +17,15 @@ import {
   setupNotificationChannel,
   setupNotificationResponseListener,
 } from '@/lib/notifications';
-import { initSentry, wrap as sentryWrap } from '@/lib/sentry';
+import { initSentry } from '@/lib/sentry';
 import { SettingsProvider } from '@/lib/settings-context';
+import { syncAll } from '@/lib/sync';
+import { flushMutationQueue, getPendingCount } from '@/lib/mutation-queue';
 import { useAuthStore, useNetworkListener } from '@/store';
 
-// Sentry를 앱 최초 로드 시점(모듈 평가 시)에 초기화
-// — RootLayout 렌더링 전에 실행되어야 첫 화면부터 에러가 캡처됨
-initSentry();
+// Sentry 초기화는 InnerLayout의 useEffect에서 실행 (모듈 최상위 호출 금지)
+// 이유: expo-router가 완전히 초기화된 후에 실행해야 navigation breadcrumbs 등
+// Sentry의 React Navigation 통합이 정상 동작함.
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -38,9 +40,46 @@ function InnerLayout() {
   // undefined = 확인 중 | false = 미완료 | true = 완료
   const [onboardingDone, setOnboardingDone] = useState<boolean | undefined>(undefined);
 
+  // Sentry 초기화 — 모듈 최상위가 아닌 첫 렌더 시 안전하게 실행
+  const sentryInitialized = useRef(false);
+  useEffect(() => {
+    if (!sentryInitialized.current) {
+      initSentry();
+      sentryInitialized.current = true;
+    }
+  }, []);
+
   useEffect(() => {
     hydrateAuth();
+
+    // 1) 로컬 DB → React Query 캐시 즉시 주입 (오프라인에서도 UI 즉시 표시)
     hydrateTripsFromLocal(queryClient).catch(() => {/* 무시 */});
+
+    // 2) 앱 시작 시 이미 온라인이면 서버 최신 데이터 동기화 + pending mutations flush
+    //    (오프라인→온라인 전환은 useNetworkListener가 처리하므로 여기선 시작 시점만 담당)
+    (async () => {
+      try {
+        const NetInfo = (await import('@react-native-community/netinfo')).default;
+        const state = await NetInfo.fetch();
+        const online = state.isConnected === true && state.isInternetReachable !== false;
+        if (!online) return;
+
+        // 백그라운드 병렬 실행 — UI 블로킹 없음
+        syncAll().catch(() => {});
+
+        const count = await getPendingCount();
+        if (count > 0) {
+          const result = await flushMutationQueue();
+          if (result.flushed > 0) {
+            // 서버 반영 완료 → React Query 캐시 무효화
+            await queryClient.invalidateQueries();
+          }
+        }
+      } catch {
+        // 시작 동기화 실패는 조용히 무시 (로컬 데이터로 동작 유지)
+      }
+    })();
+
     AsyncStorage.getItem(ONBOARDING_KEY).then((val) => {
       setOnboardingDone(val === 'done');
     });
@@ -99,5 +138,7 @@ function RootLayout() {
   );
 }
 
-// Sentry.wrap이 미처리 JS 에러 + 네이티브 크래시를 자동 캡처
-export default sentryWrap(RootLayout);
+// Sentry.wrap은 NativeWind JSX interop과 충돌하여 hooks order 에러 유발 가능
+// → wrap 제거. Sentry.init()에서 이미 미처리 예외를 자동 캡처함.
+// 네이티브 크래시도 Sentry 네이티브 SDK가 독립적으로 캡처.
+export default RootLayout;
