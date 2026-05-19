@@ -23,9 +23,11 @@ import { syncAll } from '@/lib/sync';
 import { flushMutationQueue, getPendingCount } from '@/lib/mutation-queue';
 import { useAuthStore, useNetworkListener } from '@/store';
 
-// Sentry 초기화는 InnerLayout의 useEffect에서 실행 (모듈 최상위 호출 금지)
-// 이유: expo-router가 완전히 초기화된 후에 실행해야 navigation breadcrumbs 등
-// Sentry의 React Navigation 통합이 정상 동작함.
+// Sentry.init()은 lib/sentry.ts의 initSentry()에서만 호출.
+// 모듈 최상단 직접 호출 금지:
+//   - feedbackIntegration은 현재 SDK에서 제거됨 → 런타임 오류
+//   - Sentry.wrap()은 NativeWind JSX interop과 충돌 → hooks 순서 오류
+//   - 이중 init 시 이벤트 중복 전송
 
 export const unstable_settings = {
   anchor: '(tabs)',
