@@ -420,14 +420,139 @@ def _cabin_code(cabin: str) -> str:
     )
 
 
+class RapidApiBookingProvider(HotelProvider):
+    """RapidAPI의 Booking.com 래퍼 API 실연동.
+
+    공식 Affiliate 승인 없이 RAPIDAPI_KEY 하나로 즉시 사용 가능.
+    API: booking-com15 (DataCrawler) — https://rapidapi.com/DataCrawler/api/booking-com15
+    엔드포인트: GET /api/v1/hotels/searchHotels
+
+    RAPIDAPI_KEY 설정 시 자동 활성화 (BookingProvider보다 우선순위 낮음).
+    """
+
+    name = "booking_rapidapi"
+    _BASE = "https://booking-com15.p.rapidapi.com/api/v1/hotels"
+
+    def __init__(self, rapidapi_key: str) -> None:
+        self._key = rapidapi_key
+        self._headers = {
+            "X-RapidAPI-Key": rapidapi_key,
+            "X-RapidAPI-Host": "booking-com15.p.rapidapi.com",
+        }
+
+    async def _get_dest_id(self, city: str) -> str | None:
+        """도시 이름 → Booking.com dest_id 조회."""
+        async with httpx.AsyncClient(timeout=8.0) as client:
+            resp = await client.get(
+                f"{self._BASE}/searchDestination",
+                params={"query": normalize_city_for_hotels(city), "locale": "ko"},
+                headers=self._headers,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        results = data.get("data", [])
+        if not results:
+            return None
+        # 첫 번째 결과(도시 타입 우선)
+        for item in results:
+            if item.get("dest_type") in ("city", "region"):
+                return str(item["dest_id"])
+        return str(results[0]["dest_id"]) if results else None
+
+    async def search(self, q: HotelSearchQuery) -> list[HotelOffer]:
+        dest_id = await self._get_dest_id(q.city)
+        if not dest_id:
+            return []
+
+        params: dict = {
+            "dest_id": dest_id,
+            "search_type": "CITY",
+            "arrival_date": q.checkin.isoformat(),
+            "departure_date": q.checkout.isoformat(),
+            "adults": str(q.adults),
+            "room_qty": str(q.rooms),
+            "units": "metric",
+            "temperature_unit": "c",
+            "languagecode": "ko",
+            "currency_code": "KRW",
+            "page_number": "1",
+        }
+        if q.min_rating:
+            params["min_review_score"] = str(int(q.min_rating * 2))  # 5점 → 10점 스케일
+
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            resp = await client.get(
+                f"{self._BASE}/searchHotels",
+                params=params,
+                headers=self._headers,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+
+        return self._parse(data, q)
+
+    def _parse(self, data: dict, q: HotelSearchQuery) -> list[HotelOffer]:
+        nights = max(1, (q.checkout - q.checkin).days)
+        offers: list[HotelOffer] = []
+        hotels = data.get("data", {}).get("hotels", [])
+        for item in hotels[:10]:
+            try:
+                prop = item.get("property", {})
+                price_info = item.get("priceBreakdown", {})
+                gross = price_info.get("grossPrice", {})
+                price_per_night = int(float(gross.get("value", 0)))
+                if price_per_night <= 0:
+                    continue
+
+                name = prop.get("name", "Unknown Hotel")
+                rating = float(prop.get("reviewScore", 0) or 0) / 2  # 10점 → 5점
+                review_count = prop.get("reviewCount")
+                star = prop.get("propertyClass")  # 1~5
+                lat = prop.get("latitude")
+                lng = prop.get("longitude")
+                photo = (prop.get("photoUrls") or [None])[0]
+                hotel_id = str(prop.get("id", ""))
+
+                deeplink = (
+                    f"https://www.booking.com/hotel/searchresults.ko.html"
+                    f"?ss={normalize_city_for_hotels(q.city)}"
+                    f"&checkin={q.checkin.isoformat()}"
+                    f"&checkout={q.checkout.isoformat()}"
+                    f"&no_rooms={q.rooms}&group_adults={q.adults}"
+                )
+
+                offers.append(
+                    HotelOffer(
+                        id=f"booking_rapidapi:{hotel_id}",
+                        name=name,
+                        price_per_night_krw=price_per_night,
+                        total_price_krw=price_per_night * nights,
+                        rating=round(rating, 1) if rating else None,
+                        review_count=int(review_count) if review_count else None,
+                        star_rating=int(star) if star else None,
+                        address=prop.get("wishlistName") or q.city,
+                        latitude=float(lat) if lat else None,
+                        longitude=float(lng) if lng else None,
+                        thumbnail=photo,
+                        deeplink=deeplink,
+                        affiliate_source="booking",
+                        women_floor=False,
+                        solo_friendly=bool(rating and rating >= 4.5),
+                    )
+                )
+            except Exception as e:
+                logger.debug("booking_rapidapi parse error: %s", e)
+        return offers
+
+
 class BookingProvider(HotelProvider):
-    """Booking.com Affiliate Demand API v2 실연동.
+    """Booking.com 공식 Affiliate Demand API v2 실연동.
 
     인증: Basic Auth (affiliate_id:secret) → Bearer 토큰 교환 (캐시 1h)
     엔드포인트: POST /accommodations/search
     공식 문서: https://developers.booking.com/affiliate/
 
-    키 미설정 / 승인 대기 시 자동으로 MockHotelProvider가 사용됨.
+    키 미설정 / 승인 대기 시 RapidApiBookingProvider 또는 Mock이 사용됨.
     """
 
     name = "booking"
@@ -538,15 +663,30 @@ def build_flight_providers() -> list[FlightProvider]:
 
 
 def build_hotel_providers() -> list[HotelProvider]:
-    """설정에 따라 실제 Provider + Mock 폴백 목록을 반환."""
+    """설정에 따라 실제 Provider + Mock 폴백 목록을 반환.
+
+    우선순위:
+      1) BookingProvider       — 공식 Affiliate 키 보유 시 (실연동, 최고 품질)
+      2) RapidApiBookingProvider — RAPIDAPI_KEY 보유 시 (즉시 사용, 무료 500회/월)
+      3) MockHotelProvider     — 키 없음 (참고용 Mock 가격)
+    """
     settings = get_settings()
     providers: list[HotelProvider] = []
+
+    # 우선순위 1: 공식 Booking.com Affiliate API
     if settings.booking_affiliate_id and settings.booking_affiliate_secret:
         providers.append(
             BookingProvider(settings.booking_affiliate_id, settings.booking_affiliate_secret)
         )
-        logger.info("metasearch_hotel_provider=booking (live)")
-    if not providers:
+        logger.info("metasearch_hotel_provider=booking_official (live)")
+
+    # 우선순위 2: RapidAPI Booking.com 래퍼 (공식 키 없을 때 자동 활성)
+    elif settings.rapidapi_key:
+        providers.append(RapidApiBookingProvider(settings.rapidapi_key))
+        logger.info("metasearch_hotel_provider=booking_rapidapi (live)")
+
+    else:
         logger.info("metasearch_hotel_provider=mock (no api key)")
+
     providers.append(MockHotelProvider())  # 항상 폴백
     return providers
