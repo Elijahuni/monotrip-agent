@@ -21,7 +21,7 @@ import {
   userSchema,
   type PlaceSearchResult,
 } from '@/lib/schemas';
-import type { BadgeItem, ChecklistItem, CommunityComment, CommunityPost, CuratedPlace, DestinationGuide, FaqItem, FlightSearchResult, Gamification, HotelSearchResult, Location, NoticeDetail, NoticeListItem, SavedPlace, Trip, TrendingPost, UserCache, UserStats, WeatherDestination } from '@/lib/types';
+import type { AvailableCoupon, BadgeItem, ChecklistItem, CommunityComment, CommunityPost, CuratedPlace, DestinationGuide, FaqItem, FlightSearchResult, Gamification, HotelSearchResult, Location, MyCoupon, NoticeDetail, NoticeListItem, SavedPlace, Trip, TrendingPost, UserCache, UserStats, WeatherDestination } from '@/lib/types';
 import { z } from 'zod';
 
 // ─── 환경 변수 ────────────────────────────────────────────────────────────────
@@ -548,6 +548,30 @@ export const api = {
     },
     async get(noticeId: number): Promise<NoticeDetail> {
       const res = await client.get<ApiResponse<NoticeDetail>>(`/notices/${noticeId}`);
+      return res.data.data;
+    },
+  },
+
+  // ─── 쿠폰 ─────────────────────────────────────────────────────────────────────
+  coupons: {
+    /** 발급 가능한 혜택 목록 (already_claimed 포함) */
+    async available(): Promise<AvailableCoupon[]> {
+      const res = await client.get<ApiResponse<AvailableCoupon[]>>('/coupons/available');
+      return res.data.data ?? [];
+    },
+    /** 쿠폰 발급 */
+    async claim(couponId: number): Promise<MyCoupon> {
+      const res = await client.post<ApiResponse<MyCoupon>>(`/coupons/${couponId}/claim`);
+      return res.data.data;
+    },
+    /** 내 쿠폰함 */
+    async mine(): Promise<MyCoupon[]> {
+      const res = await client.get<ApiResponse<MyCoupon[]>>('/coupons/me');
+      return res.data.data ?? [];
+    },
+    /** 쿠폰 사용 처리 */
+    async use(userCouponId: number): Promise<MyCoupon> {
+      const res = await client.post<ApiResponse<MyCoupon>>(`/coupons/me/${userCouponId}/use`);
       return res.data.data;
     },
   },

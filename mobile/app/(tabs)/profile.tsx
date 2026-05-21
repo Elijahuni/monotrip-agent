@@ -289,7 +289,7 @@ export default function ProfileScreen() {
         {/* ── 메뉴 리스트 ── */}
         <View style={{ backgroundColor: colors.bgBase, marginTop: 8 }}>
           <MenuRow icon="📅" label={t('profile', 'myBookings')} onPress={comingSoon} colors={colors} />
-          <MenuRow icon="🎁" label={t('profile', 'coupons')} badge onPress={comingSoon} colors={colors} />
+          <MenuRow icon="🎁" label={t('profile', 'coupons')} onPress={() => router.push('/coupons' as any)} colors={colors} />
           <MenuRow icon="📍" label={t('profile', 'offlineGuide')} onPress={comingSoon} colors={colors} />
         </View>
 

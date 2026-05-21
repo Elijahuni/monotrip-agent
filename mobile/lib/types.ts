@@ -289,3 +289,35 @@ export interface FaqItem {
   question: string;
   answer: string;
 }
+
+// ─── 쿠폰 ─────────────────────────────────────────────────────────────────────
+
+export type CouponDiscountType = 'percent' | 'amount';
+export type MyCouponStatus = 'available' | 'used' | 'expired';
+
+export interface AvailableCoupon {
+  id: number;
+  code: string;
+  title: string;
+  description: string | null;
+  discount_type: CouponDiscountType;
+  discount_value: number;
+  min_order_amount: number;
+  valid_until: string | null;
+  already_claimed: boolean;
+}
+
+export interface MyCoupon {
+  user_coupon_id: number;
+  coupon_id: number;
+  code: string;
+  title: string;
+  description: string | null;
+  discount_type: CouponDiscountType;
+  discount_value: number;
+  min_order_amount: number;
+  valid_until: string | null;
+  status: MyCouponStatus;
+  claimed_at: string;
+  used_at: string | null;
+}
