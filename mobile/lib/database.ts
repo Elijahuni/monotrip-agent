@@ -107,6 +107,14 @@ export async function createTables(db: SQLite.SQLiteDatabase): Promise<void> {
       cached_at   TEXT    NOT NULL
     );
 
+    -- 오프라인 가이드 캐시 (다운로드한 가이드를 오프라인 열람용으로 저장)
+    CREATE TABLE IF NOT EXISTS offline_guides (
+      id            INTEGER PRIMARY KEY,
+      version       INTEGER NOT NULL DEFAULT 1,
+      data          TEXT    NOT NULL,   -- JSON.stringify(OfflineGuideDetail)
+      downloaded_at TEXT    NOT NULL
+    );
+
     -- 검색·정렬 성능 향상 인덱스 (day_index 의존 인덱스는 마이그레이션 이후 생성)
     CREATE INDEX IF NOT EXISTS idx_curated_city       ON curated_cache(city);
     CREATE INDEX IF NOT EXISTS idx_trips_created      ON trips(created_at DESC);

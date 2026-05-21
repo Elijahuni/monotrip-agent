@@ -321,3 +321,27 @@ export interface MyCoupon {
   claimed_at: string;
   used_at: string | null;
 }
+
+// ─── 오프라인 가이드 ───────────────────────────────────────────────────────────
+
+export interface OfflineGuideSection {
+  heading: string;
+  body: string;
+}
+
+export interface OfflineGuideListItem {
+  id: number;
+  city: string;
+  country: string;
+  title: string;
+  summary: string;
+  cover_image: string | null;
+  language: string;
+  file_size_kb: number;
+  version: number;
+  updated_at: string;
+}
+
+export interface OfflineGuideDetail extends OfflineGuideListItem {
+  sections: OfflineGuideSection[];
+}

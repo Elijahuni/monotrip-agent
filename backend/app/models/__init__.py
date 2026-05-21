@@ -5,6 +5,7 @@ from app.models.curated_place import CuratedPlace
 from app.models.faq import Faq
 from app.models.location import Location
 from app.models.notice import Notice
+from app.models.offline_guide import OfflineGuide
 from app.models.price_alert import FlightPriceAlert
 from app.models.price_snapshot import FlightPriceSnapshot, HotelPriceSnapshot
 from app.models.refresh_token import RefreshToken
@@ -18,6 +19,7 @@ __all__ = [
     "Trip",
     "Location",
     "Notice",
+    "OfflineGuide",
     "SavedPlace",
     "ChecklistItem",
     "RefreshToken",

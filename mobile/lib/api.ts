@@ -21,7 +21,7 @@ import {
   userSchema,
   type PlaceSearchResult,
 } from '@/lib/schemas';
-import type { AvailableCoupon, BadgeItem, ChecklistItem, CommunityComment, CommunityPost, CuratedPlace, DestinationGuide, FaqItem, FlightSearchResult, Gamification, HotelSearchResult, Location, MyCoupon, NoticeDetail, NoticeListItem, SavedPlace, Trip, TrendingPost, UserCache, UserStats, WeatherDestination } from '@/lib/types';
+import type { AvailableCoupon, BadgeItem, ChecklistItem, CommunityComment, CommunityPost, CuratedPlace, DestinationGuide, FaqItem, FlightSearchResult, Gamification, HotelSearchResult, Location, MyCoupon, NoticeDetail, NoticeListItem, OfflineGuideDetail, OfflineGuideListItem, SavedPlace, Trip, TrendingPost, UserCache, UserStats, WeatherDestination } from '@/lib/types';
 import { z } from 'zod';
 
 // ─── 환경 변수 ────────────────────────────────────────────────────────────────
@@ -548,6 +548,18 @@ export const api = {
     },
     async get(noticeId: number): Promise<NoticeDetail> {
       const res = await client.get<ApiResponse<NoticeDetail>>(`/notices/${noticeId}`);
+      return res.data.data;
+    },
+  },
+
+  // ─── 오프라인 가이드 ───────────────────────────────────────────────────────────
+  offlineGuides: {
+    async list(params: { city?: string } = {}): Promise<OfflineGuideListItem[]> {
+      const res = await client.get<ApiResponse<OfflineGuideListItem[]>>('/offline-guides', { params });
+      return res.data.data ?? [];
+    },
+    async get(guideId: number): Promise<OfflineGuideDetail> {
+      const res = await client.get<ApiResponse<OfflineGuideDetail>>(`/offline-guides/${guideId}`);
       return res.data.data;
     },
   },
