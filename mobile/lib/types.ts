@@ -373,3 +373,35 @@ export interface TourSearchResult {
   providers_failed: string[];
   data_source: 'live' | 'mock';
 }
+
+// ─── 렌터카·보험 메타서치 ───────────────────────────────────────────────────────
+
+export type CarClass = 'economy' | 'compact' | 'midsize' | 'suv' | 'van' | 'luxury';
+export type InsuranceLevel = 'none' | 'basic' | 'full';
+
+export interface RentalCarOffer {
+  id: string;
+  vendor: string;
+  car_class: CarClass;
+  car_model: string;
+  transmission: string;
+  seats: number;
+  price_per_day_krw: number;
+  total_price_krw: number;
+  currency: string;
+  insurance_level: InsuranceLevel;
+  insurance_included: boolean;
+  insurance_price_krw: number;
+  free_cancellation: boolean;
+  unlimited_mileage: boolean;
+  deeplink: string;
+  affiliate_source: string;
+}
+
+export interface RentalCarSearchResult {
+  offers: RentalCarOffer[];
+  providers_succeeded: string[];
+  providers_failed: string[];
+  rental_days: number;
+  data_source: 'live' | 'mock';
+}

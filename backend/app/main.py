@@ -30,6 +30,7 @@ from app.routes.faqs import router as faqs_router
 from app.routes.metasearch import router as metasearch_router
 from app.routes.notices import router as notices_router
 from app.routes.offline_guides import router as offline_guides_router
+from app.routes.rental_cars import router as rental_cars_router
 from app.routes.tours import router as tours_router
 from app.routes.realtime import router as realtime_router
 from app.routes.utils import router as utils_router
@@ -200,6 +201,7 @@ app.include_router(faqs_router)
 app.include_router(coupons_router)
 app.include_router(offline_guides_router)
 app.include_router(tours_router)
+app.include_router(rental_cars_router)
 
 # 관리자 패널 — 숨겨진 URL, 설정에서 prefix 동적 생성
 app.include_router(create_admin_router())

@@ -21,7 +21,7 @@ const ACTIONS: QuickAction[] = [
   { icon: '🏨', labelKey: 'quickHotels',   route: '/search/hotels'  },
   { icon: '🎟️', labelKey: 'quickTours',    route: '/search/tours'  },
   { icon: '🎁', labelKey: 'quickCoupons',  route: '/coupons'       },
-  { icon: '🚗', labelKey: 'quickRental'                             },
+  { icon: '🚗', labelKey: 'quickRental',   route: '/search/rental-cars' },
 ];
 
 export function QuickActionBar() {
