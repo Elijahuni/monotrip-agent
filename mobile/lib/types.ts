@@ -345,3 +345,31 @@ export interface OfflineGuideListItem {
 export interface OfflineGuideDetail extends OfflineGuideListItem {
   sections: OfflineGuideSection[];
 }
+
+// ─── 투어·티켓 메타서치 ─────────────────────────────────────────────────────────
+
+export type TourCategory = 'activity' | 'attraction' | 'tour' | 'transport' | 'show' | 'food';
+
+export interface TourOffer {
+  id: string;
+  title: string;
+  category: TourCategory;
+  city: string;
+  price_krw: number;
+  currency: string;
+  duration_hours: number | null;
+  rating: number | null;
+  review_count: number | null;
+  thumbnail: string | null;
+  instant_confirmation: boolean;
+  free_cancellation: boolean;
+  deeplink: string;
+  affiliate_source: string;
+}
+
+export interface TourSearchResult {
+  offers: TourOffer[];
+  providers_succeeded: string[];
+  providers_failed: string[];
+  data_source: 'live' | 'mock';
+}

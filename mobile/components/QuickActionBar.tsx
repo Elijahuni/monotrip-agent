@@ -19,8 +19,8 @@ interface QuickAction {
 const ACTIONS: QuickAction[] = [
   { icon: '✈️', labelKey: 'quickFlights',  route: '/search/flights' },
   { icon: '🏨', labelKey: 'quickHotels',   route: '/search/hotels'  },
-  { icon: '🎟️', labelKey: 'quickTours'                              },
-  { icon: '🎁', labelKey: 'quickCoupons'                            },
+  { icon: '🎟️', labelKey: 'quickTours',    route: '/search/tours'  },
+  { icon: '🎁', labelKey: 'quickCoupons',  route: '/coupons'       },
   { icon: '🚗', labelKey: 'quickRental'                             },
 ];
 

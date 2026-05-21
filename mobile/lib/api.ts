@@ -21,7 +21,7 @@ import {
   userSchema,
   type PlaceSearchResult,
 } from '@/lib/schemas';
-import type { AvailableCoupon, BadgeItem, ChecklistItem, CommunityComment, CommunityPost, CuratedPlace, DestinationGuide, FaqItem, FlightSearchResult, Gamification, HotelSearchResult, Location, MyCoupon, NoticeDetail, NoticeListItem, OfflineGuideDetail, OfflineGuideListItem, SavedPlace, Trip, TrendingPost, UserCache, UserStats, WeatherDestination } from '@/lib/types';
+import type { AvailableCoupon, BadgeItem, ChecklistItem, CommunityComment, CommunityPost, CuratedPlace, DestinationGuide, FaqItem, FlightSearchResult, Gamification, HotelSearchResult, Location, MyCoupon, NoticeDetail, NoticeListItem, OfflineGuideDetail, OfflineGuideListItem, SavedPlace, TourSearchResult, Trip, TrendingPost, UserCache, UserStats, WeatherDestination } from '@/lib/types';
 import { z } from 'zod';
 
 // ─── 환경 변수 ────────────────────────────────────────────────────────────────
@@ -548,6 +548,22 @@ export const api = {
     },
     async get(noticeId: number): Promise<NoticeDetail> {
       const res = await client.get<ApiResponse<NoticeDetail>>(`/notices/${noticeId}`);
+      return res.data.data;
+    },
+  },
+
+  // ─── 투어·티켓 메타서치 ─────────────────────────────────────────────────────────
+  tours: {
+    async search(params: {
+      city: string;
+      category?: 'activity' | 'attraction' | 'tour' | 'transport' | 'show' | 'food';
+      travel_date?: string;
+      travelers?: number;
+    }): Promise<TourSearchResult> {
+      const res = await client.get<ApiResponse<TourSearchResult>>('/tours/search', {
+        params,
+        timeout: 12_000,
+      });
       return res.data.data;
     },
   },
