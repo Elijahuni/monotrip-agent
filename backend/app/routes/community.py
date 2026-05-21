@@ -8,27 +8,28 @@ from typing import Literal
 
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, status
 from pydantic import BaseModel, Field
-from sqlalchemy import desc, func, select
+from sqlalchemy import select
 
 from app.database import AsyncSessionLocal
 from app.dependencies.auth import CurrentUser
 from app.dependencies.db import DbSession
-from app.models.user import User
 from app.limiter import limiter
 from app.models.community import (
     LIVE_TTL_HOURS,
     POST_TYPE_LIVE,
     CommunityComment,
     CommunityPost,
-    CommunityPostLike,
     CommunityReport,
 )
+from app.repositories.community_repository import CommunityRepository
 from app.schemas.common import ApiResponse
 from app.services.ai.moderation import moderate_text
 
 import logging
 
 _logger = logging.getLogger(__name__)
+
+_repo = CommunityRepository()
 
 
 # ── 비동기 모더레이션 작업 ─────────────────────────────────────────────────────
@@ -141,24 +142,14 @@ async def feed(
     limit: int = Query(default=20, ge=1, le=50),
     cursor: int | None = Query(default=None, description="마지막으로 받은 post_id (exclusive)"),
 ) -> ApiResponse[list[PostResponse]]:
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    stmt = (
-        select(CommunityPost)
-        .where(CommunityPost.is_hidden.is_(False))
-        # 만료된 live 게시글 제외
-        .where((CommunityPost.expires_at.is_(None)) | (CommunityPost.expires_at > now))
-        .order_by(desc(CommunityPost.id))
-        .limit(limit)
+    rows = await _repo.list_feed(
+        db,
+        city=city,
+        category=category,
+        post_type=post_type,
+        limit=limit,
+        cursor=cursor,
     )
-    if city:
-        stmt = stmt.where(CommunityPost.city == city)
-    if category:
-        stmt = stmt.where(CommunityPost.category == category)
-    if post_type:
-        stmt = stmt.where(CommunityPost.post_type == post_type)
-    if cursor:
-        stmt = stmt.where(CommunityPost.id < cursor)
-    rows = (await db.execute(stmt)).scalars().all()
     return ApiResponse(data=[PostResponse.model_validate(r) for r in rows])
 
 
@@ -173,18 +164,7 @@ async def live_feed(
 
     5분마다 자동 새로고침 권장 (모바일에서 setInterval 사용).
     """
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    stmt = (
-        select(CommunityPost)
-        .where(CommunityPost.post_type == POST_TYPE_LIVE)
-        .where(CommunityPost.is_hidden.is_(False))
-        .where(CommunityPost.expires_at > now)
-        .order_by(desc(CommunityPost.created_at))
-        .limit(limit)
-    )
-    if city:
-        stmt = stmt.where(CommunityPost.city == city)
-    rows = (await db.execute(stmt)).scalars().all()
+    rows = await _repo.list_live_feed(db, city=city, limit=limit)
     return ApiResponse(data=[PostResponse.model_validate(r) for r in rows])
 
 
@@ -199,24 +179,7 @@ async def trending_posts(
 
     기간(period)에 따라 최근 N일 내 게시글만 대상.
     """
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
-    days = {"1d": 1, "7d": 7, "30d": 30}[period]
-    since = now - timedelta(days=days)
-
-    score_expr = (CommunityPost.like_count + CommunityPost.comment_count * 0.3).label("score")
-
-    stmt = (
-        select(CommunityPost, User.nickname, User.profile_image_url)
-        .join(User, User.id == CommunityPost.user_id)
-        .where(CommunityPost.is_hidden.is_(False))
-        .where(CommunityPost.post_type == "regular")
-        .where(CommunityPost.created_at >= since)
-        .where((CommunityPost.expires_at.is_(None)) | (CommunityPost.expires_at > now))
-        .order_by(score_expr.desc(), desc(CommunityPost.created_at))
-        .limit(limit)
-    )
-
-    rows = (await db.execute(stmt)).all()
+    rows = await _repo.list_trending(db, period=period, limit=limit)
 
     result: list[TrendingPostResponse] = []
     for post, nickname, profile_image_url in rows:
@@ -257,9 +220,7 @@ async def create_post(
         images=body.images,
         expires_at=expires_at,
     )
-    db.add(post)
-    await db.flush()
-    await db.refresh(post)
+    post = await _repo.add_post(db, post)
     # 응답 차단하지 않고 Gemini 모더레이션 비동기 실행
     background.add_task(_moderate_post_bg, post.id)
     return ApiResponse(data=PostResponse.model_validate(post))
@@ -271,11 +232,7 @@ async def get_post(
     current_user: CurrentUser,
     db: DbSession,
 ) -> ApiResponse[PostResponse]:
-    post = (
-        (await db.execute(select(CommunityPost).where(CommunityPost.id == post_id)))
-        .scalars()
-        .first()
-    )
+    post = await _repo.get_post(db, post_id)
     if post is None or post.is_hidden:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="게시글을 찾을 수 없습니다."
@@ -289,18 +246,14 @@ async def delete_post(
     current_user: CurrentUser,
     db: DbSession,
 ) -> ApiResponse[None]:
-    post = (
-        (await db.execute(select(CommunityPost).where(CommunityPost.id == post_id)))
-        .scalars()
-        .first()
-    )
+    post = await _repo.get_post(db, post_id)
     if post is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="게시글을 찾을 수 없습니다."
         )
     if post.user_id != current_user.id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="삭제 권한이 없습니다.")
-    await db.delete(post)
+    await _repo.delete_post(db, post)
     return ApiResponse(data=None, message="삭제되었습니다.")
 
 
@@ -313,18 +266,7 @@ async def list_comments(
     current_user: CurrentUser,
     db: DbSession,
 ) -> ApiResponse[list[CommentResponse]]:
-    rows = (
-        (
-            await db.execute(
-                select(CommunityComment)
-                .where(CommunityComment.post_id == post_id)
-                .where(CommunityComment.is_hidden.is_(False))
-                .order_by(CommunityComment.created_at.asc())
-            )
-        )
-        .scalars()
-        .all()
-    )
+    rows = await _repo.list_comments(db, post_id)
     return ApiResponse(data=[CommentResponse.model_validate(r) for r in rows])
 
 
@@ -342,20 +284,13 @@ async def create_comment(
     current_user: CurrentUser,
     db: DbSession,
 ) -> ApiResponse[CommentResponse]:
-    post = (
-        (await db.execute(select(CommunityPost).where(CommunityPost.id == post_id)))
-        .scalars()
-        .first()
-    )
+    post = await _repo.get_post(db, post_id)
     if post is None or post.is_hidden:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="게시글을 찾을 수 없습니다."
         )
     comment = CommunityComment(post_id=post_id, user_id=current_user.id, body=body.body)
-    db.add(comment)
-    post.comment_count = (post.comment_count or 0) + 1
-    await db.flush()
-    await db.refresh(comment)
+    comment = await _repo.add_comment(db, post, comment)
     background.add_task(_moderate_comment_bg, comment.id)
     return ApiResponse(data=CommentResponse.model_validate(comment))
 
@@ -369,36 +304,13 @@ async def toggle_like(
     current_user: CurrentUser,
     db: DbSession,
 ) -> ApiResponse[dict]:
-    post = (
-        (await db.execute(select(CommunityPost).where(CommunityPost.id == post_id)))
-        .scalars()
-        .first()
-    )
+    post = await _repo.get_post(db, post_id)
     if post is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="게시글을 찾을 수 없습니다."
         )
-    existing = (
-        (
-            await db.execute(
-                select(CommunityPostLike)
-                .where(CommunityPostLike.post_id == post_id)
-                .where(CommunityPostLike.user_id == current_user.id)
-            )
-        )
-        .scalars()
-        .first()
-    )
-    if existing:
-        await db.delete(existing)
-        post.like_count = max(0, (post.like_count or 0) - 1)
-        liked = False
-    else:
-        db.add(CommunityPostLike(post_id=post_id, user_id=current_user.id))
-        post.like_count = (post.like_count or 0) + 1
-        liked = True
-    await db.flush()
-    return ApiResponse(data={"liked": liked, "like_count": post.like_count})
+    liked, like_count = await _repo.toggle_like(db, post, current_user.id)
+    return ApiResponse(data={"liked": liked, "like_count": like_count})
 
 
 # ── 신고 ─────────────────────────────────────────────────────────────────────
@@ -415,11 +327,7 @@ async def report_post(
     current_user: CurrentUser,
     db: DbSession,
 ) -> ApiResponse[None]:
-    post = (
-        (await db.execute(select(CommunityPost).where(CommunityPost.id == post_id)))
-        .scalars()
-        .first()
-    )
+    post = await _repo.get_post(db, post_id)
     if post is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="게시글을 찾을 수 없습니다."
@@ -431,17 +339,10 @@ async def report_post(
         reason=body.reason,
         detail=body.detail,
     )
-    db.add(report)
-    await db.flush()
+    count = await _repo.add_report(db, report)
 
     # 누적 신고 ≥ 3건이면 자동 숨김 (운영자 검토 대기)
-    count = (
-        await db.execute(
-            select(func.count(CommunityReport.id)).where(CommunityReport.post_id == post_id)
-        )
-    ).scalar() or 0
     if count >= _AUTO_HIDE_THRESHOLD:
-        post.is_hidden = True
-        await db.flush()
+        await _repo.hide_post(db, post)
 
     return ApiResponse(data=None, message="신고가 접수되었습니다.")

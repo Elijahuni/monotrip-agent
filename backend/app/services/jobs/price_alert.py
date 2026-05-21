@@ -29,6 +29,7 @@ from app.models.user import User
 from app.schemas.metasearch import FlightSearchQuery
 from app.services.metasearch.flight_aggregator import search_flights
 from app.services.push_notification_service import PushMessage, send_push_notifications
+from app.services.redis_lock import single_flight
 
 logger = logging.getLogger(__name__)
 
@@ -36,8 +37,12 @@ logger = logging.getLogger(__name__)
 # 전체 잡 실패 방지를 위해 개별 오류는 로그만 남김
 
 
+@single_flight("lock:job:flight_price_alerts", ttl_seconds=3600)
 async def run_price_alert_job() -> None:
-    """APScheduler 또는 직접 호출 진입점."""
+    """APScheduler 또는 직접 호출 진입점.
+
+    멀티 워커에서도 1회만 실행되도록 Redis 분산 락으로 보호.
+    """
     today = date.today()
     logger.info("price_alert_job_started date=%s", today.isoformat())
 

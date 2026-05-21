@@ -64,6 +64,15 @@ class Settings(BaseSettings):
     booking_affiliate_id: str = ""
     booking_affiliate_secret: str = ""  # OAuth2 client_secret
 
+    # ── 관리자 패널 ────────────────────────────────────────────────────────────
+    # 숨겨진 URL 경로 (예: /admin-abc123xyz). openssl rand -hex 12 로 생성 권장.
+    admin_secret_path: str = "admin-change-me-now"
+    # HTTP Basic Auth 비밀번호 (username: admin)
+    admin_password: str = "admin-password-change-me"
+    # 어드민 접속 허용 IP/CIDR (콤마 구분). 비워두면 모든 IP 허용.
+    # 예: "203.0.113.7, 10.0.0.0/8"
+    admin_ip_allowlist: str = ""
+
     # ── Cloudflare R2 (S3 호환 이미지 저장소) ──────────────────────────────────
     r2_account_id: str = ""
     r2_access_key_id: str = ""
@@ -83,6 +92,21 @@ class Settings(BaseSettings):
                 )
             if not self.gemini_api_key:
                 raise ValueError("🚨 GEMINI_API_KEY가 설정되지 않았습니다.")
+            if self.admin_password.endswith("change-me"):
+                raise ValueError(
+                    "🚨 ADMIN_PASSWORD가 기본값입니다. "
+                    "프로덕션 배포 전 강력한 비밀번호로 교체하세요."
+                )
+            if self.admin_secret_path.endswith("change-me-now"):
+                raise ValueError(
+                    "🚨 ADMIN_SECRET_PATH가 기본값입니다. "
+                    "openssl rand -hex 12 결과로 교체하세요."
+                )
+            if self.cors_origins.strip() == "*":
+                raise ValueError(
+                    "🚨 CORS_ORIGINS가 '*'입니다. allow_credentials=True와 함께 쓰면 "
+                    "위험하므로 프로덕션에서는 허용 도메인을 명시하세요."
+                )
         return self
 
     @property
@@ -98,6 +122,10 @@ class Settings(BaseSettings):
     @property
     def r2_configured(self) -> bool:
         return bool(self.r2_account_id and self.r2_access_key_id and self.r2_secret_access_key)
+
+    @property
+    def admin_ip_allowlist_list(self) -> list[str]:
+        return [ip.strip() for ip in self.admin_ip_allowlist.split(",") if ip.strip()]
 
 
 @lru_cache

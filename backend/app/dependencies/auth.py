@@ -6,7 +6,7 @@ from jose import JWTError, jwt
 
 from app.config import get_settings
 from app.dependencies.db import DbSession
-from app.models.user import User
+from app.models.user import User, UserRole
 from app.repositories.user_repository import UserRepository
 
 _bearer = HTTPBearer()
@@ -43,3 +43,13 @@ async def get_current_user(
 
 
 CurrentUser = Annotated[User, Depends(get_current_user)]
+
+
+async def get_admin_user(current_user: CurrentUser) -> User:
+    """관리자 전용 의존성. JWT 인증 후 role 확인."""
+    if current_user.role != UserRole.ADMIN:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="관리자 권한이 필요합니다.")
+    return current_user
+
+
+AdminUser = Annotated[User, Depends(get_admin_user)]

@@ -1,16 +1,28 @@
 from fastapi import APIRouter, HTTPException, Request, status
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from pydantic import BaseModel, Field
 
 from app.dependencies.auth import CurrentUser
 from app.dependencies.db import DbSession
 from app.limiter import limiter
 from app.models.community import CommunityPost
+from app.models.user import User
 from app.models.saved_place import SavedPlace
 from app.models.trip import Trip
 from app.schemas.common import ApiResponse
-from app.schemas.user import RefreshRequest, TokenResponse, UserCreate, UserLogin, UserResponse, UserStatsResponse
+from app.schemas.user import (
+    GamificationResponse,
+    RefreshRequest,
+    TokenResponse,
+    UserCreate,
+    UserLogin,
+    UserResponse,
+    UserStatsResponse,
+    UserUpdateRequest,
+    UserUpdateResponse,
+)
 from app.services.auth_service import AuthService
+from app.services.gamification_service import evaluate_and_award_badges, get_user_gamification
 from app.services.apple_oauth import upsert_apple_user, verify_apple_identity_token
 from app.services.google_oauth import upsert_google_user, verify_google_id_token
 from app.services.kakao_oauth import (
@@ -145,6 +157,40 @@ async def get_me(current_user: CurrentUser) -> ApiResponse[UserResponse]:
     return ApiResponse(data=UserResponse.model_validate(current_user))
 
 
+@router.patch("/me", response_model=ApiResponse[UserUpdateResponse])
+async def update_me(
+    body: UserUpdateRequest,
+    current_user: CurrentUser,
+    db: DbSession,
+) -> ApiResponse[UserUpdateResponse]:
+    """닉네임·프로필 이미지 수정."""
+    if body.nickname is None and body.profile_image_url is None:
+        raise HTTPException(status_code=400, detail="변경할 항목이 없습니다.")
+
+    # 닉네임 중복 체크
+    if body.nickname and body.nickname != current_user.nickname:
+        dup = (
+            await db.execute(
+                select(User).where(User.nickname == body.nickname, User.id != current_user.id)
+            )
+        ).scalars().first()
+        if dup:
+            raise HTTPException(status_code=409, detail="이미 사용 중인 닉네임입니다.")
+
+    values: dict = {}
+    if body.nickname is not None:
+        values["nickname"] = body.nickname
+    if body.profile_image_url is not None:
+        values["profile_image_url"] = body.profile_image_url
+
+    await db.execute(update(User).where(User.id == current_user.id).values(**values))
+    await db.commit()
+
+    # 최신 데이터 반환
+    updated = (await db.execute(select(User).where(User.id == current_user.id))).scalars().first()
+    return ApiResponse(data=UserUpdateResponse.model_validate(updated))
+
+
 @router.get("/me/stats", response_model=ApiResponse[UserStatsResponse])
 async def get_my_stats(current_user: CurrentUser, db: DbSession) -> ApiResponse[UserStatsResponse]:
     """내 여행·저장·게시글·리뷰 개수를 한 번에 반환."""
@@ -184,3 +230,14 @@ async def get_my_stats(current_user: CurrentUser, db: DbSession) -> ApiResponse[
             review_count=review_count,
         )
     )
+
+
+@router.get("/me/gamification", response_model=ApiResponse[GamificationResponse])
+async def get_my_gamification(current_user: CurrentUser, db: DbSession) -> ApiResponse[GamificationResponse]:
+    """내 XP·레벨·배지 현황을 반환하고, 새로 획득한 배지를 자동 수여."""
+    # 새 배지 수여 (이미 있으면 skip) → flush만, commit은 dependency에서 처리
+    await evaluate_and_award_badges(db, current_user.id, current_user.created_at)
+    await db.commit()
+
+    data = await get_user_gamification(db, current_user.id, current_user.created_at)
+    return ApiResponse(data=GamificationResponse(**data))

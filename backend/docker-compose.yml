@@ -1,0 +1,49 @@
+# 로컬 개발용 인프라 — PostgreSQL(pgvector) + Redis
+#
+# 사용:
+#   docker compose up -d
+#   # .env 에 아래 값 설정
+#   DATABASE_URL=postgresql+asyncpg://triple:triple@localhost:5432/triple
+#   REDIS_URL=redis://localhost:6379/0
+#   uv run alembic upgrade head
+#   uv run uvicorn app.main:app --reload
+#
+# 종료/초기화:
+#   docker compose down          # 컨테이너만 제거 (데이터 유지)
+#   docker compose down -v       # 볼륨까지 제거 (DB 초기화)
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: triple-postgres
+    environment:
+      POSTGRES_USER: triple
+      POSTGRES_PASSWORD: triple
+      POSTGRES_DB: triple
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U triple -d triple"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: triple-redis
+    command: ["redis-server", "--save", "60", "1", "--loglevel", "warning"]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+volumes:
+  pgdata:
+  redisdata:

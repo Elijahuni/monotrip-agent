@@ -64,6 +64,19 @@ class TripConnectionManager:
             logger.warning("Realtime: Redis init failed, falling back to in-memory: %s", e)
             self._redis = None
 
+    async def aclose(self) -> None:
+        """앱 종료 시 pub/sub 태스크 취소 + Redis 연결 정리. 미설정이면 no-op."""
+        if self._pubsub_task is not None:
+            self._pubsub_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError, Exception):
+                await self._pubsub_task
+            self._pubsub_task = None
+        if self._redis is not None:
+            with contextlib.suppress(Exception):
+                await self._redis.aclose()
+            self._redis = None
+        self._started = False
+
     async def _run_subscriber(self) -> None:
         """Redis 패턴 구독으로 모든 trip:* 채널을 받아 로컬 룸에 fan-out."""
         assert self._redis is not None

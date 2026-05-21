@@ -14,6 +14,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.config import get_settings
 from app.limiter import limiter
+from app.routes.admin import create_admin_router
 from app.routes.ai import router as ai_router
 from app.routes.auth import router as auth_router
 from app.routes.checklist import router as checklist_router
@@ -87,6 +88,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if scheduler.running:
         scheduler.shutdown(wait=False)
         logger.info("notification_scheduler_stopped")
+
+    # 종료: 공유 Redis 연결(캐시 + 실시간 pub/sub) 정리
+    from app.services.ai.redis_cache import aclose_cache_client
+    from app.services.realtime import manager as realtime_manager
+
+    await aclose_cache_client()
+    await realtime_manager.aclose()
+    logger.info("redis_connections_closed")
 
 
 # ─── 앱 초기화 ────────────────────────────────────────────────────────────────
@@ -181,6 +190,9 @@ app.include_router(metasearch_router)
 app.include_router(collaboration_router)
 app.include_router(realtime_router)
 app.include_router(community_router)
+
+# 관리자 패널 — 숨겨진 URL, 설정에서 prefix 동적 생성
+app.include_router(create_admin_router())
 
 
 # ─── 헬스체크 ────────────────────────────────────────────────────────────────
