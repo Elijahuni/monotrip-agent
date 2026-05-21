@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-import { palette } from '@/lib/design-tokens';
+import { palette, useThemedColors } from '@/lib/design-tokens';
 import { api } from '@/lib/api';
 import type { ChecklistItem } from '@/lib/types';
 
@@ -17,7 +17,8 @@ interface ChecklistSectionProps {
   lang: string;
 }
 
-export function ChecklistSection({ tripId, isDark, lang }: ChecklistSectionProps) {
+export function ChecklistSection({ tripId, isDark: _isDark, lang }: ChecklistSectionProps) {
+  const colors = useThemedColors();
   const [items, setItems]         = useState<ChecklistItem[]>([]);
   const [open, setOpen]           = useState(false);
   const [loading, setLoading]     = useState(false);
@@ -26,12 +27,6 @@ export function ChecklistSection({ tripId, isDark, lang }: ChecklistSectionProps
   const [showInput, setShowInput] = useState(false);
   const [saving, setSaving]       = useState(false);
   const [fetched, setFetched]     = useState(false);
-
-  const bgS   = isDark ? '#141420' : '#FFFFFF';
-  const bgSub = isDark ? '#1E1E2E' : '#F0F4FF';
-  const txP   = isDark ? '#ECEDEE' : '#1A1A1A';
-  const txSc  = isDark ? '#9BA7B5' : '#5A6474';
-  const bord  = isDark ? '#2A2A3E' : '#E8ECF2';
 
   async function load() {
     if (fetched) return;
@@ -84,25 +79,25 @@ export function ChecklistSection({ tripId, isDark, lang }: ChecklistSectionProps
     <View style={{ marginHorizontal: 16, marginTop: 8 }}>
       <TouchableOpacity
         onPress={() => handleToggleOpen(!open)}
-        style={[S.sectionHdr, { backgroundColor: bgS, borderColor: bord }]}>
+        style={[S.sectionHdr, { backgroundColor: colors.bgSurface, borderColor: colors.lineDefault }]}>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: txP, fontWeight: '700', fontSize: 15 }}>
+          <Text style={{ color: colors.txPrimary, fontWeight: '700', fontSize: 15 }}>
             ✅ {lang === 'ko' ? '준비물 체크리스트' : 'Pre-trip Checklist'}
           </Text>
           {items.length > 0 && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
-              <View style={{ flex: 1, height: 4, backgroundColor: bord, borderRadius: 2, overflow: 'hidden' }}>
+              <View style={{ flex: 1, height: 4, backgroundColor: colors.lineDefault, borderRadius: 2, overflow: 'hidden' }}>
                 <View style={{ width: `${pct}%`, height: '100%', backgroundColor: pct === 100 ? '#27AE60' : palette.coral500, borderRadius: 2 }} />
               </View>
-              <Text style={{ color: txSc, fontSize: 11 }}>{checkedCount}/{items.length}</Text>
+              <Text style={{ color: colors.txSecondary, fontSize: 11 }}>{checkedCount}/{items.length}</Text>
             </View>
           )}
         </View>
-        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={txSc} />
+        <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={colors.txSecondary} />
       </TouchableOpacity>
 
       {open && (
-        <View style={[S.sectionBody, { backgroundColor: bgS, borderColor: bord }]}>
+        <View style={[S.sectionBody, { backgroundColor: colors.bgSurface, borderColor: colors.lineDefault }]}>
           {loading ? (
             <ActivityIndicator color={palette.coral500} style={{ marginVertical: 12 }} />
           ) : (
@@ -111,7 +106,7 @@ export function ChecklistSection({ tripId, isDark, lang }: ChecklistSectionProps
                 <View key={cat} style={{ marginBottom: 12 }}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
                     <View style={{ width: 8, height: 8, borderRadius: 4, backgroundColor: CAT_COLORS[cat] ?? '#9BA7B5' }} />
-                    <Text style={{ color: txSc, fontSize: 12, fontWeight: '700' }}>{cat}</Text>
+                    <Text style={{ color: colors.txSecondary, fontSize: 12, fontWeight: '700' }}>{cat}</Text>
                   </View>
                   {catItems.map((item) => (
                     <TouchableOpacity
@@ -124,14 +119,14 @@ export function ChecklistSection({ tripId, isDark, lang }: ChecklistSectionProps
                       style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 7 }}>
                       <View style={{
                         width: 20, height: 20, borderRadius: 10, borderWidth: 1.5,
-                        borderColor: item.is_checked ? '#27AE60' : bord,
+                        borderColor: item.is_checked ? '#10B981' : colors.lineDefault,
                         backgroundColor: item.is_checked ? '#27AE60' : 'transparent',
                         alignItems: 'center', justifyContent: 'center',
                       }}>
                         {item.is_checked && <Ionicons name="checkmark" size={12} color="#fff" />}
                       </View>
                       <Text style={{
-                        color: item.is_checked ? txSc : txP,
+                        color: item.is_checked ? colors.txSecondary : colors.txPrimary,
                         fontSize: 14,
                         textDecorationLine: item.is_checked ? 'line-through' : 'none',
                         flex: 1,
@@ -148,17 +143,17 @@ export function ChecklistSection({ tripId, isDark, lang }: ChecklistSectionProps
                       {CHECKLIST_CATS.map((cat) => (
                         <TouchableOpacity key={cat} onPress={() => setNewCat(cat)}
                           style={{ paddingHorizontal: 12, paddingVertical: 6, borderRadius: 14, borderWidth: 1.5,
-                            backgroundColor: newCat === cat ? CAT_COLORS[cat] : bgSub,
-                            borderColor: newCat === cat ? CAT_COLORS[cat] : bord }}>
-                          <Text style={{ color: newCat === cat ? '#fff' : txSc, fontSize: 12, fontWeight: '600' }}>{cat}</Text>
+                            backgroundColor: newCat === cat ? CAT_COLORS[cat] : colors.bgSubtle,
+                            borderColor: newCat === cat ? CAT_COLORS[cat] : colors.lineDefault }}>
+                          <Text style={{ color: newCat === cat ? '#fff' : colors.txSecondary, fontSize: 12, fontWeight: '600' }}>{cat}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
                   </ScrollView>
                   <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
                     <TextInput
-                      style={[S.inp, { flex: 1, backgroundColor: bgSub, borderColor: bord, color: txP, marginBottom: 0, paddingVertical: 10 }]}
-                      placeholder={lang === 'ko' ? '새 항목 입력' : 'New item'} placeholderTextColor={txSc}
+                      style={[S.inp, { flex: 1, backgroundColor: colors.bgSubtle, borderColor: colors.lineDefault, color: colors.txPrimary, marginBottom: 0, paddingVertical: 10 }]}
+                      placeholder={lang === 'ko' ? '새 항목 입력' : 'New item'} placeholderTextColor={colors.txSecondary}
                       value={newText} onChangeText={setNewText}
                       onSubmitEditing={handleAdd} returnKeyType="done" autoFocus />
                     <TouchableOpacity onPress={handleAdd} disabled={saving || !newText.trim()}
@@ -168,7 +163,7 @@ export function ChecklistSection({ tripId, isDark, lang }: ChecklistSectionProps
                         : <Text style={{ color: '#fff', fontWeight: '700' }}>{lang === 'ko' ? '추가' : 'Add'}</Text>}
                     </TouchableOpacity>
                     <TouchableOpacity onPress={() => { setShowInput(false); setNewText(''); }} style={{ padding: 8 }}>
-                      <Ionicons name="close" size={18} color={txSc} />
+                      <Ionicons name="close" size={18} color={colors.txSecondary} />
                     </TouchableOpacity>
                   </View>
                 </View>

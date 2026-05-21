@@ -16,7 +16,7 @@ import {
 } from 'react-native';
 import MapView, { Marker } from 'react-native-maps';
 
-import { palette } from '@/lib/design-tokens';
+import { palette, useThemedColors } from '@/lib/design-tokens';
 import { api } from '@/lib/api';
 import { CATEGORIES } from '@/lib/trip-utils';
 import { PhotoPicker } from '@/components/PhotoPicker';
@@ -138,56 +138,52 @@ export function AddLocationModal({
     finally { setSaving(false); }
   }
 
-  const bgBase = isDark ? '#0D0D18' : '#FFFFFF';
-  const bgSurf = isDark ? '#141420' : '#F7F9FC';
-  const txP    = isDark ? '#ECEDEE' : '#1A1A1A';
-  const txSc   = isDark ? '#9BA7B5' : '#5A6474';
-  const bord   = isDark ? '#2A2A3E' : '#E8ECF2';
+  const colors = useThemedColors();
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <Pressable style={S.backdrop} onPress={onClose} />
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={S.sheet}>
-        <View style={[S.sheetInner, { backgroundColor: bgBase }]}>
-          <View style={[S.handle, { backgroundColor: bord }]} />
+        <View style={[S.sheetInner, { backgroundColor: colors.bgBase }]}>
+          <View style={[S.handle, { backgroundColor: colors.lineDefault }]} />
           <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled">
-            <Text style={[S.sheetTitle, { color: txP }]}>
+            <Text style={[S.sheetTitle, { color: colors.txPrimary }]}>
               {isEdit ? (lang === 'ko' ? '장소 편집' : 'Edit Place') : (lang === 'ko' ? '장소 추가' : 'Add Place')}
             </Text>
 
             {/* 장소 검색 영역 */}
             {!placeSelected ? (
               <>
-                <Text style={[S.lbl, { color: txSc }]}>{lang === 'ko' ? '장소 검색' : 'Search Place'}</Text>
+                <Text style={[S.lbl, { color: colors.txSecondary }]}>{lang === 'ko' ? '장소 검색' : 'Search Place'}</Text>
                 <View style={{ position: 'relative', marginBottom: 4 }}>
-                  <View style={[S.searchRow, { backgroundColor: bgSurf, borderColor: bord }]}>
-                    <Ionicons name="search" size={16} color={txSc} />
+                  <View style={[S.searchRow, { backgroundColor: colors.bgSurface, borderColor: colors.lineDefault }]}>
+                    <Ionicons name="search" size={16} color={colors.txSecondary} />
                     <TextInput
-                      style={[S.searchInp, { color: txP }]}
+                      style={[S.searchInp, { color: colors.txPrimary }]}
                       placeholder={lang === 'ko' ? '예: 도쿄 타워, 에펠탑...' : 'e.g. Tokyo Tower, Eiffel Tower...'}
-                      placeholderTextColor={txSc}
+                      placeholderTextColor={colors.txSecondary}
                       value={searchQ} onChangeText={setSearchQ}
                       returnKeyType="search" autoFocus={!isEdit} />
                     {searching && <ActivityIndicator size="small" color={palette.coral500} />}
                     {searchQ.length > 0 && !searching && (
                       <TouchableOpacity onPress={() => { setSearchQ(''); setResults([]); }}>
-                        <Ionicons name="close-circle" size={16} color={txSc} />
+                        <Ionicons name="close-circle" size={16} color={colors.txSecondary} />
                       </TouchableOpacity>
                     )}
                   </View>
 
                   {results.length > 0 && (
-                    <View style={[S.dropdown, { backgroundColor: bgBase, borderColor: bord }]}>
+                    <View style={[S.dropdown, { backgroundColor: colors.bgBase, borderColor: colors.lineDefault }]}>
                       {results.map((p) => (
                         <TouchableOpacity
                           key={p.place_id} onPress={() => selectPlace(p)}
-                          style={[S.dropItem, { borderBottomColor: bord }]}>
+                          style={[S.dropItem, { borderBottomColor: colors.lineDefault }]}>
                           <View style={[S.placeIcon, { backgroundColor: palette.coral500 + '20' }]}>
                             <Ionicons name="location" size={14} color={palette.coral500} />
                           </View>
                           <View style={{ flex: 1 }}>
-                            <Text style={{ color: txP, fontSize: 14, fontWeight: '600' }} numberOfLines={1}>{p.name}</Text>
-                            <Text style={{ color: txSc, fontSize: 12, marginTop: 2 }} numberOfLines={1}>{p.address}</Text>
+                            <Text style={{ color: colors.txPrimary, fontSize: 14, fontWeight: '600' }} numberOfLines={1}>{p.name}</Text>
+                            <Text style={{ color: colors.txSecondary, fontSize: 12, marginTop: 2 }} numberOfLines={1}>{p.address}</Text>
                           </View>
                           {p.rating && (
                             <Text style={{ color: '#F39C12', fontSize: 12, fontWeight: '700' }}>★{p.rating.toFixed(1)}</Text>
@@ -199,7 +195,7 @@ export function AddLocationModal({
                 </View>
 
                 {results.length === 0 && !searching && searchQ.length === 0 && (
-                  <Text style={{ color: txSc, fontSize: 12, marginBottom: 12 }}>
+                  <Text style={{ color: colors.txSecondary, fontSize: 12, marginBottom: 12 }}>
                     {lang === 'ko' ? '장소명을 입력하면 자동으로 주소와 지도를 찾아드려요' : 'Type a place name to auto-fill address & show map'}
                   </Text>
                 )}
@@ -220,11 +216,11 @@ export function AddLocationModal({
               </>
             ) : (
               <>
-                <View style={[S.selectedCard, { backgroundColor: bgSurf, borderColor: palette.coral500 }]}>
+                <View style={[S.selectedCard, { backgroundColor: colors.bgSurface, borderColor: palette.coral500 }]}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: txP, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>{form.name}</Text>
+                    <Text style={{ color: colors.txPrimary, fontSize: 15, fontWeight: '700' }} numberOfLines={1}>{form.name}</Text>
                     {form.address ? (
-                      <Text style={{ color: txSc, fontSize: 12, marginTop: 3 }} numberOfLines={2}>{form.address}</Text>
+                      <Text style={{ color: colors.txSecondary, fontSize: 12, marginTop: 3 }} numberOfLines={2}>{form.address}</Text>
                     ) : null}
                     {form.latitude !== 0 && (
                       <Text style={{ color: palette.coral500, fontSize: 11, marginTop: 4 }}>
@@ -233,7 +229,7 @@ export function AddLocationModal({
                     )}
                   </View>
                   <TouchableOpacity onPress={resetPlace} style={{ padding: 4 }}>
-                    <Ionicons name="close-circle" size={20} color={txSc} />
+                    <Ionicons name="close-circle" size={20} color={colors.txSecondary} />
                   </TouchableOpacity>
                 </View>
 
@@ -251,33 +247,33 @@ export function AddLocationModal({
             )}
 
             {/* Day 선택 */}
-            <Text style={[S.lbl, { color: txSc, marginTop: 4 }]}>{lang === 'ko' ? '방문 일차' : 'Travel Day'}</Text>
+            <Text style={[S.lbl, { color: colors.txSecondary, marginTop: 4 }]}>{lang === 'ko' ? '방문 일차' : 'Travel Day'}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 {Array.from({ length: totalDays || 1 }, (_, i) => i + 1).map((d) => (
                   <TouchableOpacity key={d} onPress={() => setField('day_index', d)}
                     style={[S.chip, {
-                      backgroundColor: form.day_index === d ? palette.coral500 : bgSurf,
-                      borderColor: form.day_index === d ? palette.coral500 : bord,
-                    }]}>
-                    <Text style={{ color: form.day_index === d ? '#fff' : txSc, fontWeight: '600', fontSize: 13 }}>Day {d}</Text>
+                      backgroundColor: form.day_index === d ? palette.coral500 : colors.bgSurface,
+                      borderColor: form.day_index === d ? palette.coral500 : colors.lineDefault,
+}]}>
+                    <Text style={{ color: form.day_index === d ? '#fff' : colors.txSecondary, fontWeight: '600', fontSize: 13 }}>Day {d}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
             </ScrollView>
 
             {/* 카테고리 */}
-            <Text style={[S.lbl, { color: txSc }]}>{lang === 'ko' ? '카테고리' : 'Category'}</Text>
+            <Text style={[S.lbl, { color: colors.txSecondary }]}>{lang === 'ko' ? '카테고리' : 'Category'}</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginBottom: 12 }}>
               <View style={{ flexDirection: 'row', gap: 8 }}>
                 {CATEGORIES.map((c) => (
                   <TouchableOpacity key={c.key} onPress={() => setField('category', c.key)}
                     style={[S.catChip, {
-                      backgroundColor: form.category === c.key ? palette.coral500 : bgSurf,
-                      borderColor: form.category === c.key ? palette.coral500 : bord,
+                      backgroundColor: form.category === c.key ? palette.coral500 : colors.bgSurface,
+                      borderColor: form.category === c.key ? palette.coral500 : colors.lineDefault,
                     }]}>
                     <Text>{c.emoji}</Text>
-                    <Text style={{ color: form.category === c.key ? '#fff' : txSc, fontSize: 12, marginLeft: 4 }}>{c.label}</Text>
+                    <Text style={{ color: form.category === c.key ? '#fff' : colors.txSecondary, fontSize: 12, marginLeft: 4 }}>{c.label}</Text>
                   </TouchableOpacity>
                 ))}
               </View>
@@ -286,38 +282,37 @@ export function AddLocationModal({
             {/* 소요시간 / 예산 */}
             <View style={{ flexDirection: 'row', gap: 8 }}>
               <View style={{ flex: 1 }}>
-                <Text style={[S.lbl, { color: txSc }]}>{lang === 'ko' ? '소요시간(분)' : 'Est. Minutes'}</Text>
+                <Text style={[S.lbl, { color: colors.txSecondary }]}>{lang === 'ko' ? '소요시간(분)' : 'Est. Minutes'}</Text>
                 <TextInput
-                  style={[S.inp, { backgroundColor: bgSurf, borderColor: bord, color: txP }]}
-                  placeholder="60" placeholderTextColor={txSc} keyboardType="number-pad"
+                  style={[S.inp, { backgroundColor: colors.bgSurface, borderColor: colors.lineDefault, color: colors.txPrimary }]}
+                  placeholder="60" placeholderTextColor={colors.txSecondary} keyboardType="number-pad"
                   value={form.estimated_minutes} onChangeText={(v) => setField('estimated_minutes', v)} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={[S.lbl, { color: txSc }]}>{lang === 'ko' ? '1인 예산(₩)' : 'Budget/Person'}</Text>
+                <Text style={[S.lbl, { color: colors.txSecondary }]}>{lang === 'ko' ? '1인 예산(₩)' : 'Budget/Person'}</Text>
                 <TextInput
-                  style={[S.inp, { backgroundColor: bgSurf, borderColor: bord, color: txP }]}
-                  placeholder="50000" placeholderTextColor={txSc} keyboardType="number-pad"
+                  style={[S.inp, { backgroundColor: colors.bgSurface, borderColor: colors.lineDefault, color: colors.txPrimary }]}
+                  placeholder="50000" placeholderTextColor={colors.txSecondary} keyboardType="number-pad"
                   value={form.budget_per_person} onChangeText={(v) => setField('budget_per_person', v)} />
               </View>
             </View>
 
             {/* 사진 */}
-            <Text style={[S.lbl, { color: txSc }]}>{lang === 'ko' ? '사진' : 'Photos'}</Text>
+            <Text style={[S.lbl, { color: colors.txSecondary }]}>{lang === 'ko' ? '사진' : 'Photos'}</Text>
             <View style={{ marginBottom: 12 }}>
               <PhotoPicker
                 urls={form.images}
                 onChange={(urls) => setField('images', urls)}
                 max={5}
-                isDark={isDark}
                 lang={lang}
               />
             </View>
 
             {/* 메모 */}
-            <Text style={[S.lbl, { color: txSc }]}>{lang === 'ko' ? '메모' : 'Notes'}</Text>
+            <Text style={[S.lbl, { color: colors.txSecondary }]}>{lang === 'ko' ? '메모' : 'Notes'}</Text>
             <TextInput
-              style={[S.inp, { backgroundColor: bgSurf, borderColor: bord, color: txP, height: 72, textAlignVertical: 'top' }]}
-              placeholder={lang === 'ko' ? '방문 팁, 예약 정보 등' : 'Visit tips, booking info...'} placeholderTextColor={txSc}
+              style={[S.inp, { backgroundColor: colors.bgSurface, borderColor: colors.lineDefault, color: colors.txPrimary, height: 72, textAlignVertical: 'top' }]}
+              placeholder={lang === 'ko' ? '방문 팁, 예약 정보 등' : 'Visit tips, booking info...'} placeholderTextColor={colors.txSecondary}
               multiline value={form.notes} onChangeText={(v) => setField('notes', v)} />
 
             <TouchableOpacity onPress={handleSave} disabled={saving} style={[S.saveBtn, { opacity: saving ? 0.7 : 1 }]}>

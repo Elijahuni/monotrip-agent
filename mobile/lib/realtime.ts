@@ -9,8 +9,7 @@
  *   conn.send({ type: 'location_update', op: 'create', payload: {...} });
  *   conn.close();
  */
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { TOKEN_KEY } from '@/lib/api';
+import { getStoredToken } from '@/lib/api';
 
 export interface PresenceUser {
   id: number;
@@ -59,7 +58,7 @@ export async function connectTripRealtime(
   tripId: number,
   opts: ConnectOptions = {},
 ): Promise<TripRealtimeHandle> {
-  const token = await AsyncStorage.getItem(TOKEN_KEY);
+  const token = await getStoredToken();
   if (!token) throw new Error('로그인이 필요합니다');
 
   const url = `${wsBaseUrl()}/ws/trips/${tripId}?token=${encodeURIComponent(token)}`;

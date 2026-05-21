@@ -23,14 +23,14 @@ export function DataSourceBadge({ source }: { source: DataSource | undefined }) 
         paddingHorizontal: 12,
         paddingVertical: 8,
         borderRadius: 10,
-        backgroundColor: '#FFF7E6',
+        backgroundColor: colors.warnBg,
         borderWidth: 1,
-        borderColor: '#FFD591',
+        borderColor: colors.warnBorder,
       }}
       accessibilityRole="text"
       accessibilityLabel="시뮬레이션 가격 안내">
       <Text style={{ fontSize: 14 }}>⚠️</Text>
-      <Text style={{ flex: 1, fontSize: 12, fontWeight: '700', color: '#874D00' }}>
+      <Text style={{ flex: 1, fontSize: 12, fontWeight: '700', color: colors.warnText }}>
         참고용 시뮬레이션 가격이에요. 실제 예약 페이지에서 정확한 가격을 확인해주세요.
       </Text>
     </View>

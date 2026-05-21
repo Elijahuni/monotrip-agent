@@ -182,6 +182,14 @@ const translations = {
     support:       { ko: '고객센터',             en: 'Support'                 },
     comingSoon:    { ko: '준비 중이에요',          en: 'Coming soon'             },
     statsLoading:  { ko: '통계 불러오는 중…',     en: 'Loading stats…'          },
+    // 게이미피케이션
+    levelSection:  { ko: '나의 레벨',             en: 'My Level'                },
+    xpLabel:       { ko: 'XP',                   en: 'XP'                      },
+    xpProgress:    { ko: '다음 레벨까지',          en: 'to next level'           },
+    maxLevel:      { ko: '최고 레벨 달성!',       en: 'Max level reached!'      },
+    badgesSection: { ko: '배지 컬렉션',           en: 'Badge Collection'        },
+    badgesEarned:  { ko: '획득한 배지',           en: 'Earned'                  },
+    badgesLocked:  { ko: '잠금 배지',             en: 'Locked'                  },
   },
 
   // ── 탭바 ──────────────────────────────────────────────────────────────────

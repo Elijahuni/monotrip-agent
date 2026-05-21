@@ -1,4 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
 // allow _retry flag on request config without TypeScript complaints
@@ -19,15 +21,38 @@ import {
   userSchema,
   type PlaceSearchResult,
 } from '@/lib/schemas';
-import type { ChecklistItem, CommunityComment, CommunityPost, CuratedPlace, DestinationGuide, FlightSearchResult, HotelSearchResult, Location, SavedPlace, Trip, TrendingPost, UserCache, UserStats, WeatherDestination } from '@/lib/types';
+import type { BadgeItem, ChecklistItem, CommunityComment, CommunityPost, CuratedPlace, DestinationGuide, FlightSearchResult, Gamification, HotelSearchResult, Location, SavedPlace, Trip, TrendingPost, UserCache, UserStats, WeatherDestination } from '@/lib/types';
 import { z } from 'zod';
 
 // ─── 환경 변수 ────────────────────────────────────────────────────────────────
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 
-export const TOKEN_KEY = '@triple/access_token';
-export const REFRESH_TOKEN_KEY = '@triple/refresh_token';
+// SecureStore 키 — 영숫자/./-/_ 만 허용되므로 AsyncStorage 시절의 '@triple/...' 키와 다름.
+const SECURE_TOKEN_KEY = 'triple_access_token';
+const SECURE_REFRESH_KEY = 'triple_refresh_token';
+
+// 구버전(AsyncStorage 평문 저장) 키 — 1회 마이그레이션 후 제거.
+const LEGACY_TOKEN_KEY = '@triple/access_token';
+const LEGACY_REFRESH_KEY = '@triple/refresh_token';
+
+// SecureStore는 웹에서 사용 불가 → 웹에서는 AsyncStorage로 폴백.
+const useSecure = Platform.OS !== 'web';
+
+async function secureSet(key: string, value: string): Promise<void> {
+  if (useSecure) await SecureStore.setItemAsync(key, value);
+  else await AsyncStorage.setItem(key, value);
+}
+
+async function secureGet(key: string): Promise<string | null> {
+  if (useSecure) return SecureStore.getItemAsync(key);
+  return AsyncStorage.getItem(key);
+}
+
+async function secureDelete(key: string): Promise<void> {
+  if (useSecure) await SecureStore.deleteItemAsync(key);
+  else await AsyncStorage.removeItem(key);
+}
 
 // ─── 공용 응답 타입 ────────────────────────────────────────────────────────────
 
@@ -109,7 +134,7 @@ const client: AxiosInstance = axios.create({
 
 // 요청 인터셉터: AsyncStorage에서 토큰을 읽어 Authorization 헤더 주입
 client.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
-  const token = await AsyncStorage.getItem(TOKEN_KEY);
+  const token = await getStoredToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -129,7 +154,7 @@ client.interceptors.response.use(
     const isAuthEndpoint = /\/auth\/(login|register|refresh)/.test(url);
 
     if (status === 401 && !isAuthEndpoint && !error.config?._retry) {
-      const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+      const refreshToken = await getStoredRefreshToken();
       if (refreshToken) {
         try {
           // 별도 axios 인스턴스로 호출 — 인터셉터 재진입 방지
@@ -156,8 +181,7 @@ client.interceptors.response.use(
         const { useAuthStore } = await import('@/store');
         await useAuthStore.getState().logout();
       } catch {
-        await AsyncStorage.removeItem(TOKEN_KEY);
-        await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
+        await clearToken();
       }
     }
 
@@ -698,6 +722,24 @@ export const api = {
       const res = await client.get<ApiResponse<UserStats>>('/auth/me/stats');
       return res.data.data;
     },
+    async gamification(): Promise<Gamification> {
+      const res = await client.get<ApiResponse<Gamification>>('/auth/me/gamification');
+      return res.data.data;
+    },
+    async updateProfile(body: { nickname?: string; profile_image_url?: string }): Promise<{
+      id: number;
+      email: string;
+      nickname: string;
+      profile_image_url: string | null;
+    }> {
+      const res = await client.patch<ApiResponse<{
+        id: number;
+        email: string;
+        nickname: string;
+        profile_image_url: string | null;
+      }>>('/auth/me', body);
+      return res.data.data;
+    },
   },
 
   korean: {
@@ -735,18 +777,49 @@ export const api = {
 
 export async function saveToken(accessToken: string, refreshToken: string): Promise<void> {
   await Promise.all([
-    AsyncStorage.setItem(TOKEN_KEY, accessToken),
-    AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken),
+    secureSet(SECURE_TOKEN_KEY, accessToken),
+    secureSet(SECURE_REFRESH_KEY, refreshToken),
   ]);
 }
 
 export async function clearToken(): Promise<void> {
   await Promise.all([
-    AsyncStorage.removeItem(TOKEN_KEY),
-    AsyncStorage.removeItem(REFRESH_TOKEN_KEY),
+    secureDelete(SECURE_TOKEN_KEY),
+    secureDelete(SECURE_REFRESH_KEY),
+    // 구버전 잔여 토큰도 정리
+    AsyncStorage.removeItem(LEGACY_TOKEN_KEY),
+    AsyncStorage.removeItem(LEGACY_REFRESH_KEY),
   ]);
 }
 
+/**
+ * 구버전 AsyncStorage 평문 토큰을 SecureStore로 1회 이전.
+ * 이전 후 AsyncStorage에서 제거하여 평문 잔여물을 남기지 않음.
+ */
+async function migrateLegacyTokens(): Promise<void> {
+  const [legacyAccess, legacyRefresh] = await Promise.all([
+    AsyncStorage.getItem(LEGACY_TOKEN_KEY),
+    AsyncStorage.getItem(LEGACY_REFRESH_KEY),
+  ]);
+  if (legacyAccess && legacyRefresh) {
+    await saveToken(legacyAccess, legacyRefresh);
+  }
+  if (legacyAccess || legacyRefresh) {
+    await Promise.all([
+      AsyncStorage.removeItem(LEGACY_TOKEN_KEY),
+      AsyncStorage.removeItem(LEGACY_REFRESH_KEY),
+    ]);
+  }
+}
+
 export async function getStoredToken(): Promise<string | null> {
-  return AsyncStorage.getItem(TOKEN_KEY);
+  const token = await secureGet(SECURE_TOKEN_KEY);
+  if (token) return token;
+  // SecureStore가 비어 있으면 구버전 토큰 마이그레이션 시도
+  await migrateLegacyTokens();
+  return secureGet(SECURE_TOKEN_KEY);
+}
+
+export async function getStoredRefreshToken(): Promise<string | null> {
+  return secureGet(SECURE_REFRESH_KEY);
 }

@@ -6,7 +6,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { AxiosError } from 'axios';
 
 import { api } from '@/lib/api';
-import { palette, shadow } from '@/lib/design-tokens';
+import { palette, shadow, useThemedColors } from '@/lib/design-tokens';
 import { type NearbyPlace, hasGoogleKey, searchNearbyPlaces } from '@/lib/geocoding';
 import { saveTrip } from '@/lib/local-trips';
 import { useSettings } from '@/lib/settings-context';
@@ -28,6 +28,7 @@ export default function ExploreScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { t, isDark, lang } = useSettings();
+  const colors = useThemedColors();
 
   const [activeTab, setActiveTab] = useState<'ai' | 'weather' | 'nearby'>('ai');
 
@@ -56,19 +57,20 @@ export default function ExploreScreen() {
   const [userLocation, setUserLocation]     = useState<{ lat: number; lng: number } | null>(null);
   const didLoadNearby                       = useRef(false);
 
-  // 색상 토큰
-  const bgBase    = isDark ? '#0D0D18' : '#FFFFFF';
-  const bgSurface = isDark ? '#13131F' : '#F8FAFB';
-  const bgSubtle  = isDark ? '#1E1E2E' : '#F0F4F8';
-  const txPri     = isDark ? '#E8EEF4' : '#1A2E44';
-  const txSec     = isDark ? '#9BA7B5' : '#5A6474';
-  const txTer     = isDark ? '#6B7785' : '#9BA7B5';
-  const borderC   = isDark ? '#2A2A3E' : '#E8ECF2';
-  const cardShadow = isDark
-    ? { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 2 }
-    : shadow.card;
+  // 색상 토큰 (design-tokens 기반)
+  const cardShadow = { ...shadow.card, shadowColor: colors.shadowColor };
 
-  const theme = { isDark, bgBase, bgSurface, bgSubtle, txPri, txSec, txTer, borderC, cardShadow };
+  const theme = {
+    isDark,
+    bgBase: colors.bgBase,
+    bgSurface: colors.bgSurface,
+    bgSubtle: colors.bgSubtle,
+    txPri: colors.txPrimary,
+    txSec: colors.txSecondary,
+    txTer: colors.txTertiary,
+    borderC: colors.lineDefault,
+    cardShadow,
+  };
 
   // ── AI 추천 핸들러
 
@@ -264,12 +266,12 @@ export default function ExploreScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: bgSurface, paddingTop: insets.top }}>
+    <View style={{ flex: 1, backgroundColor: colors.bgSurface, paddingTop: insets.top }}>
 
       {/* 헤더 + 탭 */}
-      <View style={{ backgroundColor: bgBase, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: borderC }}>
-        <Text style={{ fontSize: 20, fontWeight: '800', color: txPri }}>{t('explore', 'title')}</Text>
-        <Text style={{ fontSize: 12, color: txTer, marginTop: 2 }}>{t('explore', 'subtitle')}</Text>
+      <View style={{ backgroundColor: colors.bgBase, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: colors.lineDefault }}>
+        <Text style={{ fontSize: 20, fontWeight: '800', color: colors.txPrimary }}>{t('explore', 'title')}</Text>
+        <Text style={{ fontSize: 12, color: colors.txTertiary, marginTop: 2 }}>{t('explore', 'subtitle')}</Text>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 14 }}
           contentContainerStyle={{ flexDirection: 'row', gap: 8 }}>
@@ -283,10 +285,10 @@ export default function ExploreScreen() {
               onPress={onPress}
               style={{
                 paddingHorizontal: 16, paddingVertical: 10, borderRadius: 12, alignItems: 'center',
-                backgroundColor: activeTab === key ? palette.coral500 : bgSubtle,
+                backgroundColor: activeTab === key ? palette.coral500 : colors.bgSubtle,
               }}
               activeOpacity={0.85}>
-              <Text style={{ color: activeTab === key ? '#fff' : txSec, fontSize: 14, fontWeight: '700' }}>
+              <Text style={{ color: activeTab === key ? '#fff' : colors.txSecondary, fontSize: 14, fontWeight: '700' }}>
                 {label}
               </Text>
             </TouchableOpacity>

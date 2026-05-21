@@ -1,5 +1,5 @@
 import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { palette } from '@/lib/design-tokens';
+import { palette, useThemedColors } from '@/lib/design-tokens';
 import { openFlightSearch } from '@/lib/flight-links';
 import { LocationCard } from '@/components/LocationCard';
 import { DaySelector } from './DaySelector';
@@ -74,7 +74,8 @@ export function AiRecommendTab({
   travelStyle, setTravelStyle, loading, saving, result, aiError, setAiError,
   onRecommend, onSave, onEdit, onReset,
 }: AiRecommendTabProps) {
-  const { isDark, bgBase, bgSurface, bgSubtle, txPri, txSec, txTer, borderC, cardShadow } = theme;
+  const { bgBase, bgSurface, bgSubtle, txPri, txSec, txTer, borderC, cardShadow } = theme;
+  const colors = useThemedColors();
   const canRecommend = destination.trim().length > 0 && !loading;
 
   return (
@@ -102,7 +103,7 @@ export function AiRecommendTab({
             <Text style={{ color: '#fff', fontSize: 12, fontWeight: '700' }}>{days}{t('explore', 'day')}</Text>
           </View>
         </View>
-        <DaySelector value={days} onChange={setDays} isDark={isDark} />
+        <DaySelector value={days} onChange={setDays} />
 
         <Text style={{ fontSize: 12, fontWeight: '600', color: txSec, marginTop: 20, marginBottom: 10 }}>
           {lang === 'ko' ? '여행 스타일' : 'Travel Style'}
@@ -137,12 +138,12 @@ export function AiRecommendTab({
         />
 
         {aiError ? (
-          <View style={{ marginTop: 12, backgroundColor: isDark ? '#2A0D0D' : '#FFF0F0', borderRadius: 10, padding: 12, borderWidth: 1, borderColor: isDark ? '#5A1A1A' : '#FFDDD9', gap: 8 }}>
-            <Text style={{ color: '#E74C3C', fontSize: 13, textAlign: 'center' }}>{aiError}</Text>
+          <View style={{ marginTop: 12, backgroundColor: colors.warnBg, borderRadius: 10, padding: 12, borderWidth: 1, borderColor: colors.warnBorder, gap: 8 }}>
+            <Text style={{ color: colors.txDanger, fontSize: 13, textAlign: 'center' }}>{aiError}</Text>
             {(aiError.includes('불안정') || aiError.includes('시간이 걸리고')) && (
               <TouchableOpacity
                 onPress={onRecommend}
-                style={{ marginTop: 4, backgroundColor: '#E74C3C', borderRadius: 8, paddingVertical: 8, alignItems: 'center' }}>
+                style={{ marginTop: 4, backgroundColor: colors.txDanger, borderRadius: 8, paddingVertical: 8, alignItems: 'center' }}>
                 <Text style={{ color: '#fff', fontSize: 13, fontWeight: '600' }}>🔄 다시 시도</Text>
               </TouchableOpacity>
             )}
@@ -216,10 +217,10 @@ export function AiRecommendTab({
             <TouchableOpacity
               onPress={() => openFlightSearch(destination.trim())}
               style={{ borderRadius: 14, paddingVertical: 13, alignItems: 'center', flexDirection: 'row', justifyContent: 'center', gap: 6,
-                backgroundColor: isDark ? '#0D2040' : '#EBF4FF', borderWidth: 1, borderColor: isDark ? '#1A4070' : '#BAD8F8' }}
+                backgroundColor: colors.accentBg, borderWidth: 1, borderColor: colors.accentText }}
               activeOpacity={0.85}>
               <Text style={{ fontSize: 16 }}>✈️</Text>
-              <Text style={{ color: isDark ? '#7EC8F8' : '#1A6EBB', fontWeight: '700', fontSize: 14 }}>
+              <Text style={{ color: colors.accentText, fontWeight: '700', fontSize: 14 }}>
                 {lang === 'ko' ? '항공권 최저가 검색' : 'Search Cheap Flights'}
               </Text>
             </TouchableOpacity>

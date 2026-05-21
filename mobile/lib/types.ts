@@ -110,6 +110,28 @@ export interface UserStats {
   review_count: number;
 }
 
+export interface BadgeItem {
+  badge_id: string;
+  name_ko: string;
+  name_en: string;
+  description_ko: string;
+  emoji: string;
+  earned_at: string | null; // ISO string or null if locked
+}
+
+export interface Gamification {
+  xp: number;
+  level: number;
+  level_title_ko: string;
+  level_title_en: string;
+  level_emoji: string;
+  xp_current: number;
+  xp_required: number;
+  xp_percentage: number;
+  badges: BadgeItem[];
+  locked_badges: BadgeItem[];
+}
+
 export interface CommunityComment {
   id: number;
   post_id: number;

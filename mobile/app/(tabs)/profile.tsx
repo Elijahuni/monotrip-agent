@@ -11,8 +11,10 @@ import { captureError } from '@/lib/sentry';
 import { useSettings } from '@/lib/settings-context';
 import { useAuthStore } from '@/store';
 import { api } from '@/lib/api';
-import type { UserStats } from '@/lib/types';
+import type { Gamification, UserStats } from '@/lib/types';
 import Toast from 'react-native-toast-message';
+import { LevelBadge } from '@/components/LevelBadge';
+import { BadgeGrid } from '@/components/BadgeGrid';
 
 const SENTRY_DEBUG_VISIBLE =
   __DEV__ || process.env.EXPO_PUBLIC_SENTRY_FORCE_ENABLE === '1';
@@ -102,9 +104,9 @@ function MenuRow({
         />
       )}
       {value !== undefined && (
-        <Text style={{ fontSize: 13, color: colors.txTertiary, marginRight: 6 }}>{value}</Text>
+        <Text style={{ fontSize: 13, color: colors.txSecondary, marginRight: 6 }}>{value}</Text>
       )}
-      <Text style={{ fontSize: 16, color: colors.txTertiary }}>›</Text>
+      <Text style={{ fontSize: 18, color: colors.chevron, fontWeight: '300' }}>›</Text>
     </TouchableOpacity>
   );
 }
@@ -134,8 +136,15 @@ export default function ProfileScreen() {
     staleTime: 2 * 60 * 1000,
   });
 
+  const gamificationQuery = useQuery<Gamification>({
+    queryKey: ['gamification'],
+    queryFn: () => api.users.gamification(),
+    staleTime: 2 * 60 * 1000,
+  });
+
   const stats = statsQuery.data;
   const statsLoading = statsQuery.isLoading;
+  const gami = gamificationQuery.data;
 
   async function handleLogout() {
     Alert.alert(t('auth', 'logoutTitle'), t('auth', 'logoutConfirm'), [
@@ -200,7 +209,7 @@ export default function ProfileScreen() {
             {user?.nickname ?? '···'}
           </Text>
 
-          <TouchableOpacity onPress={comingSoon} activeOpacity={0.7}>
+          <TouchableOpacity onPress={() => router.push('/profile/edit' as any)} activeOpacity={0.7}>
             <Text style={{ fontSize: 13, color: colors.brandPrimary, fontWeight: '600' }}>
               {t('profile', 'editProfile')}
             </Text>
@@ -251,12 +260,36 @@ export default function ProfileScreen() {
           />
         </View>
 
+        {/* ── 레벨 & XP 카드 ── */}
+        {gami && (
+          <View style={{ marginTop: 8 }}>
+            <LevelBadge
+              xp={gami.xp}
+              level={gami.level}
+              levelTitleKo={gami.level_title_ko}
+              levelTitleEn={gami.level_title_en}
+              levelEmoji={gami.level_emoji}
+              xpCurrent={gami.xp_current}
+              xpRequired={gami.xp_required}
+              xpPercentage={gami.xp_percentage}
+              lang={lang}
+            />
+          </View>
+        )}
+
+        {/* ── 배지 컬렉션 ── */}
+        {gami && (
+          <BadgeGrid
+            badges={gami.badges}
+            lockedBadges={gami.locked_badges}
+            lang={lang}
+          />
+        )}
+
         {/* ── 메뉴 리스트 ── */}
         <View style={{ backgroundColor: colors.bgBase, marginTop: 8 }}>
           <MenuRow icon="📅" label={t('profile', 'myBookings')} onPress={comingSoon} colors={colors} />
           <MenuRow icon="🎁" label={t('profile', 'coupons')} badge onPress={comingSoon} colors={colors} />
-          <MenuRow icon="✨" label={t('profile', 'nolPoints')} value="0" onPress={comingSoon} colors={colors} />
-          <MenuRow icon="🏆" label={t('profile', 'travelerClub')} value="0P" onPress={comingSoon} colors={colors} />
           <MenuRow icon="📍" label={t('profile', 'offlineGuide')} onPress={comingSoon} colors={colors} />
         </View>
 
@@ -281,14 +314,14 @@ export default function ProfileScreen() {
                 borderRadius: 20,
                 overflow: 'hidden',
                 borderWidth: 1.5,
-                borderColor: '#FF5A5F',
+                borderColor: colors.brandPrimary,
               }}
             >
-              <View style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: lang === 'ko' ? '#FF5A5F' : 'transparent' }}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: lang === 'ko' ? '#fff' : colors.txTertiary }}>한국어</Text>
+              <View style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: lang === 'ko' ? colors.brandPrimary : 'transparent' }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: lang === 'ko' ? '#fff' : colors.txSecondary }}>한국어</Text>
               </View>
-              <View style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: lang === 'en' ? '#FF5A5F' : 'transparent' }}>
-                <Text style={{ fontSize: 11, fontWeight: '700', color: lang === 'en' ? '#fff' : colors.txTertiary }}>EN</Text>
+              <View style={{ paddingHorizontal: 12, paddingVertical: 6, backgroundColor: lang === 'en' ? colors.brandPrimary : 'transparent' }}>
+                <Text style={{ fontSize: 11, fontWeight: '700', color: lang === 'en' ? '#fff' : colors.txSecondary }}>EN</Text>
               </View>
             </TouchableOpacity>
           </View>
@@ -325,19 +358,22 @@ export default function ProfileScreen() {
               activeOpacity={0.85}
               style={{
                 flexDirection: 'row', alignItems: 'center', paddingVertical: 14, paddingHorizontal: 16,
-                borderRadius: 14, backgroundColor: '#FFF1E6', borderWidth: 1, borderColor: '#FFB07A',
+                borderRadius: 14,
+                backgroundColor: colors.warnBg,
+                borderWidth: 1,
+                borderColor: colors.warnBorder,
               }}
             >
               <Text style={{ fontSize: 18, marginRight: 10 }}>⚡</Text>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 14, fontWeight: '800', color: '#7A3700' }}>
+                <Text style={{ fontSize: 14, fontWeight: '800', color: colors.warnText }}>
                   동기화 충돌 {conflictCount}건
                 </Text>
-                <Text style={{ fontSize: 11, color: '#9A5A2A', marginTop: 2 }}>
+                <Text style={{ fontSize: 11, color: colors.warnSub, marginTop: 2 }}>
                   탭하여 내 변경 vs 동료 변경을 직접 비교·해결하세요
                 </Text>
               </View>
-              <Text style={{ color: '#7A3700', fontSize: 18 }}>›</Text>
+              <Text style={{ color: colors.warnText, fontSize: 18, fontWeight: '300' }}>›</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -420,18 +456,18 @@ export default function ProfileScreen() {
           onPress={comingSoon}
           activeOpacity={0.7}
         >
-          <Text style={{ fontSize: 13, color: colors.txSecondary, fontWeight: '500' }}>
+          <Text style={{ fontSize: 13, color: colors.txPrimary, fontWeight: '600' }}>
             {t('profile', 'notices')}
           </Text>
-          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#E74C3C' }} />
+          <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: '#EF4444' }} />
         </TouchableOpacity>
-        <View style={{ width: 1, backgroundColor: colors.lineDefault, marginVertical: 12 }} />
+        <View style={{ width: 1, backgroundColor: colors.lineStrong, marginVertical: 12 }} />
         <TouchableOpacity
           style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
           onPress={comingSoon}
           activeOpacity={0.7}
         >
-          <Text style={{ fontSize: 13, color: colors.txSecondary, fontWeight: '500' }}>
+          <Text style={{ fontSize: 13, color: colors.txPrimary, fontWeight: '600' }}>
             {t('profile', 'support')}
           </Text>
         </TouchableOpacity>

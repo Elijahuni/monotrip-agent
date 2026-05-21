@@ -1,7 +1,6 @@
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 
-import { api, TOKEN_KEY, saveToken, clearToken, type UserResponse } from '@/lib/api';
+import { api, getStoredToken, saveToken, clearToken, type UserResponse } from '@/lib/api';
 import { getUserCache, saveUserCache, type CachedUser } from '@/lib/local-user';
 import { clearAllMutations } from '@/lib/mutation-queue';
 import { registerPushTokenWithServer, unregisterPushTokenFromServer } from '@/lib/notifications';
@@ -49,7 +48,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   async hydrate() {
     const [token, cached] = await Promise.all([
-      AsyncStorage.getItem(TOKEN_KEY),
+      getStoredToken(),
       getUserCache(),
     ]);
 

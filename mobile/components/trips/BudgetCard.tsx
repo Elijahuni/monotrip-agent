@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 
-import { palette } from '@/lib/design-tokens';
+import { palette, useThemedColors } from '@/lib/design-tokens';
 import { categoryEmoji } from '@/lib/trip-utils';
 import type { Location, Trip } from '@/lib/types';
 
@@ -13,16 +13,13 @@ interface BudgetCardProps {
   onUpdateBudget?: (budget: number | null) => Promise<void>;
 }
 
-export function BudgetCard({ locations, trip, isDark, lang, onUpdateBudget }: BudgetCardProps) {
+export function BudgetCard({ locations, trip, isDark: _isDark, lang, onUpdateBudget }: BudgetCardProps) {
   const totalEstimate = locations.reduce((s, l) => s + (l.budget_per_person ?? 0), 0);
   const [editing, setEditing] = useState(false);
   const [inputVal, setInputVal] = useState(trip?.total_budget ? String(trip.total_budget) : '');
   const [saving, setSaving] = useState(false);
 
-  const bgS  = isDark ? '#141420' : '#FFFFFF';
-  const txP  = isDark ? '#ECEDEE' : '#1A1A1A';
-  const txSc = isDark ? '#9BA7B5' : '#5A6474';
-  const bord = isDark ? '#2A2A3E' : '#E8ECF2';
+  const colors = useThemedColors();
   const target = trip?.total_budget;
   const pct = target && totalEstimate > 0 ? Math.min((totalEstimate / target) * 100, 100) : 0;
   const byCat: Record<string, number> = {};
@@ -43,10 +40,10 @@ export function BudgetCard({ locations, trip, isDark, lang, onUpdateBudget }: Bu
   }
 
   return (
-    <View style={[S.budgetCard, { backgroundColor: bgS, borderColor: bord }]}>
+    <View style={[S.budgetCard, { backgroundColor: colors.bgSurface, borderColor: colors.lineDefault }]}>
       {/* 헤더 */}
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-        <Text style={{ color: txP, fontWeight: '700', fontSize: 15 }}>
+        <Text style={{ color: colors.txPrimary, fontWeight: '700', fontSize: 15 }}>
           {lang === 'ko' ? '💰 예산 요약' : '💰 Budget'}
         </Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -55,7 +52,7 @@ export function BudgetCard({ locations, trip, isDark, lang, onUpdateBudget }: Bu
           </Text>
           {onUpdateBudget && (
             <TouchableOpacity onPress={() => { setEditing(true); setInputVal(target ? String(target) : ''); }} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
-              <Text style={{ color: txSc, fontSize: 12 }}>✏️</Text>
+              <Text style={{ color: colors.txSecondary, fontSize: 12 }}>✏️</Text>
             </TouchableOpacity>
           )}
         </View>
@@ -65,12 +62,12 @@ export function BudgetCard({ locations, trip, isDark, lang, onUpdateBudget }: Bu
       {editing ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 }}>
           <TextInput
-            style={{ flex: 1, borderWidth: 1, borderColor: palette.coral500, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, color: txP, fontSize: 14 }}
+            style={{ flex: 1, borderWidth: 1, borderColor: palette.coral500, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 6, color: colors.txPrimary, fontSize: 14 }}
             value={inputVal}
             onChangeText={setInputVal}
             keyboardType="numeric"
             placeholder={lang === 'ko' ? '목표 예산 (원)' : 'Target budget (₩)'}
-            placeholderTextColor={txSc}
+            placeholderTextColor={colors.txSecondary}
             autoFocus
           />
           <TouchableOpacity
@@ -82,7 +79,7 @@ export function BudgetCard({ locations, trip, isDark, lang, onUpdateBudget }: Bu
             </Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setEditing(false)} style={{ padding: 6 }}>
-            <Text style={{ color: txSc, fontSize: 13 }}>{lang === 'ko' ? '취소' : 'Cancel'}</Text>
+            <Text style={{ color: colors.txSecondary, fontSize: 13 }}>{lang === 'ko' ? '취소' : 'Cancel'}</Text>
           </TouchableOpacity>
         </View>
       ) : null}
@@ -90,10 +87,10 @@ export function BudgetCard({ locations, trip, isDark, lang, onUpdateBudget }: Bu
       {/* 진행 바 */}
       {target != null && (
         <>
-          <View style={[S.barBg, { backgroundColor: bord }]}>
+          <View style={[S.barBg, { backgroundColor: colors.lineDefault }]}>
             <View style={[S.barFill, { width: `${pct}%`, backgroundColor: pct >= 100 ? '#E74C3C' : palette.coral500 }]} />
           </View>
-          <Text style={{ color: txSc, fontSize: 12, marginTop: 4 }}>
+          <Text style={{ color: colors.txSecondary, fontSize: 12, marginTop: 4 }}>
             {lang === 'ko'
               ? `목표 ₩${target.toLocaleString()} 의 ${pct.toFixed(0)}%`
               : `${pct.toFixed(0)}% of ₩${target.toLocaleString()}`}
@@ -103,7 +100,7 @@ export function BudgetCard({ locations, trip, isDark, lang, onUpdateBudget }: Bu
 
       {!target && !editing && (
         <TouchableOpacity onPress={() => { setEditing(true); setInputVal(''); }}>
-          <Text style={{ color: txSc, fontSize: 12, marginTop: 2 }}>
+          <Text style={{ color: colors.txSecondary, fontSize: 12, marginTop: 2 }}>
             {lang === 'ko' ? '+ 목표 예산 설정하기' : '+ Set target budget'}
           </Text>
         </TouchableOpacity>
@@ -113,8 +110,8 @@ export function BudgetCard({ locations, trip, isDark, lang, onUpdateBudget }: Bu
       {Object.entries(byCat).length > 0 && (
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
           {Object.entries(byCat).map(([cat, amt]) => (
-            <View key={cat} style={[S.badge, { backgroundColor: isDark ? '#1E1E2E' : '#F0F4FF' }]}>
-              <Text style={{ color: txSc, fontSize: 11 }}>{categoryEmoji(cat)} ₩{amt.toLocaleString()}</Text>
+            <View key={cat} style={[S.badge, { backgroundColor: colors.bgSubtle }]}>
+              <Text style={{ color: colors.txSecondary, fontSize: 11 }}>{categoryEmoji(cat)} ₩{amt.toLocaleString()}</Text>
             </View>
           ))}
         </View>

@@ -1,5 +1,5 @@
 import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { palette } from '@/lib/design-tokens';
+import { palette, useThemedColors } from '@/lib/design-tokens';
 import { openFlightSearch } from '@/lib/flight-links';
 import type { WeatherDestination } from '@/lib/types';
 import type { ExploreTheme } from './AiRecommendTab';
@@ -32,7 +32,8 @@ export function WeatherTab({
   weatherCondition, setWeatherCondition, weatherSearching,
   weatherDestinations, weatherSearchError, onWeatherSearch, onSelectCity,
 }: WeatherTabProps) {
-  const { isDark, bgBase, bgSubtle, txPri, txSec, txTer, borderC, cardShadow } = theme;
+  const { bgBase, bgSubtle, txPri, txSec, txTer, borderC, cardShadow } = theme;
+  const colors = useThemedColors();
 
   return (
     <ScrollView
@@ -67,8 +68,8 @@ export function WeatherTab({
         </View>
 
         {weatherSearchError ? (
-          <View style={{ marginBottom: 12, backgroundColor: isDark ? '#2A0D0D' : '#FFF0F0', borderRadius: 10, padding: 10, borderWidth: 1, borderColor: isDark ? '#5A1A1A' : '#FFDDD9' }}>
-            <Text style={{ color: '#E74C3C', fontSize: 13, textAlign: 'center' }}>{weatherSearchError}</Text>
+          <View style={{ marginBottom: 12, backgroundColor: colors.warnBg, borderRadius: 10, padding: 10, borderWidth: 1, borderColor: colors.warnBorder }}>
+            <Text style={{ color: colors.txDanger, fontSize: 13, textAlign: 'center' }}>{weatherSearchError}</Text>
           </View>
         ) : null}
 
@@ -144,10 +145,10 @@ export function WeatherTab({
                   <TouchableOpacity
                     onPress={() => openFlightSearch(dest.city)}
                     style={{ flex: 1, borderRadius: 12, paddingVertical: 12, alignItems: 'center',
-                      backgroundColor: isDark ? '#0D2040' : '#EBF4FF',
-                      borderWidth: 1, borderColor: isDark ? '#1A4070' : '#BAD8F8' }}
+                      backgroundColor: colors.accentBg,
+                      borderWidth: 1, borderColor: colors.accentText }}
                     activeOpacity={0.85}>
-                    <Text style={{ color: isDark ? '#7EC8F8' : '#1A6EBB', fontWeight: '700', fontSize: 13 }}>
+                    <Text style={{ color: colors.accentText, fontWeight: '700', fontSize: 13 }}>
                       ✈️ {lang === 'ko' ? '항공권 검색' : 'Flights'}
                     </Text>
                   </TouchableOpacity>

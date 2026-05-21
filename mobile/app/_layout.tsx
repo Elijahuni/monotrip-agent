@@ -117,6 +117,7 @@ function InnerLayout() {
         <Stack.Screen name="modal"      options={{ presentation: 'modal', title: 'Modal' }} />
         <Stack.Screen name="ai"         options={{ headerShown: false, title: 'AI 추천' }} />
         <Stack.Screen name="trips"      options={{ headerShown: false, title: '내 여행' }} />
+        <Stack.Screen name="profile"    options={{ headerShown: false, title: '프로필 수정' }} />
       </Stack>
 
       {/* 온보딩 미완료 → /onboarding 으로 리다이렉트 */}

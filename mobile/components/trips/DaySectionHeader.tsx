@@ -1,5 +1,6 @@
 import { StyleSheet, Text, View } from 'react-native';
 
+import { useThemedColors } from '@/lib/design-tokens';
 import { dayLabel } from '@/lib/trip-utils';
 import type { Location } from '@/lib/types';
 
@@ -11,16 +12,13 @@ interface DaySectionHeaderProps {
   lang: string;
 }
 
-export function DaySectionHeader({ day, startDate, locations, isDark, lang }: DaySectionHeaderProps) {
-  const txP  = isDark ? '#ECEDEE' : '#1A1A1A';
-  const txSc = isDark ? '#9BA7B5' : '#5A6474';
-  const bord = isDark ? '#2A2A3E' : '#E8ECF2';
-  const bg   = isDark ? '#0D0D18' : '#F7F9FC';
+export function DaySectionHeader({ day, startDate, locations, isDark: _isDark, lang }: DaySectionHeaderProps) {
+  const colors = useThemedColors();
   const totalBudget = locations.reduce((s, l) => s + (l.budget_per_person ?? 0), 0);
   return (
-    <View style={[S.dayHdr, { backgroundColor: bg, borderBottomColor: bord }]}>
-      <Text style={[S.dayTitle, { color: txP }]}>{dayLabel(day, startDate, lang)}</Text>
-      <Text style={[S.daySub, { color: txSc }]}>
+    <View style={[S.dayHdr, { backgroundColor: colors.bgBase, borderBottomColor: colors.lineDefault }]}>
+      <Text style={[S.dayTitle, { color: colors.txPrimary }]}>{dayLabel(day, startDate, lang)}</Text>
+      <Text style={[S.daySub, { color: colors.txSecondary }]}>
         {lang === 'ko'
           ? `장소 ${locations.length}곳${totalBudget > 0 ? ` · ₩${totalBudget.toLocaleString()}` : ''}`
           : `${locations.length} place${locations.length !== 1 ? 's' : ''}${totalBudget > 0 ? ` · ₩${totalBudget.toLocaleString()}` : ''}`}
