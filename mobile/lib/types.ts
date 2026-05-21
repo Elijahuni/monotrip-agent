@@ -262,3 +262,19 @@ export interface DestinationGuide {
   must_eat: string[];
   tips: string[];
 }
+
+// ─── 공지사항 ─────────────────────────────────────────────────────────────────
+
+export type NoticeCategory = 'general' | 'event' | 'maintenance' | 'update';
+
+export interface NoticeListItem {
+  id: number;
+  category: NoticeCategory;
+  title: string;
+  is_pinned: boolean;
+  published_at: string;
+}
+
+export interface NoticeDetail extends NoticeListItem {
+  body: string;
+}

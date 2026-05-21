@@ -21,7 +21,7 @@ import {
   userSchema,
   type PlaceSearchResult,
 } from '@/lib/schemas';
-import type { BadgeItem, ChecklistItem, CommunityComment, CommunityPost, CuratedPlace, DestinationGuide, FlightSearchResult, Gamification, HotelSearchResult, Location, SavedPlace, Trip, TrendingPost, UserCache, UserStats, WeatherDestination } from '@/lib/types';
+import type { BadgeItem, ChecklistItem, CommunityComment, CommunityPost, CuratedPlace, DestinationGuide, FlightSearchResult, Gamification, HotelSearchResult, Location, NoticeDetail, NoticeListItem, SavedPlace, Trip, TrendingPost, UserCache, UserStats, WeatherDestination } from '@/lib/types';
 import { z } from 'zod';
 
 // ─── 환경 변수 ────────────────────────────────────────────────────────────────
@@ -532,6 +532,22 @@ export const api = {
         form,
         { headers: { 'Content-Type': 'multipart/form-data' }, timeout: 30_000 },
       );
+      return res.data.data;
+    },
+  },
+
+  // ─── 공지사항 ─────────────────────────────────────────────────────────────────
+  notices: {
+    async list(params: {
+      category?: 'general' | 'event' | 'maintenance' | 'update';
+      limit?: number;
+      cursor?: number;
+    } = {}): Promise<NoticeListItem[]> {
+      const res = await client.get<ApiResponse<NoticeListItem[]>>('/notices', { params });
+      return res.data.data ?? [];
+    },
+    async get(noticeId: number): Promise<NoticeDetail> {
+      const res = await client.get<ApiResponse<NoticeDetail>>(`/notices/${noticeId}`);
       return res.data.data;
     },
   },

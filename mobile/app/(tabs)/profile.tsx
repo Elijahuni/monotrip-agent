@@ -345,7 +345,7 @@ export default function ProfileScreen() {
 
         {/* ── 법률 그룹 ── */}
         <View style={{ backgroundColor: colors.bgBase, marginTop: 8 }}>
-          <MenuRow icon="📢" label={t('profile', 'notices')} badge onPress={comingSoon} colors={colors} />
+          <MenuRow icon="📢" label={t('profile', 'notices')} onPress={() => router.push('/notices' as any)} colors={colors} />
           <MenuRow icon="🔒" label={t('profile', 'privacy')} onPress={() => router.push('/legal/privacy' as any)} colors={colors} />
           <MenuRow icon="📋" label={t('profile', 'terms')} onPress={() => router.push('/legal/terms' as any)} colors={colors} />
         </View>
