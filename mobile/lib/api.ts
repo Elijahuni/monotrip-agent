@@ -151,7 +151,9 @@ client.interceptors.response.use(
   async (error: AxiosError) => {
     const status = error.response?.status;
     const url = error.config?.url ?? '';
-    const isAuthEndpoint = /\/auth\/(login|register|refresh)/.test(url);
+    // logout 도 제외 — 만료 토큰으로 로그아웃 시 401 → refresh 실패 → logout() 재호출
+    // → 다시 /auth/logout 401 … 무한 루프를 끊는다. (로그아웃은 401이어도 로컬 정리만 하면 됨)
+    const isAuthEndpoint = /\/auth\/(login|register|refresh|logout)/.test(url);
 
     if (status === 401 && !isAuthEndpoint && !error.config?._retry) {
       const refreshToken = await getStoredRefreshToken();
