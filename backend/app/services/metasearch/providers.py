@@ -420,6 +420,136 @@ def _cabin_code(cabin: str) -> str:
     )
 
 
+def _iso8601_duration_to_minutes(iso: str) -> int:
+    """ISO-8601 기간(PT5H30M, PT45M 등)을 분으로 변환. 실패 시 0."""
+    import re
+
+    m = re.match(r"^PT(?:(\d+)H)?(?:(\d+)M)?$", iso or "")
+    if not m:
+        return 0
+    hours = int(m.group(1) or 0)
+    minutes = int(m.group(2) or 0)
+    return hours * 60 + minutes
+
+
+class AmadeusProvider(FlightProvider):
+    """Amadeus Self-Service Flight Offers Search — 공식 실시간 항공 GDS.
+
+    무료 티어(test 환경) 또는 production 환경 모두 지원.
+    1) OAuth2 client_credentials 로 access_token 발급 (만료 전까지 캐시)
+    2) GET /v2/shopping/flight-offers 로 실시간 항공권 조회 (currencyCode=KRW)
+
+    딥링크는 Self-Service에 포함되지 않으므로 Google Flights 검색 URL로 폴백.
+    공식 문서: https://developers.amadeus.com/self-service/category/flights
+    """
+
+    name = "amadeus"
+
+    def __init__(self, api_key: str, api_secret: str, env: str = "test") -> None:
+        self._key = api_key
+        self._secret = api_secret
+        self._base = (
+            "https://api.amadeus.com"
+            if env == "production"
+            else "https://test.api.amadeus.com"
+        )
+        self._token: str | None = None
+        self._token_expiry: float = 0.0  # epoch seconds
+
+    async def _get_token(self, client: httpx.AsyncClient) -> str:
+        import time
+
+        if self._token and time.time() < self._token_expiry - 30:
+            return self._token
+        resp = await client.post(
+            f"{self._base}/v1/security/oauth2/token",
+            data={
+                "grant_type": "client_credentials",
+                "client_id": self._key,
+                "client_secret": self._secret,
+            },
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        resp.raise_for_status()
+        body = resp.json()
+        self._token = body["access_token"]
+        self._token_expiry = time.time() + int(body.get("expires_in", 1799))
+        return self._token
+
+    async def search(self, q: FlightSearchQuery) -> list[FlightOffer]:
+        params = {
+            "originLocationCode": q.from_iata.upper(),
+            "destinationLocationCode": q.to_iata.upper(),
+            "departureDate": q.depart_date.strftime("%Y-%m-%d"),
+            "adults": str(q.adults),
+            "currencyCode": "KRW",
+            "max": "10",
+            "travelClass": q.cabin.upper(),
+        }
+        if q.return_date:
+            params["returnDate"] = q.return_date.strftime("%Y-%m-%d")
+
+        async with httpx.AsyncClient(timeout=12.0) as client:
+            token = await self._get_token(client)
+            resp = await client.get(
+                f"{self._base}/v2/shopping/flight-offers",
+                headers={"Authorization": f"Bearer {token}"},
+                params=params,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        return self._parse(data, q)
+
+    def _parse(self, data: dict, q: FlightSearchQuery) -> list[FlightOffer]:
+        offers: list[FlightOffer] = []
+        for offer in data.get("data", [])[:10]:
+            try:
+                price_krw = int(float(offer["price"]["total"]))
+                outbound = offer["itineraries"][0]
+                raw_segments = outbound["segments"]
+                stops = max(0, len(raw_segments) - 1)
+
+                segments: list[FlightSegment] = []
+                for s in raw_segments:
+                    dep_at = datetime.fromisoformat(s["departure"]["at"])
+                    arr_at = datetime.fromisoformat(s["arrival"]["at"])
+                    segments.append(
+                        FlightSegment(
+                            airline=s.get("carrierCode", ""),
+                            flight_number=f"{s.get('carrierCode', '')}{s.get('number', '')}",
+                            depart_airport=s["departure"]["iataCode"],
+                            arrive_airport=s["arrival"]["iataCode"],
+                            depart_time=dep_at,
+                            arrive_time=arr_at,
+                            duration_minutes=_iso8601_duration_to_minutes(s.get("duration", "")),
+                        )
+                    )
+
+                first, last = segments[0], segments[-1]
+                total_minutes = _iso8601_duration_to_minutes(outbound.get("duration", ""))
+                if total_minutes == 0:
+                    total_minutes = int(
+                        (last.arrive_time - first.depart_time).total_seconds() // 60
+                    )
+                offers.append(
+                    FlightOffer(
+                        id=f"amadeus:{offer.get('id', '')}",
+                        price_krw=price_krw,
+                        airline=first.airline,
+                        stops=stops,
+                        depart_time=first.depart_time,
+                        arrive_time=last.arrive_time,
+                        duration_minutes=total_minutes,
+                        segments=segments,
+                        deeplink=google_flights_url(q),
+                        affiliate_source="amadeus",
+                    )
+                )
+            except Exception as e:
+                logger.debug("amadeus parse error: %s", e)
+        return offers
+
+
 class RapidApiBookingProvider(HotelProvider):
     """RapidAPI의 Booking.com 래퍼 API 실연동.
 
@@ -653,6 +783,17 @@ def build_flight_providers() -> list[FlightProvider]:
     """설정에 따라 실제 Provider + Mock 폴백 목록을 반환."""
     settings = get_settings()
     providers: list[FlightProvider] = []
+    # 우선순위 1: Amadeus Self-Service (공식 실시간 GDS)
+    if settings.amadeus_api_key and settings.amadeus_api_secret:
+        providers.append(
+            AmadeusProvider(
+                settings.amadeus_api_key,
+                settings.amadeus_api_secret,
+                settings.amadeus_env,
+            )
+        )
+        logger.info("metasearch_flight_provider=amadeus (live, env=%s)", settings.amadeus_env)
+    # 우선순위 2: RapidAPI Skyscanner
     if settings.rapidapi_key:
         providers.append(SkyscannerProvider(settings.rapidapi_key))
         logger.info("metasearch_flight_provider=skyscanner (live)")

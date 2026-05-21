@@ -59,6 +59,12 @@ class Settings(BaseSettings):
     # RapidAPI → Skyscanner Flight Search (Flights Live Prices v2)
     # https://rapidapi.com/skyscanner/api/skyscanner50
     rapidapi_key: str = ""  # RapidAPI 헤더: X-RapidAPI-Key
+    # Amadeus Self-Service (공식 실시간 항공 GDS, 무료 티어)
+    # https://developers.amadeus.com → Self-Service → API Key/Secret 발급
+    amadeus_api_key: str = ""
+    amadeus_api_secret: str = ""
+    # "test"(test.api.amadeus.com, 무료/제한) | "production"(api.amadeus.com)
+    amadeus_env: str = "test"
     # Booking.com Affiliate API (Demand API v2)
     # https://developers.booking.com/affiliate
     booking_affiliate_id: str = ""
