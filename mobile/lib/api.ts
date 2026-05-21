@@ -595,11 +595,27 @@ export const api = {
       );
       return res.data.data;
     },
-    async listCollaborators(tripId: number): Promise<Array<{ user_id: number; role: string; joined_at: string }>> {
-      const res = await client.get<ApiResponse<Array<{ user_id: number; role: string; joined_at: string }>>>(
+    async listCollaborators(tripId: number): Promise<Array<{ user_id: number; role: string; joined_at: string; nickname: string | null }>> {
+      const res = await client.get<ApiResponse<Array<{ user_id: number; role: string; joined_at: string; nickname: string | null }>>>(
         `/trips/${tripId}/collaborators`,
       );
       return res.data.data ?? [];
+    },
+    /** 협업자 역할 변경 (여행 소유자만). */
+    async updateCollaboratorRole(
+      tripId: number,
+      userId: number,
+      role: 'edit' | 'view',
+    ): Promise<{ user_id: number; role: string; joined_at: string }> {
+      const res = await client.patch<ApiResponse<{ user_id: number; role: string; joined_at: string }>>(
+        `/trips/${tripId}/collaborators/${userId}`,
+        { role },
+      );
+      return res.data.data;
+    },
+    /** 협업자 제거 (여행 소유자만). */
+    async removeCollaborator(tripId: number, userId: number): Promise<void> {
+      await client.delete(`/trips/${tripId}/collaborators/${userId}`);
     },
     async getInviteInfo(token: string): Promise<{
       trip_title: string; inviter_nickname: string; expires_at: string;

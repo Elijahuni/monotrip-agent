@@ -125,6 +125,83 @@ class CollaborationService:
         rows = await db.execute(select(TripCollaborator).where(TripCollaborator.trip_id == trip_id))
         return list(rows.scalars().all())
 
+    async def list_collaborators_with_nicknames(
+        self, db: AsyncSession, trip_id: int
+    ) -> list[tuple[TripCollaborator, str | None]]:
+        """협업자 + 닉네임(표시용). UI 목록에서 사용."""
+        from app.models.user import User
+
+        rows = await db.execute(
+            select(TripCollaborator, User.nickname)
+            .join(User, User.id == TripCollaborator.user_id)
+            .where(TripCollaborator.trip_id == trip_id)
+        )
+        return [(collab, nickname) for collab, nickname in rows.all()]
+
+    async def assert_is_owner(self, db: AsyncSession, trip_id: int, user_id: int) -> None:
+        """협업자 관리(역할 변경/제거)는 trip owner만 가능."""
+        trip = await self.trip_repo.get_by_id(db, trip_id)
+        if trip is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="여행을 찾을 수 없습니다."
+            )
+        if trip.user_id != user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="협업자 관리 권한은 여행 소유자에게만 있습니다.",
+            )
+
+    async def _get_collaborator(
+        self, db: AsyncSession, trip_id: int, target_user_id: int
+    ) -> TripCollaborator:
+        collab = (
+            (
+                await db.execute(
+                    select(TripCollaborator)
+                    .where(TripCollaborator.trip_id == trip_id)
+                    .where(TripCollaborator.user_id == target_user_id)
+                )
+            )
+            .scalars()
+            .first()
+        )
+        if collab is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="협업자를 찾을 수 없습니다."
+            )
+        return collab
+
+    async def update_collaborator_role(
+        self,
+        db: AsyncSession,
+        *,
+        trip_id: int,
+        owner_id: int,
+        target_user_id: int,
+        role: str,
+    ) -> TripCollaborator:
+        """협업자 역할(edit/view) 변경. owner만 가능."""
+        await self.assert_is_owner(db, trip_id, owner_id)
+        if role not in ("edit", "view"):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="역할은 edit 또는 view만 가능합니다.",
+            )
+        collab = await self._get_collaborator(db, trip_id, target_user_id)
+        collab.role = role
+        await db.flush()
+        await db.refresh(collab)
+        return collab
+
+    async def remove_collaborator(
+        self, db: AsyncSession, *, trip_id: int, owner_id: int, target_user_id: int
+    ) -> None:
+        """협업자 제거. owner만 가능."""
+        await self.assert_is_owner(db, trip_id, owner_id)
+        collab = await self._get_collaborator(db, trip_id, target_user_id)
+        await db.delete(collab)
+        await db.flush()
+
     async def user_has_edit_access(self, db: AsyncSession, *, trip_id: int, user_id: int) -> bool:
         """trip owner이거나 edit 권한 협업자인지."""
         trip = await self.trip_repo.get_by_id(db, trip_id)

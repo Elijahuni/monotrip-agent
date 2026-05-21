@@ -35,7 +35,6 @@ import { useSettings } from '@/lib/settings-context';
 import { categoryEmoji, formatDate, groupByDay } from '@/lib/trip-utils';
 import type { Location, Trip } from '@/lib/types';
 import { useAuthStore } from '@/store';
-import { shareInviteToKakao } from '@/app/trips/invite/[token]';
 
 export default function TripDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -245,24 +244,6 @@ export default function TripDetailScreen() {
     } catch { Alert.alert(lang === 'ko' ? '공유 실패' : 'Share failed'); }
   }
 
-  async function handleInviteCollaborator() {
-    try {
-      const { token, share_url } = await api.collaboration.createInvite(tripId, 'edit');
-      const title = trip?.title?.trim() || (lang === 'ko' ? '여행' : 'Trip');
-      const me = useAuthStore.getState().user;
-
-      // 카카오톡 공유 템플릿 우선 시도 — 실패 시 내부에서 OS Share로 폴백
-      await shareInviteToKakao({
-        token,
-        tripTitle: title,
-        inviterNickname: me?.nickname ?? (lang === 'ko' ? '친구' : 'Friend'),
-      });
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string } }; message?: string };
-      Alert.alert(err?.response?.data?.message ?? '초대 링크 생성 실패');
-    }
-  }
-
   const days = totalDays();
   const groups = groupByDay(locations);
   const filtered = selectedDay === 'all' ? groups : groups.filter((g) => g.day === selectedDay);
@@ -332,7 +313,7 @@ export default function TripDetailScreen() {
           myUserId={myUserId}
           size={26}
         />
-        <TouchableOpacity onPress={handleInviteCollaborator} style={S.iconBtn}>
+        <TouchableOpacity onPress={() => router.push(`/trips/${tripId}/collaborators`)} style={S.iconBtn}>
           <Ionicons name="people-outline" size={20} color={colors.txPrimary} />
         </TouchableOpacity>
         <TouchableOpacity onPress={handleDeleteTrip} style={S.iconBtn}>
