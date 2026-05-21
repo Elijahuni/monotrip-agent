@@ -1,6 +1,7 @@
 from app.models.checklist_item import ChecklistItem
 from app.models.community import CommunityComment, CommunityPost, CommunityPostLike, CommunityReport
 from app.models.curated_place import CuratedPlace
+from app.models.faq import Faq
 from app.models.location import Location
 from app.models.notice import Notice
 from app.models.price_alert import FlightPriceAlert
@@ -20,6 +21,7 @@ __all__ = [
     "ChecklistItem",
     "RefreshToken",
     "CuratedPlace",
+    "Faq",
     "FlightPriceAlert",
     "FlightPriceSnapshot",
     "HotelPriceSnapshot",

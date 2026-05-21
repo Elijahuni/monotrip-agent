@@ -278,3 +278,14 @@ export interface NoticeListItem {
 export interface NoticeDetail extends NoticeListItem {
   body: string;
 }
+
+// ─── 고객센터 FAQ ─────────────────────────────────────────────────────────────
+
+export type FaqCategory = 'general' | 'account' | 'booking' | 'payment' | 'travel' | 'etc';
+
+export interface FaqItem {
+  id: number;
+  category: FaqCategory;
+  question: string;
+  answer: string;
+}

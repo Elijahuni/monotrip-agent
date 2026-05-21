@@ -453,7 +453,7 @@ export default function ProfileScreen() {
       >
         <TouchableOpacity
           style={{ flex: 1, alignItems: 'center', justifyContent: 'center', flexDirection: 'row', gap: 6 }}
-          onPress={comingSoon}
+          onPress={() => router.push('/notices' as any)}
           activeOpacity={0.7}
         >
           <Text style={{ fontSize: 13, color: colors.txPrimary, fontWeight: '600' }}>
@@ -464,7 +464,7 @@ export default function ProfileScreen() {
         <View style={{ width: 1, backgroundColor: colors.lineStrong, marginVertical: 12 }} />
         <TouchableOpacity
           style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}
-          onPress={comingSoon}
+          onPress={() => router.push('/support' as any)}
           activeOpacity={0.7}
         >
           <Text style={{ fontSize: 13, color: colors.txPrimary, fontWeight: '600' }}>

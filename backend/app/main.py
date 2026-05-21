@@ -25,6 +25,7 @@ from app.routes.trips import router as trips_router
 from app.routes.uploads import router as uploads_router
 from app.routes.collaboration import router as collaboration_router
 from app.routes.community import router as community_router
+from app.routes.faqs import router as faqs_router
 from app.routes.metasearch import router as metasearch_router
 from app.routes.notices import router as notices_router
 from app.routes.realtime import router as realtime_router
@@ -192,6 +193,7 @@ app.include_router(collaboration_router)
 app.include_router(realtime_router)
 app.include_router(community_router)
 app.include_router(notices_router)
+app.include_router(faqs_router)
 
 # 관리자 패널 — 숨겨진 URL, 설정에서 prefix 동적 생성
 app.include_router(create_admin_router())

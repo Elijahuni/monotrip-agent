@@ -21,7 +21,7 @@ import {
   userSchema,
   type PlaceSearchResult,
 } from '@/lib/schemas';
-import type { BadgeItem, ChecklistItem, CommunityComment, CommunityPost, CuratedPlace, DestinationGuide, FlightSearchResult, Gamification, HotelSearchResult, Location, NoticeDetail, NoticeListItem, SavedPlace, Trip, TrendingPost, UserCache, UserStats, WeatherDestination } from '@/lib/types';
+import type { BadgeItem, ChecklistItem, CommunityComment, CommunityPost, CuratedPlace, DestinationGuide, FaqItem, FlightSearchResult, Gamification, HotelSearchResult, Location, NoticeDetail, NoticeListItem, SavedPlace, Trip, TrendingPost, UserCache, UserStats, WeatherDestination } from '@/lib/types';
 import { z } from 'zod';
 
 // ─── 환경 변수 ────────────────────────────────────────────────────────────────
@@ -548,6 +548,20 @@ export const api = {
     },
     async get(noticeId: number): Promise<NoticeDetail> {
       const res = await client.get<ApiResponse<NoticeDetail>>(`/notices/${noticeId}`);
+      return res.data.data;
+    },
+  },
+
+  // ─── 고객센터 FAQ ─────────────────────────────────────────────────────────────
+  faqs: {
+    async list(params: {
+      category?: 'general' | 'account' | 'booking' | 'payment' | 'travel' | 'etc';
+    } = {}): Promise<FaqItem[]> {
+      const res = await client.get<ApiResponse<FaqItem[]>>('/faqs', { params });
+      return res.data.data ?? [];
+    },
+    async get(faqId: number): Promise<FaqItem> {
+      const res = await client.get<ApiResponse<FaqItem>>(`/faqs/${faqId}`);
       return res.data.data;
     },
   },
