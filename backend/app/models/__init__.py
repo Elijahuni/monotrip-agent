@@ -2,6 +2,7 @@ from app.models.checklist_item import ChecklistItem
 from app.models.community import CommunityComment, CommunityPost, CommunityPostLike, CommunityReport
 from app.models.coupon import Coupon, UserCoupon
 from app.models.curated_place import CuratedPlace
+from app.models.direct_message import DirectMessage
 from app.models.faq import Faq
 from app.models.location import Location
 from app.models.notice import Notice
@@ -36,4 +37,5 @@ __all__ = [
     "CommunityReport",
     "Coupon",
     "UserCoupon",
+    "DirectMessage",
 ]
