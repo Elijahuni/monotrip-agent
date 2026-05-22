@@ -11,6 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
 import { ListSkeleton } from '@/components/ui';
+import { track } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { palette, useThemedColors } from '@/lib/design-tokens';
 import { notifySuccess, tapMedium } from '@/lib/haptics';
@@ -80,6 +81,7 @@ export default function CouponsScreen() {
     setBusyId(c.id);
     try {
       await api.coupons.claim(c.id);
+      track('coupon_claimed', { code: c.code, discount_type: c.discount_type });
       notifySuccess();
       Toast.show({ type: 'success', text1: lang === 'ko' ? '쿠폰을 받았어요 🎉' : 'Coupon claimed 🎉', visibilityTime: 1600 });
       await load();

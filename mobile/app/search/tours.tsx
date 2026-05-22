@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DataSourceBadge } from '@/components/DataSourceBadge';
 import { ListSkeleton } from '@/components/ui';
+import { track } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { palette, useThemedColors } from '@/lib/design-tokens';
 import { useSettings } from '@/lib/settings-context';
@@ -55,6 +56,7 @@ export default function ToursSearchScreen() {
         city: city.trim(),
         category: category === 'all' ? undefined : category,
       });
+      track('tour_search', { city: city.trim(), category, results: r.offers.length });
       setOffers(r.offers);
       setDataSource(r.data_source);
     } catch {

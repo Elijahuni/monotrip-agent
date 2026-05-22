@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 
 import { api, getStoredToken, saveToken, clearToken, type UserResponse } from '@/lib/api';
+import { identify, resetAnalytics, track } from '@/lib/analytics';
 import { getUserCache, saveUserCache, type CachedUser } from '@/lib/local-user';
 import { clearAllMutations } from '@/lib/mutation-queue';
 import { registerPushTokenWithServer, unregisterPushTokenFromServer } from '@/lib/notifications';
@@ -66,6 +67,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   async login(accessToken: string, refreshToken: string) {
     await saveToken(accessToken, refreshToken);
     set({ status: 'authenticated', token: accessToken });
+    track('login');
     // 로그인 직후 user 채우기
     await get().refreshUser().catch(() => {/* offline */});
     // 로그인 후 Push Token을 서버에 등록 (백그라운드, 실패 무시)
@@ -80,6 +82,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     // 오프라인 큐 초기화 — 다른 유저 세션에 큐가 남지 않도록
     await clearAllMutations().catch(() => {});
     clearSentryUser();
+    resetAnalytics();
     set({ status: 'guest', token: null, user: null });
   },
 
@@ -89,6 +92,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     await saveUserCache(remote);
     // Sentry에 사용자 ID 등록 (에러 발생 시 어떤 사용자인지 추적)
     setSentryUser(remote.id, remote.email);
+    identify(remote.id);
     set({ user: cached });
   },
 }));
