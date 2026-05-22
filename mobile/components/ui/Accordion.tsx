@@ -22,6 +22,7 @@ import Animated, {
 } from 'react-native-reanimated';
 
 import { useThemedColors } from '@/lib/design-tokens';
+import { tapLight } from '@/lib/haptics';
 
 // Android에서 LayoutAnimation 활성화 (1회)
 if (
@@ -64,6 +65,7 @@ export function Accordion({
   }));
 
   function toggle() {
+    tapLight();
     LayoutAnimation.configureNext(LayoutAnimation.Presets.easeInEaseOut);
     const next = !open;
     if (isControlled) onToggle?.(next);

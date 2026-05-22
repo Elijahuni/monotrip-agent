@@ -6,13 +6,14 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, FlatList, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
 import { ListSkeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { palette, useThemedColors } from '@/lib/design-tokens';
+import { notifySuccess, tapMedium } from '@/lib/haptics';
 import { useSettings } from '@/lib/settings-context';
 import type { AvailableCoupon, MyCoupon, MyCouponStatus } from '@/lib/types';
 
@@ -36,23 +37,40 @@ export default function CouponsScreen() {
 
   const [tab, setTab] = useState<Tab>('mine');
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState<number | null>(null);
   const [mine, setMine] = useState<MyCoupon[]>([]);
   const [available, setAvailable] = useState<AvailableCoupon[]>([]);
 
+  const fetchData = useCallback(async () => {
+    const [m, a] = await Promise.all([api.coupons.mine(), api.coupons.available()]);
+    setMine(m);
+    setAvailable(a);
+  }, []);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [m, a] = await Promise.all([api.coupons.mine(), api.coupons.available()]);
-      setMine(m);
-      setAvailable(a);
+      await fetchData();
     } catch {
       setMine([]);
       setAvailable([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [fetchData]);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    tapMedium();
+    try {
+      await fetchData();
+    } catch {
+      /* 유지 */
+    } finally {
+      setRefreshing(false);
+    }
+  }, [fetchData]);
 
   useEffect(() => {
     void load();
@@ -62,6 +80,7 @@ export default function CouponsScreen() {
     setBusyId(c.id);
     try {
       await api.coupons.claim(c.id);
+      notifySuccess();
       Toast.show({ type: 'success', text1: lang === 'ko' ? '쿠폰을 받았어요 🎉' : 'Coupon claimed 🎉', visibilityTime: 1600 });
       await load();
     } catch (e: unknown) {
@@ -133,6 +152,9 @@ export default function CouponsScreen() {
           data={available}
           keyExtractor={(c) => String(c.id)}
           contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.coral500} colors={[palette.coral500]} />
+          }
           ListEmptyComponent={() => (
             <View style={{ alignItems: 'center', paddingTop: 60 }}>
               <Text style={{ fontSize: 40, marginBottom: 12 }}>🎟️</Text>
@@ -181,6 +203,9 @@ export default function CouponsScreen() {
           data={mine}
           keyExtractor={(c) => String(c.user_coupon_id)}
           contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.coral500} colors={[palette.coral500]} />
+          }
           ListEmptyComponent={() => (
             <View style={{ alignItems: 'center', paddingTop: 60 }}>
               <Text style={{ fontSize: 40, marginBottom: 12 }}>🎫</Text>

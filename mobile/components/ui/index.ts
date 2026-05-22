@@ -5,6 +5,7 @@ export type { CardElevation, CardPadding } from './Card';
 export { BottomSheet } from './BottomSheet';
 export { ConfirmSheet } from './ConfirmSheet';
 export { Accordion } from './Accordion';
+export { PressableScale } from './PressableScale';
 export { EmptyState } from './EmptyState';
 export { Chip } from './Chip';
 export { SegmentedControl } from './SegmentedControl';

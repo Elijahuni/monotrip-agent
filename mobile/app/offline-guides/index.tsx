@@ -6,12 +6,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { FlatList, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ListSkeleton } from '@/components/ui';
+import { ListSkeleton, PressableScale } from '@/components/ui';
 import { api } from '@/lib/api';
 import { palette, useThemedColors } from '@/lib/design-tokens';
+import { tapMedium } from '@/lib/haptics';
 import { getCachedGuide, getCachedVersions } from '@/lib/local-offline-guides';
 import { useSettings } from '@/lib/settings-context';
 import type { OfflineGuideListItem } from '@/lib/types';
@@ -23,6 +24,7 @@ export default function OfflineGuidesScreen() {
   const colors = useThemedColors();
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [guides, setGuides] = useState<OfflineGuideListItem[]>([]);
   const [cached, setCached] = useState<Record<number, number>>({});
 
@@ -48,6 +50,13 @@ export default function OfflineGuidesScreen() {
       setLoading(false);
     }
   }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    tapMedium();
+    await load();
+    setRefreshing(false);
+  }, [load]);
 
   // 상세에서 다운로드 후 돌아오면 상태 갱신
   useFocusEffect(
@@ -91,6 +100,9 @@ export default function OfflineGuidesScreen() {
           data={guides}
           keyExtractor={(g) => String(g.id)}
           contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.coral500} colors={[palette.coral500]} />
+          }
           ListEmptyComponent={() => (
             <View style={{ alignItems: 'center', paddingTop: 60 }}>
               <Text style={{ fontSize: 40, marginBottom: 12 }}>📕</Text>
@@ -102,8 +114,7 @@ export default function OfflineGuidesScreen() {
           renderItem={({ item }) => {
             const st = downloadState(item);
             return (
-              <TouchableOpacity
-                activeOpacity={0.7}
+              <PressableScale
                 onPress={() => router.push(`/offline-guides/${item.id}`)}
                 style={{
                   backgroundColor: colors.bgSurface,
@@ -146,7 +157,7 @@ export default function OfflineGuidesScreen() {
                     {item.summary}
                   </Text>
                 )}
-              </TouchableOpacity>
+              </PressableScale>
             );
           }}
         />

@@ -5,12 +5,13 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { FlatList, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { ListSkeleton } from '@/components/ui';
+import { ListSkeleton, PressableScale } from '@/components/ui';
 import { api } from '@/lib/api';
 import { palette, useThemedColors } from '@/lib/design-tokens';
+import { tapMedium } from '@/lib/haptics';
 import { useSettings } from '@/lib/settings-context';
 import type { NoticeCategory, NoticeListItem } from '@/lib/types';
 
@@ -34,6 +35,7 @@ export default function NoticesScreen() {
   const colors = useThemedColors();
 
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [notices, setNotices] = useState<NoticeListItem[]>([]);
 
   const load = useCallback(async () => {
@@ -45,6 +47,13 @@ export default function NoticesScreen() {
       setLoading(false);
     }
   }, []);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    tapMedium();
+    await load();
+    setRefreshing(false);
+  }, [load]);
 
   useEffect(() => {
     void load();
@@ -79,6 +88,9 @@ export default function NoticesScreen() {
           data={notices}
           keyExtractor={(n) => String(n.id)}
           contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}
+          refreshControl={
+            <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={palette.coral500} colors={[palette.coral500]} />
+          }
           ListEmptyComponent={() => (
             <View style={{ alignItems: 'center', paddingTop: 60 }}>
               <Text style={{ fontSize: 40, marginBottom: 12 }}>📭</Text>
@@ -90,8 +102,7 @@ export default function NoticesScreen() {
           renderItem={({ item }) => {
             const meta = CATEGORY_META[item.category] ?? CATEGORY_META.general;
             return (
-              <TouchableOpacity
-                activeOpacity={0.7}
+              <PressableScale
                 onPress={() => router.push(`/notices/${item.id}`)}
                 style={{
                   backgroundColor: colors.bgSurface,
@@ -118,7 +129,7 @@ export default function NoticesScreen() {
                 <Text style={{ color: colors.txPrimary, fontSize: 15, fontWeight: '600' }} numberOfLines={2}>
                   {item.title}
                 </Text>
-              </TouchableOpacity>
+              </PressableScale>
             );
           }}
         />

@@ -6,6 +6,7 @@ import { ActivityIndicator, Text, TouchableOpacity, View } from 'react-native';
 
 import { BottomSheet } from '@/components/ui/BottomSheet';
 import { palette, useThemedColors } from '@/lib/design-tokens';
+import { notifyWarning, tapMedium } from '@/lib/haptics';
 
 interface ConfirmSheetProps {
   visible: boolean;
@@ -54,7 +55,11 @@ export function ConfirmSheet({
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
-          onPress={onConfirm}
+          onPress={() => {
+            if (destructive) notifyWarning();
+            else tapMedium();
+            onConfirm();
+          }}
           disabled={loading}
           activeOpacity={0.85}
           style={{
