@@ -69,6 +69,10 @@ class Settings(BaseSettings):
     # https://developers.booking.com/affiliate
     booking_affiliate_id: str = ""
     booking_affiliate_secret: str = ""  # OAuth2 client_secret
+    # Agoda Affiliate API (파트너 승인 필요 — 승인 후 키/Site ID 발급)
+    # https://partners.agoda.com → Affiliate → Content/Search API
+    agoda_api_key: str = ""
+    agoda_site_id: str = ""  # 어필리에이트 Site ID (cid)
 
     # ── 관리자 패널 ────────────────────────────────────────────────────────────
     # 숨겨진 URL 경로 (예: /admin-abc123xyz). openssl rand -hex 12 로 생성 권장.

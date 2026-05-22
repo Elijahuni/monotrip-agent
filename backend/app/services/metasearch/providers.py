@@ -776,6 +776,103 @@ class BookingProvider(HotelProvider):
         return offers
 
 
+class AgodaProvider(HotelProvider):
+    """Agoda Affiliate API 실연동 — 스텁(파트너 승인 후 완성).
+
+    상태: 구조만 준비. Agoda 어필리에이트 승인을 받아 API 키/Site ID와
+    공식 문서(요청 파라미터·응답 스키마)를 확보하면 _parse() 본문만 채우면 된다.
+
+    승인 후 해야 할 일:
+      1) _BASE / 엔드포인트 경로를 공식 문서에 맞게 확정
+      2) search()의 요청 파라미터(체크인/아웃, 통화 KRW, cid=site_id) 매핑
+      3) _parse()에서 응답 → HotelOffer 변환 (가격/평점/딥링크)
+
+    승인 전(키 미설정)에는 build_hotel_providers가 이 Provider를 추가하지 않으므로
+    호출되지 않는다. 키가 설정돼도 _parse가 빈 결과를 반환하면 Mock으로 폴백된다.
+
+    문서(승인 시 접근): https://partners.agoda.com
+    """
+
+    name = "agoda"
+    # TODO(agoda): 승인 후 공식 엔드포인트로 교체
+    _BASE = "https://affiliateapi7643.agoda.com/affiliateservice"
+
+    def __init__(self, api_key: str, site_id: str) -> None:
+        self._key = api_key
+        self._site_id = site_id
+        # Agoda는 "Authorization: {site_id}:{api_key}" 형식 헤더를 사용(문서 확인 필요)
+        self._headers = {
+            "Authorization": f"{site_id}:{api_key}",
+            "Accept": "application/json",
+            "Content-Type": "application/json",
+        }
+
+    async def search(self, q: HotelSearchQuery) -> list[HotelOffer]:
+        # 승인/문서 확보 전까지는 호출하지 않는다. 안전하게 빈 결과 반환.
+        # (build_hotel_providers가 키 있을 때만 등록하지만, 이중 안전장치)
+        if not (self._key and self._site_id):
+            return []
+        try:
+            payload = {
+                "criteria": {
+                    "additional": {
+                        "currency": "KRW",
+                        "language": "ko-kr",
+                        "maxResult": 10,
+                    },
+                    "checkInDate": q.checkin.strftime("%Y-%m-%d"),
+                    "checkOutDate": q.checkout.strftime("%Y-%m-%d"),
+                    "cityName": q.city,
+                    "occupancy": {"numberOfAdult": q.adults, "numberOfChildren": 0},
+                }
+            }
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(
+                    f"{self._BASE}/lt/v1/search",
+                    headers=self._headers,
+                    json=payload,
+                )
+                resp.raise_for_status()
+                data = resp.json()
+            return self._parse(data, q)
+        except Exception as e:
+            # 승인 전/문서 불일치 등 모든 오류는 조용히 폴백 (Mock이 채움)
+            logger.info("agoda provider not ready / failed: %s", e)
+            return []
+
+    def _parse(self, data: dict, q: HotelSearchQuery) -> list[HotelOffer]:
+        """Agoda 응답 → HotelOffer. 승인 후 실제 스키마로 채운다.
+
+        아래는 Agoda Long-Tail 검색 응답의 일반적 형태를 가정한 초안이며,
+        공식 문서 확보 시 필드명을 검증/교체해야 한다.
+        """
+        offers: list[HotelOffer] = []
+        nights = max(1, (q.checkout - q.checkin).days)
+        for item in (data.get("results") or [])[:10]:
+            try:
+                per_night = int(float(item["dailyRate"]))
+                offers.append(
+                    HotelOffer(
+                        id=f"agoda:{item.get('hotelId', '')}",
+                        name=item.get("hotelName", ""),
+                        price_per_night_krw=per_night,
+                        total_price_krw=per_night * nights,
+                        rating=item.get("reviewScore"),
+                        review_count=item.get("reviewCount"),
+                        star_rating=item.get("starRating"),
+                        address=item.get("address", q.city),
+                        latitude=item.get("latitude"),
+                        longitude=item.get("longitude"),
+                        thumbnail=item.get("imageURL"),
+                        deeplink=item.get("landingURL", ""),
+                        affiliate_source="agoda",
+                    )
+                )
+            except Exception as e:
+                logger.debug("agoda parse error: %s", e)
+        return offers
+
+
 # ── Provider 팩토리 — aggregator에서 임포트 ───────────────────────────────────
 
 
@@ -810,6 +907,8 @@ def build_hotel_providers() -> list[HotelProvider]:
       1) BookingProvider       — 공식 Affiliate 키 보유 시 (실연동, 최고 품질)
       2) RapidApiBookingProvider — RAPIDAPI_KEY 보유 시 (즉시 사용, 무료 500회/월)
       3) MockHotelProvider     — 키 없음 (참고용 Mock 가격)
+
+    Agoda는 키 보유 시 Booking과 병렬로 추가(aggregator가 가격순 병합).
     """
     settings = get_settings()
     providers: list[HotelProvider] = []
@@ -826,7 +925,12 @@ def build_hotel_providers() -> list[HotelProvider]:
         providers.append(RapidApiBookingProvider(settings.rapidapi_key))
         logger.info("metasearch_hotel_provider=booking_rapidapi (live)")
 
-    else:
+    # Agoda Affiliate (승인·키 보유 시 병렬 추가). 미준비면 빈 결과 → Mock 폴백.
+    if settings.agoda_api_key and settings.agoda_site_id:
+        providers.append(AgodaProvider(settings.agoda_api_key, settings.agoda_site_id))
+        logger.info("metasearch_hotel_provider+=agoda (live)")
+
+    if not providers:
         logger.info("metasearch_hotel_provider=mock (no api key)")
 
     providers.append(MockHotelProvider())  # 항상 폴백
