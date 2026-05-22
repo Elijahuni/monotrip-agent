@@ -5,9 +5,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ListSkeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { palette, useThemedColors } from '@/lib/design-tokens';
 import { useSettings } from '@/lib/settings-context';
@@ -72,9 +73,7 @@ export default function NoticesScreen() {
       </View>
 
       {loading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={palette.coral500} />
-        </View>
+        <ListSkeleton count={6} />
       ) : (
         <FlatList
           data={notices}

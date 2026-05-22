@@ -6,9 +6,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
-import { ActivityIndicator, FlatList, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { ListSkeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { palette, useThemedColors } from '@/lib/design-tokens';
 import { getCachedGuide, getCachedVersions } from '@/lib/local-offline-guides';
@@ -84,9 +85,7 @@ export default function OfflineGuidesScreen() {
       </View>
 
       {loading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={palette.coral500} />
-        </View>
+        <ListSkeleton count={5} />
       ) : (
         <FlatList
           data={guides}

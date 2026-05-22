@@ -20,6 +20,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
 import { shareInviteToKakao } from '@/app/trips/invite/[token]';
+import { ConfirmSheet } from '@/components/ui';
 import { api } from '@/lib/api';
 import { palette, useThemedColors } from '@/lib/design-tokens';
 import { useSettings } from '@/lib/settings-context';
@@ -46,6 +47,7 @@ export default function CollaboratorsScreen() {
   const [collaborators, setCollaborators] = useState<Collaborator[]>([]);
   const [ownerId, setOwnerId] = useState<number | null>(null);
   const [tripTitle, setTripTitle] = useState('');
+  const [removeTarget, setRemoveTarget] = useState<Collaborator | null>(null);
 
   const isOwner = ownerId !== null && ownerId === myUserId;
 
@@ -88,30 +90,19 @@ export default function CollaboratorsScreen() {
     }
   }
 
-  function handleRemove(c: Collaborator) {
-    const name = c.nickname ?? `#${c.user_id}`;
-    Alert.alert(
-      lang === 'ko' ? '협업자 제거' : 'Remove collaborator',
-      lang === 'ko' ? `${name} 님을 협업자에서 제거할까요?` : `Remove ${name} from this trip?`,
-      [
-        { text: lang === 'ko' ? '취소' : 'Cancel', style: 'cancel' },
-        {
-          text: lang === 'ko' ? '제거' : 'Remove',
-          style: 'destructive',
-          onPress: async () => {
-            setBusyId(c.user_id);
-            try {
-              await api.collaboration.removeCollaborator(tripId, c.user_id);
-              setCollaborators((prev) => prev.filter((x) => x.user_id !== c.user_id));
-            } catch {
-              Toast.show({ type: 'error', text1: lang === 'ko' ? '제거 실패' : 'Remove failed', visibilityTime: 2000 });
-            } finally {
-              setBusyId(null);
-            }
-          },
-        },
-      ],
-    );
+  async function confirmRemove() {
+    const c = removeTarget;
+    if (!c) return;
+    setBusyId(c.user_id);
+    try {
+      await api.collaboration.removeCollaborator(tripId, c.user_id);
+      setCollaborators((prev) => prev.filter((x) => x.user_id !== c.user_id));
+      setRemoveTarget(null);
+    } catch {
+      Toast.show({ type: 'error', text1: lang === 'ko' ? '제거 실패' : 'Remove failed', visibilityTime: 2000 });
+    } finally {
+      setBusyId(null);
+    }
   }
 
   async function handleInvite() {
@@ -243,7 +234,7 @@ export default function CollaboratorsScreen() {
                             : (lang === 'ko' ? '편집으로' : 'To edit')}
                         </Text>
                       </TouchableOpacity>
-                      <TouchableOpacity onPress={() => handleRemove(item)} style={{ padding: 6 }}>
+                      <TouchableOpacity onPress={() => setRemoveTarget(item)} style={{ padding: 6 }}>
                         <Ionicons name="trash-outline" size={18} color="#E74C3C" />
                       </TouchableOpacity>
                     </>
@@ -254,6 +245,24 @@ export default function CollaboratorsScreen() {
           )}
         />
       )}
+
+      <ConfirmSheet
+        visible={removeTarget !== null}
+        title={lang === 'ko' ? '협업자 제거' : 'Remove collaborator'}
+        message={
+          removeTarget
+            ? lang === 'ko'
+              ? `${removeTarget.nickname ?? `#${removeTarget.user_id}`} 님을 협업자에서 제거할까요?`
+              : `Remove ${removeTarget.nickname ?? `#${removeTarget.user_id}`} from this trip?`
+            : undefined
+        }
+        confirmLabel={lang === 'ko' ? '제거' : 'Remove'}
+        cancelLabel={lang === 'ko' ? '취소' : 'Cancel'}
+        destructive
+        loading={busyId !== null}
+        onConfirm={confirmRemove}
+        onClose={() => setRemoveTarget(null)}
+      />
     </View>
   );
 }

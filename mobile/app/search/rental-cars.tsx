@@ -6,7 +6,6 @@ import { Ionicons } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import { useCallback, useState } from 'react';
 import {
-  ActivityIndicator,
   FlatList,
   Linking,
   Text,
@@ -17,6 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DataSourceBadge } from '@/components/DataSourceBadge';
+import { ListSkeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { palette, useThemedColors } from '@/lib/design-tokens';
 import { useSettings } from '@/lib/settings-context';
@@ -169,9 +169,7 @@ export default function RentalCarsSearchScreen() {
       </View>
 
       {loading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={palette.coral500} />
-        </View>
+        <ListSkeleton count={6} />
       ) : (
         <FlatList
           data={offers}

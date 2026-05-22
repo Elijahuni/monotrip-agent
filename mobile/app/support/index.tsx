@@ -5,9 +5,10 @@
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, FlatList, Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { Accordion, ListSkeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { palette, useThemedColors } from '@/lib/design-tokens';
 import { useSettings } from '@/lib/settings-context';
@@ -32,7 +33,6 @@ export default function SupportScreen() {
   const [loading, setLoading] = useState(true);
   const [faqs, setFaqs] = useState<FaqItem[]>([]);
   const [category, setCategory] = useState<FaqCategory | 'all'>('all');
-  const [expanded, setExpanded] = useState<number | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,14 +103,12 @@ export default function SupportScreen() {
       </View>
 
       {loading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={palette.coral500} />
-        </View>
+        <ListSkeleton count={6} />
       ) : (
         <FlatList
           data={faqs}
           keyExtractor={(f) => String(f.id)}
-          contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24 }}
+          contentContainerStyle={{ padding: 16, paddingBottom: insets.bottom + 24, gap: 10 }}
           ListEmptyComponent={() => (
             <View style={{ alignItems: 'center', paddingTop: 60 }}>
               <Text style={{ fontSize: 40, marginBottom: 12 }}>💬</Text>
@@ -119,41 +117,16 @@ export default function SupportScreen() {
               </Text>
             </View>
           )}
-          renderItem={({ item }) => {
-            const open = expanded === item.id;
-            return (
-              <View
-                style={{
-                  backgroundColor: colors.bgSurface,
-                  borderRadius: 12,
-                  marginBottom: 10,
-                  borderWidth: 1,
-                  borderColor: colors.lineDefault,
-                  overflow: 'hidden',
-                }}
-              >
-                <TouchableOpacity
-                  activeOpacity={0.7}
-                  onPress={() => setExpanded(open ? null : item.id)}
-                  style={{ flexDirection: 'row', alignItems: 'center', padding: 14 }}
-                >
-                  <Text style={{ color: palette.coral500, fontWeight: '800', fontSize: 15, marginRight: 8 }}>Q</Text>
-                  <Text style={{ flex: 1, color: colors.txPrimary, fontSize: 14, fontWeight: '600' }}>
-                    {item.question}
-                  </Text>
-                  <Ionicons name={open ? 'chevron-up' : 'chevron-down'} size={18} color={colors.txTertiary} />
-                </TouchableOpacity>
-                {open && (
-                  <View style={{ paddingHorizontal: 14, paddingBottom: 14, flexDirection: 'row' }}>
-                    <Text style={{ color: colors.txTertiary, fontWeight: '800', fontSize: 15, marginRight: 8 }}>A</Text>
-                    <Text style={{ flex: 1, color: colors.txSecondary, fontSize: 14, lineHeight: 22 }}>
-                      {item.answer}
-                    </Text>
-                  </View>
-                )}
+          renderItem={({ item }) => (
+            <Accordion title={item.question} badge="Q">
+              <View style={{ flexDirection: 'row' }}>
+                <Text style={{ color: colors.txTertiary, fontWeight: '800', fontSize: 15, marginRight: 8 }}>A</Text>
+                <Text style={{ flex: 1, color: colors.txSecondary, fontSize: 14, lineHeight: 22 }}>
+                  {item.answer}
+                </Text>
               </View>
-            );
-          }}
+            </Accordion>
+          )}
         />
       )}
     </View>

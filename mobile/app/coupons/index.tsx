@@ -10,6 +10,7 @@ import { ActivityIndicator, FlatList, Text, TouchableOpacity, View } from 'react
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Toast from 'react-native-toast-message';
 
+import { ListSkeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { palette, useThemedColors } from '@/lib/design-tokens';
 import { useSettings } from '@/lib/settings-context';
@@ -126,9 +127,7 @@ export default function CouponsScreen() {
       </View>
 
       {loading ? (
-        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator color={palette.coral500} />
-        </View>
+        <ListSkeleton count={5} />
       ) : tab === 'available' ? (
         <FlatList
           data={available}
