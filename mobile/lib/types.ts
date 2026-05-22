@@ -405,3 +405,23 @@ export interface RentalCarSearchResult {
   rental_days: number;
   data_source: 'live' | 'mock';
 }
+
+// ─── 다이렉트 메시지 (DM) ──────────────────────────────────────────────────────
+
+export interface DmMessage {
+  id: number;
+  sender_id: number;
+  recipient_id: number;
+  body: string;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface DmConversation {
+  other_user_id: number;
+  other_nickname: string | null;
+  last_message: string;
+  last_at: string;
+  last_from_me: boolean;
+  unread_count: number;
+}

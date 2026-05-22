@@ -21,7 +21,7 @@ import {
   userSchema,
   type PlaceSearchResult,
 } from '@/lib/schemas';
-import type { AvailableCoupon, BadgeItem, ChecklistItem, CommunityComment, CommunityPost, CuratedPlace, DestinationGuide, FaqItem, FlightSearchResult, Gamification, HotelSearchResult, Location, MyCoupon, NoticeDetail, NoticeListItem, OfflineGuideDetail, OfflineGuideListItem, RentalCarSearchResult, SavedPlace, TourSearchResult, Trip, TrendingPost, UserCache, UserStats, WeatherDestination } from '@/lib/types';
+import type { AvailableCoupon, BadgeItem, ChecklistItem, CommunityComment, CommunityPost, CuratedPlace, DestinationGuide, DmConversation, DmMessage, FaqItem, FlightSearchResult, Gamification, HotelSearchResult, Location, MyCoupon, NoticeDetail, NoticeListItem, OfflineGuideDetail, OfflineGuideListItem, RentalCarSearchResult, SavedPlace, TourSearchResult, Trip, TrendingPost, UserCache, UserStats, WeatherDestination } from '@/lib/types';
 import { z } from 'zod';
 
 // ─── 환경 변수 ────────────────────────────────────────────────────────────────
@@ -593,6 +593,26 @@ export const api = {
     },
     async get(guideId: number): Promise<OfflineGuideDetail> {
       const res = await client.get<ApiResponse<OfflineGuideDetail>>(`/offline-guides/${guideId}`);
+      return res.data.data;
+    },
+  },
+
+  // ─── 다이렉트 메시지 (DM) ──────────────────────────────────────────────────────
+  dm: {
+    async conversations(): Promise<DmConversation[]> {
+      const res = await client.get<ApiResponse<DmConversation[]>>('/dm/conversations');
+      return res.data.data ?? [];
+    },
+    async unreadCount(): Promise<number> {
+      const res = await client.get<ApiResponse<{ unread: number }>>('/dm/unread-count');
+      return res.data.data?.unread ?? 0;
+    },
+    async thread(otherUserId: number, params: { limit?: number; cursor?: number } = {}): Promise<DmMessage[]> {
+      const res = await client.get<ApiResponse<DmMessage[]>>(`/dm/${otherUserId}`, { params });
+      return res.data.data ?? [];
+    },
+    async send(otherUserId: number, body: string): Promise<DmMessage> {
+      const res = await client.post<ApiResponse<DmMessage>>(`/dm/${otherUserId}`, { body });
       return res.data.data;
     },
   },
