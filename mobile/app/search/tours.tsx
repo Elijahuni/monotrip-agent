@@ -16,7 +16,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { DataSourceBadge } from '@/components/DataSourceBadge';
-import { ListSkeleton } from '@/components/ui';
+import { IconButton, ListSkeleton } from '@/components/ui';
 import { track } from '@/lib/analytics';
 import { api } from '@/lib/api';
 import { palette, useThemedColors } from '@/lib/design-tokens';
@@ -85,9 +85,12 @@ export default function ToursSearchScreen() {
         }}
       >
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
-          <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 8 }}>
-            <Ionicons name="chevron-back" size={24} color={colors.txPrimary} />
-          </TouchableOpacity>
+          <IconButton
+            icon="chevron-back"
+            onPress={() => router.back()}
+            accessibilityLabel={lang === 'ko' ? '뒤로' : 'Back'}
+            style={{ marginRight: 8 }}
+          />
           <Text style={{ fontSize: 17, fontWeight: '700', color: colors.txPrimary }}>
             {lang === 'ko' ? '투어·티켓' : 'Tours & Tickets'}
           </Text>

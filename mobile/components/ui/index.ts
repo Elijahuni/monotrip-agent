@@ -6,6 +6,7 @@ export { BottomSheet } from './BottomSheet';
 export { ConfirmSheet } from './ConfirmSheet';
 export { Accordion } from './Accordion';
 export { PressableScale } from './PressableScale';
+export { IconButton } from './IconButton';
 export { EmptyState } from './EmptyState';
 export { Chip } from './Chip';
 export { SegmentedControl } from './SegmentedControl';

@@ -8,7 +8,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { FlatList, RefreshControl, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { Accordion, ListSkeleton } from '@/components/ui';
+import { Accordion, IconButton, ListSkeleton } from '@/components/ui';
 import { api } from '@/lib/api';
 import { palette, useThemedColors } from '@/lib/design-tokens';
 import { tapMedium } from '@/lib/haptics';
@@ -77,9 +77,12 @@ export default function SupportScreen() {
           borderBottomColor: colors.lineDefault,
         }}
       >
-        <TouchableOpacity onPress={() => router.back()} style={{ marginRight: 8 }}>
-          <Ionicons name="chevron-back" size={24} color={colors.txPrimary} />
-        </TouchableOpacity>
+        <IconButton
+          icon="chevron-back"
+          onPress={() => router.back()}
+          accessibilityLabel={lang === 'ko' ? '뒤로' : 'Back'}
+          style={{ marginRight: 8 }}
+        />
         <Text style={{ fontSize: 17, fontWeight: '700', color: colors.txPrimary }}>
           {lang === 'ko' ? '고객센터' : 'Help Center'}
         </Text>

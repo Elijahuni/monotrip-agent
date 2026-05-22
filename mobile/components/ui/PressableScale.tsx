@@ -21,6 +21,9 @@ interface PressableScaleProps {
   /** 최소 축소 배율 (기본 0.97) */
   scaleTo?: number;
   disabled?: boolean;
+  /** 스크린리더용 라벨 (카드 전체를 읽어줄 텍스트). 지정 시 role=button 자동. */
+  accessibilityLabel?: string;
+  accessibilityHint?: string;
   style?: ViewStyle | ViewStyle[];
   children: ReactNode;
 }
@@ -30,6 +33,8 @@ export function PressableScale({
   haptic = true,
   scaleTo = 0.97,
   disabled = false,
+  accessibilityLabel,
+  accessibilityHint,
   style,
   children,
 }: PressableScaleProps) {
@@ -39,6 +44,10 @@ export function PressableScale({
   return (
     <Pressable
       disabled={disabled}
+      accessibilityRole={accessibilityLabel ? 'button' : undefined}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint={accessibilityHint}
+      accessibilityState={{ disabled }}
       onPressIn={() => {
         scale.value = withSpring(scaleTo, { damping: 18, stiffness: 320 });
         if (haptic) tapLight();
