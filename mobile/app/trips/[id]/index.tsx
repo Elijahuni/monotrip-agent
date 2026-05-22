@@ -19,6 +19,8 @@ import Toast from 'react-native-toast-message';
 
 import { ItineraryShareCard, type ItineraryShareCardRef } from '@/components/ItineraryShareCard';
 import { WeatherWidget } from '@/components/WeatherWidget';
+import { BottomSheet } from '@/components/ui';
+import { exportTripIcs, exportTripPdf } from '@/lib/export-itinerary';
 import { AddLocationModal, type LocForm } from '@/components/trips/AddLocationModal';
 import { BudgetCard } from '@/components/trips/BudgetCard';
 import { ChecklistSection } from '@/components/trips/ChecklistSection';
@@ -53,6 +55,8 @@ export default function TripDetailScreen() {
   const loading = tripQuery.isPending;
 
   const [selectedDay, setSelectedDay] = useState<number | 'all'>('all');
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [defaultDay, setDefaultDay] = useState(1);
   const [editingLoc, setEditingLoc] = useState<Location | null>(null);
@@ -244,6 +248,20 @@ export default function TripDetailScreen() {
     } catch { Alert.alert(lang === 'ko' ? '공유 실패' : 'Share failed'); }
   }
 
+  async function handleExport(kind: 'pdf' | 'ics') {
+    if (!trip) return;
+    setExporting(true);
+    try {
+      if (kind === 'pdf') await exportTripPdf(trip, locations, lang);
+      else await exportTripIcs(trip, locations);
+      setExportOpen(false);
+    } catch {
+      Alert.alert(lang === 'ko' ? '내보내기 실패' : 'Export failed');
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const days = totalDays();
   const groups = groupByDay(locations);
   const filtered = selectedDay === 'all' ? groups : groups.filter((g) => g.day === selectedDay);
@@ -305,6 +323,13 @@ export default function TripDetailScreen() {
         </TouchableOpacity>
         <TouchableOpacity onPress={handleShare} style={S.iconBtn}>
           <Ionicons name="share-outline" size={20} color={colors.txPrimary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setExportOpen(true)}
+          style={S.iconBtn}
+          accessibilityRole="button"
+          accessibilityLabel={lang === 'ko' ? '일정 내보내기' : 'Export itinerary'}>
+          <Ionicons name="download-outline" size={20} color={colors.txPrimary} />
         </TouchableOpacity>
         {/* presence — 나 외 활성 협업자 아바타 (있을 때만) */}
         <PresenceStack
@@ -511,6 +536,34 @@ export default function TripDetailScreen() {
 
       {/* 일정 이미지 공유 카드 (화면 밖 렌더링) */}
       <ItineraryShareCard ref={shareCardRef} trip={trip} locations={locations} />
+
+      {/* 내보내기 선택 시트 (PDF / 캘린더) */}
+      <BottomSheet
+        visible={exportOpen}
+        onClose={() => setExportOpen(false)}
+        title={lang === 'ko' ? '일정 내보내기' : 'Export itinerary'}
+        subtitle={lang === 'ko' ? '형식을 선택하세요' : 'Choose a format'}
+        dismissible={!exporting}>
+        {([
+          { kind: 'pdf' as const, icon: 'document-text-outline' as const, label: 'PDF', desc: lang === 'ko' ? '문서로 저장·공유' : 'Save / share as document' },
+          { kind: 'ics' as const, icon: 'calendar-outline' as const, label: lang === 'ko' ? '캘린더 (.ics)' : 'Calendar (.ics)', desc: lang === 'ko' ? '캘린더 앱으로 가져오기' : 'Import to calendar app' },
+        ]).map((opt) => (
+          <TouchableOpacity
+            key={opt.kind}
+            disabled={exporting}
+            onPress={() => handleExport(opt.kind)}
+            accessibilityRole="button"
+            accessibilityLabel={opt.label}
+            style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.lineDefault, opacity: exporting ? 0.5 : 1 }}>
+            <Ionicons name={opt.icon} size={22} color={palette.coral500} style={{ marginRight: 14 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.txPrimary, fontSize: 15, fontWeight: '700' }}>{opt.label}</Text>
+              <Text style={{ color: colors.txTertiary, fontSize: 12, marginTop: 2 }}>{opt.desc}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.txTertiary} />
+          </TouchableOpacity>
+        ))}
+      </BottomSheet>
     </View>
   );
 }
