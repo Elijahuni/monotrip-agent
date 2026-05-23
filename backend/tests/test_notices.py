@@ -71,9 +71,7 @@ async def test_get_single_notice(client: AsyncClient, db_session: AsyncSession):
     token = await register_and_login(client, email="ntc4@ex.com")
     notice = await _seed(db_session, title="상세 공지", body="자세한 내용")
 
-    res = await client.get(
-        f"/notices/{notice.id}", headers={"Authorization": f"Bearer {token}"}
-    )
+    res = await client.get(f"/notices/{notice.id}", headers={"Authorization": f"Bearer {token}"})
     assert res.status_code == 200, res.text
     data = res.json()["data"]
     assert data["title"] == "상세 공지"

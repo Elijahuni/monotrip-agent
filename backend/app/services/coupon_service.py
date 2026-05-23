@@ -28,9 +28,7 @@ class CouponService:
     def __init__(self) -> None:
         self.repo = CouponRepository()
 
-    async def list_available(
-        self, db: AsyncSession, user_id: int
-    ) -> list[tuple[Coupon, bool]]:
+    async def list_available(self, db: AsyncSession, user_id: int) -> list[tuple[Coupon, bool]]:
         """발급 가능한 쿠폰 + 현재 사용자의 발급 여부(already_claimed)."""
         coupons = await self.repo.list_available(db)
         claimed = await self.repo.claimed_coupon_ids(db, user_id)
@@ -43,9 +41,7 @@ class CouponService:
                 status_code=status.HTTP_404_NOT_FOUND, detail="쿠폰을 찾을 수 없습니다."
             )
         if coupon.valid_until is not None and coupon.valid_until < _utcnow_naive():
-            raise HTTPException(
-                status_code=status.HTTP_410_GONE, detail="만료된 쿠폰입니다."
-            )
+            raise HTTPException(status_code=status.HTTP_410_GONE, detail="만료된 쿠폰입니다.")
         # 중복 발급 방지
         existing = await self.repo.get_user_coupon(db, user_id, coupon_id)
         if existing is not None:
@@ -62,9 +58,7 @@ class CouponService:
                 )
         return await self.repo.add_user_coupon(db, user_id, coupon_id)
 
-    async def list_my(
-        self, db: AsyncSession, user_id: int
-    ) -> list[tuple[UserCoupon, Coupon, str]]:
+    async def list_my(self, db: AsyncSession, user_id: int) -> list[tuple[UserCoupon, Coupon, str]]:
         rows = await self.repo.list_user_coupons(db, user_id)
         return [(uc, c, derive_status(uc, c)) for uc, c in rows]
 
@@ -87,9 +81,7 @@ class CouponService:
                 status_code=status.HTTP_409_CONFLICT, detail="이미 사용한 쿠폰입니다."
             )
         if status_now == "expired":
-            raise HTTPException(
-                status_code=status.HTTP_410_GONE, detail="만료된 쿠폰입니다."
-            )
+            raise HTTPException(status_code=status.HTTP_410_GONE, detail="만료된 쿠폰입니다.")
         uc.used_at = _utcnow_naive()
         await db.flush()
         await db.refresh(uc)

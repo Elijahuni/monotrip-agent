@@ -43,15 +43,11 @@ class UserCoupon(Base):
     __tablename__ = "user_coupons"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    user_id: Mapped[int] = mapped_column(
-        ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     coupon_id: Mapped[int] = mapped_column(
         ForeignKey("coupons.id", ondelete="CASCADE"), nullable=False
     )
     used_at: Mapped[datetime | None] = mapped_column(nullable=True)
     claimed_at: Mapped[datetime] = mapped_column(default=func.now(), nullable=False)
 
-    __table_args__ = (
-        UniqueConstraint("user_id", "coupon_id", name="uq_user_coupon"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "coupon_id", name="uq_user_coupon"),)

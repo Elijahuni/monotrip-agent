@@ -39,8 +39,12 @@ class DirectMessageRepository:
             select(DirectMessage)
             .where(
                 or_(
-                    and_(DirectMessage.sender_id == user_id, DirectMessage.recipient_id == other_id),
-                    and_(DirectMessage.sender_id == other_id, DirectMessage.recipient_id == user_id),
+                    and_(
+                        DirectMessage.sender_id == user_id, DirectMessage.recipient_id == other_id
+                    ),
+                    and_(
+                        DirectMessage.sender_id == other_id, DirectMessage.recipient_id == user_id
+                    ),
                 )
             )
             .order_by(desc(DirectMessage.id))
@@ -70,9 +74,7 @@ class DirectMessageRepository:
         )
         return (await db.execute(stmt)).scalar() or 0
 
-    async def list_conversations(
-        self, db: AsyncSession, user_id: int
-    ) -> list[dict]:
+    async def list_conversations(self, db: AsyncSession, user_id: int) -> list[dict]:
         """사용자의 대화 목록 — 상대별 최신 메시지 + 미읽음 수 + 상대 닉네임.
 
         SQLite/PostgreSQL 모두에서 동작하도록 파이썬 측에서 그룹핑한다

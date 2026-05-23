@@ -449,9 +449,7 @@ class AmadeusProvider(FlightProvider):
         self._key = api_key
         self._secret = api_secret
         self._base = (
-            "https://api.amadeus.com"
-            if env == "production"
-            else "https://test.api.amadeus.com"
+            "https://api.amadeus.com" if env == "production" else "https://test.api.amadeus.com"
         )
         self._token: str | None = None
         self._token_expiry: float = 0.0  # epoch seconds

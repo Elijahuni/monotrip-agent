@@ -9,9 +9,10 @@ from app.database import Base
 
 class UserRole:
     """사용자 역할 상수. Enum 대신 str 상수 — Alembic/JSON 직렬화 호환."""
-    USER      = "user"
+
+    USER = "user"
     MODERATOR = "moderator"  # 콘텐츠 검토 전용 (향후 확장)
-    ADMIN     = "admin"
+    ADMIN = "admin"
 
 
 _EMBEDDING_DIM = 768

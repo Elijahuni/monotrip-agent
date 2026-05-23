@@ -83,9 +83,7 @@ class CommunityRepository:
         now = _utcnow_naive()
         days = {"1d": 1, "7d": 7, "30d": 30}[period]
         since = now - timedelta(days=days)
-        score_expr = (
-            CommunityPost.like_count + CommunityPost.comment_count * 0.3
-        ).label("score")
+        score_expr = (CommunityPost.like_count + CommunityPost.comment_count * 0.3).label("score")
         stmt = (
             select(CommunityPost, User.nickname, User.profile_image_url)
             .join(User, User.id == CommunityPost.user_id)

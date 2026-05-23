@@ -31,9 +31,5 @@ class NoticeRepository:
         return list((await db.execute(stmt)).scalars().all())
 
     async def get_published(self, db: AsyncSession, notice_id: int) -> Notice | None:
-        stmt = (
-            select(Notice)
-            .where(Notice.id == notice_id)
-            .where(Notice.is_published.is_(True))
-        )
+        stmt = select(Notice).where(Notice.id == notice_id).where(Notice.is_published.is_(True))
         return (await db.execute(stmt)).scalars().first()

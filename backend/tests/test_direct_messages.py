@@ -42,14 +42,18 @@ async def test_send_and_thread_is_bidirectional(client: AsyncClient):
 async def test_cannot_message_self(client: AsyncClient):
     a = await register_and_login(client, email="dm_self@ex.com")
     a_id = await _me_id(client, a)
-    res = await client.post(f"/dm/{a_id}", json={"body": "x"}, headers={"Authorization": f"Bearer {a}"})
+    res = await client.post(
+        f"/dm/{a_id}", json={"body": "x"}, headers={"Authorization": f"Bearer {a}"}
+    )
     assert res.status_code == 400
 
 
 @pytest.mark.asyncio
 async def test_message_nonexistent_user_404(client: AsyncClient):
     a = await register_and_login(client, email="dm_404@ex.com")
-    res = await client.post("/dm/999999", json={"body": "x"}, headers={"Authorization": f"Bearer {a}"})
+    res = await client.post(
+        "/dm/999999", json={"body": "x"}, headers={"Authorization": f"Bearer {a}"}
+    )
     assert res.status_code == 404
 
 

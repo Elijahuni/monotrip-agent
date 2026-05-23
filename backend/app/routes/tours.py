@@ -28,8 +28,6 @@ async def search_tour_tickets(
     travelers: int = Query(default=1, ge=1, le=20),
     _user: User = Depends(get_current_user),
 ) -> ApiResponse[TourSearchResult]:
-    q = TourSearchQuery(
-        city=city, category=category, travel_date=travel_date, travelers=travelers
-    )
+    q = TourSearchQuery(city=city, category=category, travel_date=travel_date, travelers=travelers)
     result = await search_tours(q)
     return ApiResponse(data=result)

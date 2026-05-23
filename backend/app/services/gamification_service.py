@@ -27,6 +27,7 @@ XP 획득 기준:
   단골손님       regular         앱 사용 30일 이상
   나이트아울     night_owl       자정 이후 여행 생성 (재미 요소)
 """
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -44,6 +45,7 @@ from app.models.location import Location
 
 # ── 레벨 정의 ──────────────────────────────────────────────────────────────────
 
+
 @dataclass(frozen=True)
 class LevelInfo:
     level: int
@@ -55,15 +57,16 @@ class LevelInfo:
 
 
 LEVELS: list[LevelInfo] = [
-    LevelInfo(1, "새내기 여행자", "Newbie",     0,    99,   "🌱"),
-    LevelInfo(2, "탐험가",       "Explorer",   100,  299,  "🧭"),
-    LevelInfo(3, "여행 마니아",  "Travel Buff", 300,  699,  "✈️"),
-    LevelInfo(4, "여행 고수",    "Veteran",    700,  1499, "🌍"),
-    LevelInfo(5, "여행 마스터",  "Master",     1500, None, "👑"),
+    LevelInfo(1, "새내기 여행자", "Newbie", 0, 99, "🌱"),
+    LevelInfo(2, "탐험가", "Explorer", 100, 299, "🧭"),
+    LevelInfo(3, "여행 마니아", "Travel Buff", 300, 699, "✈️"),
+    LevelInfo(4, "여행 고수", "Veteran", 700, 1499, "🌍"),
+    LevelInfo(5, "여행 마스터", "Master", 1500, None, "👑"),
 ]
 
 
 # ── 배지 카탈로그 ───────────────────────────────────────────────────────────────
+
 
 @dataclass(frozen=True)
 class BadgeDefinition:
@@ -75,30 +78,44 @@ class BadgeDefinition:
 
 
 BADGE_CATALOG: dict[str, BadgeDefinition] = {
-    b.badge_id: b for b in [
-        BadgeDefinition("first_trip",   "첫 여행",      "First Trip",      "첫 번째 여행을 만들었어요",            "🗺️"),
-        BadgeDefinition("explorer",     "탐험가",       "Explorer",        "여행을 5개 이상 만들었어요",            "🧭"),
-        BadgeDefinition("globe_trotter","세계 여행자",  "Globe Trotter",   "여행을 10개 이상 만들었어요",           "🌍"),
-        BadgeDefinition("social",       "소셜버터플라이","Social Butterfly", "커뮤니티에 첫 글을 올렸어요",           "🦋"),
-        BadgeDefinition("influencer",   "인플루언서",   "Influencer",      "좋아요를 20개 이상 받았어요",           "⭐"),
-        BadgeDefinition("photographer", "사진작가",     "Photographer",    "이미지가 있는 글을 5개 이상 올렸어요",   "📸"),
-        BadgeDefinition("collector",    "장소 수집가",  "Collector",       "장소를 10곳 이상 저장했어요",           "❤️"),
-        BadgeDefinition("planner",      "계획왕",       "Planner",         "한 여행에 장소를 10곳 이상 추가했어요", "📋"),
-        BadgeDefinition("regular",      "단골손님",     "Regular",         "앱을 30일 이상 사용했어요",             "🏅"),
-        BadgeDefinition("night_owl",    "나이트아울",   "Night Owl",       "자정 이후에 여행을 만들었어요",          "🦉"),
+    b.badge_id: b
+    for b in [
+        BadgeDefinition("first_trip", "첫 여행", "First Trip", "첫 번째 여행을 만들었어요", "🗺️"),
+        BadgeDefinition("explorer", "탐험가", "Explorer", "여행을 5개 이상 만들었어요", "🧭"),
+        BadgeDefinition(
+            "globe_trotter", "세계 여행자", "Globe Trotter", "여행을 10개 이상 만들었어요", "🌍"
+        ),
+        BadgeDefinition(
+            "social", "소셜버터플라이", "Social Butterfly", "커뮤니티에 첫 글을 올렸어요", "🦋"
+        ),
+        BadgeDefinition(
+            "influencer", "인플루언서", "Influencer", "좋아요를 20개 이상 받았어요", "⭐"
+        ),
+        BadgeDefinition(
+            "photographer", "사진작가", "Photographer", "이미지가 있는 글을 5개 이상 올렸어요", "📸"
+        ),
+        BadgeDefinition(
+            "collector", "장소 수집가", "Collector", "장소를 10곳 이상 저장했어요", "❤️"
+        ),
+        BadgeDefinition(
+            "planner", "계획왕", "Planner", "한 여행에 장소를 10곳 이상 추가했어요", "📋"
+        ),
+        BadgeDefinition("regular", "단골손님", "Regular", "앱을 30일 이상 사용했어요", "🏅"),
+        BadgeDefinition(
+            "night_owl", "나이트아울", "Night Owl", "자정 이후에 여행을 만들었어요", "🦉"
+        ),
     ]
 }
 
 
 # ── XP 계산 ─────────────────────────────────────────────────────────────────────
 
+
 async def calculate_xp(db: AsyncSession, user_id: int) -> int:
     """사용자의 현재 총 XP를 DB에서 동적으로 계산."""
 
     # 여행 수 (50 XP each)
-    trip_count_result = await db.execute(
-        select(func.count()).where(Trip.user_id == user_id)
-    )
+    trip_count_result = await db.execute(select(func.count()).where(Trip.user_id == user_id))
     trip_count = trip_count_result.scalar() or 0
 
     # 장소 수 (10 XP each) — 본인 여행의 장소만
@@ -123,15 +140,12 @@ async def calculate_xp(db: AsyncSession, user_id: int) -> int:
 
     # 받은 좋아요 합계 (5 XP each)
     likes_result = await db.execute(
-        select(func.sum(CommunityPost.like_count))
-        .where(CommunityPost.user_id == user_id)
+        select(func.sum(CommunityPost.like_count)).where(CommunityPost.user_id == user_id)
     )
     likes_received = likes_result.scalar() or 0
 
     # 저장 장소 수 (5 XP each)
-    saved_result = await db.execute(
-        select(func.count()).where(SavedPlace.user_id == user_id)
-    )
+    saved_result = await db.execute(select(func.count()).where(SavedPlace.user_id == user_id))
     saved_count = saved_result.scalar() or 0
 
     xp = (
@@ -171,6 +185,7 @@ def get_xp_progress(xp: int) -> dict:
 
 # ── 배지 수여 ─────────────────────────────────────────────────────────────────
 
+
 async def _already_has_badge(db: AsyncSession, user_id: int, badge_id: str) -> bool:
     result = await db.execute(
         select(UserBadge).where(
@@ -199,9 +214,7 @@ async def evaluate_and_award_badges(
     newly_earned: list[str] = []
 
     # ── 여행 관련 ──
-    trip_count_result = await db.execute(
-        select(func.count()).where(Trip.user_id == user_id)
-    )
+    trip_count_result = await db.execute(select(func.count()).where(Trip.user_id == user_id))
     trip_count = trip_count_result.scalar() or 0
 
     if trip_count >= 1 and await _award(db, user_id, "first_trip"):
@@ -244,31 +257,24 @@ async def evaluate_and_award_badges(
 
     # 받은 좋아요 합계
     likes_result = await db.execute(
-        select(func.sum(CommunityPost.like_count))
-        .where(CommunityPost.user_id == user_id)
+        select(func.sum(CommunityPost.like_count)).where(CommunityPost.user_id == user_id)
     )
     likes_received = int(likes_result.scalar() or 0)
     if likes_received >= 20 and await _award(db, user_id, "influencer"):
         newly_earned.append("influencer")
 
     # ── 저장 관련 ──
-    saved_result = await db.execute(
-        select(func.count()).where(SavedPlace.user_id == user_id)
-    )
+    saved_result = await db.execute(select(func.count()).where(SavedPlace.user_id == user_id))
     saved_count = saved_result.scalar() or 0
     if saved_count >= 10 and await _award(db, user_id, "collector"):
         newly_earned.append("collector")
 
     # ── 장소 추가 (계획왕) ──
     # 단일 여행에 장소 10개 이상
-    planner_result = await db.execute(
-        select(Trip.id).where(Trip.user_id == user_id)
-    )
+    planner_result = await db.execute(select(Trip.id).where(Trip.user_id == user_id))
     trip_ids = [row[0] for row in planner_result.fetchall()]
     for tid in trip_ids:
-        loc_count_result = await db.execute(
-            select(func.count()).where(Location.trip_id == tid)
-        )
+        loc_count_result = await db.execute(select(func.count()).where(Location.trip_id == tid))
         if (loc_count_result.scalar() or 0) >= 10:
             if await _award(db, user_id, "planner"):
                 newly_earned.append("planner")
@@ -284,6 +290,7 @@ async def evaluate_and_award_badges(
 
 # ── 전체 조회 ─────────────────────────────────────────────────────────────────
 
+
 async def get_user_gamification(
     db: AsyncSession,
     user_id: int,
@@ -296,9 +303,7 @@ async def get_user_gamification(
 
     # 획득한 배지 목록
     badges_result = await db.execute(
-        select(UserBadge)
-        .where(UserBadge.user_id == user_id)
-        .order_by(UserBadge.earned_at.asc())
+        select(UserBadge).where(UserBadge.user_id == user_id).order_by(UserBadge.earned_at.asc())
     )
     earned_badges = badges_result.scalars().all()
 
@@ -306,14 +311,16 @@ async def get_user_gamification(
     for ub in earned_badges:
         defn = BADGE_CATALOG.get(ub.badge_id)
         if defn:
-            badges.append({
-                "badge_id": defn.badge_id,
-                "name_ko": defn.name_ko,
-                "name_en": defn.name_en,
-                "description_ko": defn.description_ko,
-                "emoji": defn.emoji,
-                "earned_at": ub.earned_at.isoformat(),
-            })
+            badges.append(
+                {
+                    "badge_id": defn.badge_id,
+                    "name_ko": defn.name_ko,
+                    "name_en": defn.name_en,
+                    "description_ko": defn.description_ko,
+                    "emoji": defn.emoji,
+                    "earned_at": ub.earned_at.isoformat(),
+                }
+            )
 
     # 미획득 배지 (잠금 상태로 표시용)
     earned_ids = {b["badge_id"] for b in badges}

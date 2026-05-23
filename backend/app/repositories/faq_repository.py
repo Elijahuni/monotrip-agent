@@ -9,9 +9,7 @@ from app.models.faq import Faq
 
 
 class FaqRepository:
-    async def list_published(
-        self, db: AsyncSession, *, category: str | None
-    ) -> list[Faq]:
+    async def list_published(self, db: AsyncSession, *, category: str | None) -> list[Faq]:
         """게시된 FAQ 목록. order_index 오름차순, 동률이면 id 오름차순."""
         stmt = (
             select(Faq)

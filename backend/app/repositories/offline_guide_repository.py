@@ -9,9 +9,7 @@ from app.models.offline_guide import OfflineGuide
 
 
 class OfflineGuideRepository:
-    async def list_published(
-        self, db: AsyncSession, *, city: str | None
-    ) -> list[OfflineGuide]:
+    async def list_published(self, db: AsyncSession, *, city: str | None) -> list[OfflineGuide]:
         stmt = (
             select(OfflineGuide)
             .where(OfflineGuide.is_published.is_(True))

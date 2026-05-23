@@ -23,14 +23,12 @@ async def _setup_owner_and_collaborator(client: AsyncClient, suffix: str):
     collab = await register_and_login(client, email=f"col_{suffix}@ex.com")
     owner_h = {"Authorization": f"Bearer {owner}"}
 
-    trip_id = (
-        await client.post("/trips", json={"title": "공동 여행"}, headers=owner_h)
-    ).json()["data"]["id"]
+    trip_id = (await client.post("/trips", json={"title": "공동 여행"}, headers=owner_h)).json()[
+        "data"
+    ]["id"]
 
     token = (
-        await client.post(
-            f"/trips/{trip_id}/invite", json={"role": "edit"}, headers=owner_h
-        )
+        await client.post(f"/trips/{trip_id}/invite", json={"role": "edit"}, headers=owner_h)
     ).json()["data"]["token"]
 
     await client.post(
@@ -66,9 +64,7 @@ async def test_owner_removes_collaborator(client: AsyncClient):
     owner, _collab, trip_id, collab_uid = await _setup_owner_and_collaborator(client, "rm")
     owner_h = {"Authorization": f"Bearer {owner}"}
 
-    res = await client.delete(
-        f"/trips/{trip_id}/collaborators/{collab_uid}", headers=owner_h
-    )
+    res = await client.delete(f"/trips/{trip_id}/collaborators/{collab_uid}", headers=owner_h)
     assert res.status_code == 200, res.text
 
     lst = await client.get(f"/trips/{trip_id}/collaborators", headers=owner_h)
@@ -90,9 +86,7 @@ async def test_non_owner_cannot_manage(client: AsyncClient):
     assert patch.status_code == 403
 
     # 협업자가 제거 시도 → 403
-    delete = await client.delete(
-        f"/trips/{trip_id}/collaborators/{collab_uid}", headers=collab_h
-    )
+    delete = await client.delete(f"/trips/{trip_id}/collaborators/{collab_uid}", headers=collab_h)
     assert delete.status_code == 403
 
 
@@ -100,13 +94,11 @@ async def test_non_owner_cannot_manage(client: AsyncClient):
 async def test_manage_nonexistent_collaborator_404(client: AsyncClient):
     owner = await register_and_login(client, email="own_404@ex.com")
     owner_h = {"Authorization": f"Bearer {owner}"}
-    trip_id = (
-        await client.post("/trips", json={"title": "혼자 여행"}, headers=owner_h)
-    ).json()["data"]["id"]
+    trip_id = (await client.post("/trips", json={"title": "혼자 여행"}, headers=owner_h)).json()[
+        "data"
+    ]["id"]
 
-    res = await client.delete(
-        f"/trips/{trip_id}/collaborators/999999", headers=owner_h
-    )
+    res = await client.delete(f"/trips/{trip_id}/collaborators/999999", headers=owner_h)
     assert res.status_code == 404
 
 

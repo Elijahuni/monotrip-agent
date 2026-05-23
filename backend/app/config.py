@@ -46,8 +46,8 @@ class Settings(BaseSettings):
     # ── Google OAuth ───────────────────────────────────────────────────────────
     # Google Cloud Console → API 및 서비스 → 사용자 인증 정보 → OAuth 2.0 클라이언트 ID
     # id_token audience 검증에 사용. 비어있으면 audience 검증 생략 (개발 환경)
-    google_client_id: str = ""          # Web 클라이언트 ID (audience 검증 기준)
-    google_ios_client_id: str = ""      # iOS 클라이언트 ID (expo app.json에도 입력)
+    google_client_id: str = ""  # Web 클라이언트 ID (audience 검증 기준)
+    google_ios_client_id: str = ""  # iOS 클라이언트 ID (expo app.json에도 입력)
     google_android_client_id: str = ""  # Android 클라이언트 ID
 
     # ── Apple Sign In ──────────────────────────────────────────────────────────
@@ -109,8 +109,7 @@ class Settings(BaseSettings):
                 )
             if self.admin_secret_path.endswith("change-me-now"):
                 raise ValueError(
-                    "🚨 ADMIN_SECRET_PATH가 기본값입니다. "
-                    "openssl rand -hex 12 결과로 교체하세요."
+                    "🚨 ADMIN_SECRET_PATH가 기본값입니다. openssl rand -hex 12 결과로 교체하세요."
                 )
             if self.cors_origins.strip() == "*":
                 raise ValueError(

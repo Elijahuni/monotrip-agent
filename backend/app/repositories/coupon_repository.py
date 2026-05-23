@@ -58,9 +58,7 @@ class CouponRepository:
         stmt = select(UserCoupon.coupon_id).where(UserCoupon.user_id == user_id)
         return set((await db.execute(stmt)).scalars().all())
 
-    async def add_user_coupon(
-        self, db: AsyncSession, user_id: int, coupon_id: int
-    ) -> UserCoupon:
+    async def add_user_coupon(self, db: AsyncSession, user_id: int, coupon_id: int) -> UserCoupon:
         uc = UserCoupon(user_id=user_id, coupon_id=coupon_id)
         db.add(uc)
         await db.flush()

@@ -53,7 +53,9 @@ class ConversationResponse(BaseModel):
 async def _assert_user_exists(db: DbSession, user_id: int) -> None:
     user = (await db.execute(select(User.id).where(User.id == user_id))).first()
     if user is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="대상 사용자를 찾을 수 없습니다.")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND, detail="대상 사용자를 찾을 수 없습니다."
+        )
 
 
 @router.get("/conversations", response_model=ApiResponse[list[ConversationResponse]])

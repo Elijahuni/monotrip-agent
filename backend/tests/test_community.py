@@ -182,8 +182,6 @@ async def test_report_auto_hides_after_threshold(client: AsyncClient):
     assert got.status_code == 404
 
     # 피드에서도 제외
-    feed = await client.get(
-        "/community/feed", headers={"Authorization": f"Bearer {viewer}"}
-    )
+    feed = await client.get("/community/feed", headers={"Authorization": f"Bearer {viewer}"})
     ids = {p["id"] for p in feed.json()["data"]}
     assert post["id"] not in ids

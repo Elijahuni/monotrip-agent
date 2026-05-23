@@ -98,9 +98,7 @@ async def test_broadcast_excludes_sender():
     sender.sent.clear()
     receiver.sent.clear()
 
-    await mgr.broadcast(
-        1, {"type": "location_update", "op": "create"}, exclude_ws=sender
-    )
+    await mgr.broadcast(1, {"type": "location_update", "op": "create"}, exclude_ws=sender)
 
     assert sender.sent == []
     assert {"type": "location_update", "op": "create"} in receiver.sent

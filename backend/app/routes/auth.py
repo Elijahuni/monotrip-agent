@@ -170,10 +170,14 @@ async def update_me(
     # 닉네임 중복 체크
     if body.nickname and body.nickname != current_user.nickname:
         dup = (
-            await db.execute(
-                select(User).where(User.nickname == body.nickname, User.id != current_user.id)
+            (
+                await db.execute(
+                    select(User).where(User.nickname == body.nickname, User.id != current_user.id)
+                )
             )
-        ).scalars().first()
+            .scalars()
+            .first()
+        )
         if dup:
             raise HTTPException(status_code=409, detail="이미 사용 중인 닉네임입니다.")
 
@@ -233,7 +237,9 @@ async def get_my_stats(current_user: CurrentUser, db: DbSession) -> ApiResponse[
 
 
 @router.get("/me/gamification", response_model=ApiResponse[GamificationResponse])
-async def get_my_gamification(current_user: CurrentUser, db: DbSession) -> ApiResponse[GamificationResponse]:
+async def get_my_gamification(
+    current_user: CurrentUser, db: DbSession
+) -> ApiResponse[GamificationResponse]:
     """내 XP·레벨·배지 현황을 반환하고, 새로 획득한 배지를 자동 수여."""
     # 새 배지 수여 (이미 있으면 skip) → flush만, commit은 dependency에서 처리
     await evaluate_and_award_badges(db, current_user.id, current_user.created_at)

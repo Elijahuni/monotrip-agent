@@ -34,7 +34,9 @@ async def _seed_coupon(db: AsyncSession, **kwargs) -> Coupon:
 
 
 @pytest.mark.asyncio
-async def test_available_excludes_inactive_and_expired(client: AsyncClient, db_session: AsyncSession):
+async def test_available_excludes_inactive_and_expired(
+    client: AsyncClient, db_session: AsyncSession
+):
     token = await register_and_login(client, email="cp1@ex.com")
     await _seed_coupon(db_session, code="ACTIVE", title="활성")
     await _seed_coupon(db_session, code="INACTIVE", title="비활성", is_active=False)
@@ -50,7 +52,9 @@ async def test_available_excludes_inactive_and_expired(client: AsyncClient, db_s
 
 
 @pytest.mark.asyncio
-async def test_claim_then_shows_in_my_and_marks_claimed(client: AsyncClient, db_session: AsyncSession):
+async def test_claim_then_shows_in_my_and_marks_claimed(
+    client: AsyncClient, db_session: AsyncSession
+):
     token = await register_and_login(client, email="cp2@ex.com")
     hdrs = {"Authorization": f"Bearer {token}"}
     coupon = await _seed_coupon(db_session, code="WELCOME", title="웰컴")
@@ -99,9 +103,13 @@ async def test_max_claims_exhausted_409(client: AsyncClient, db_session: AsyncSe
     t1 = await register_and_login(client, email="cp5a@ex.com")
     t2 = await register_and_login(client, email="cp5b@ex.com")
 
-    first = await client.post(f"/coupons/{coupon.id}/claim", headers={"Authorization": f"Bearer {t1}"})
+    first = await client.post(
+        f"/coupons/{coupon.id}/claim", headers={"Authorization": f"Bearer {t1}"}
+    )
     assert first.status_code == 201
-    second = await client.post(f"/coupons/{coupon.id}/claim", headers={"Authorization": f"Bearer {t2}"})
+    second = await client.post(
+        f"/coupons/{coupon.id}/claim", headers={"Authorization": f"Bearer {t2}"}
+    )
     assert second.status_code == 409
 
 

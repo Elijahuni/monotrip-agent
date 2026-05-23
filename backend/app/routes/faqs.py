@@ -44,7 +44,5 @@ async def get_faq(
 ) -> ApiResponse[FaqResponse]:
     faq = await _repo.get_published(db, faq_id)
     if faq is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="FAQ를 찾을 수 없습니다."
-        )
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="FAQ를 찾을 수 없습니다.")
     return ApiResponse(data=FaqResponse.model_validate(faq))

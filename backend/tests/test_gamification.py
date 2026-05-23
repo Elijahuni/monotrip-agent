@@ -66,9 +66,7 @@ def test_level_table_is_contiguous():
 @pytest.mark.asyncio
 async def test_fresh_user_gamification(client: AsyncClient):
     token = await register_and_login(client, email="gam_fresh@ex.com")
-    res = await client.get(
-        "/auth/me/gamification", headers={"Authorization": f"Bearer {token}"}
-    )
+    res = await client.get("/auth/me/gamification", headers={"Authorization": f"Bearer {token}"})
     assert res.status_code == 200, res.text
     data = res.json()["data"]
     assert data["xp"] == 0

@@ -9,6 +9,7 @@
   /reports      신고 게시글 목록 + 처리 (숨김/삭제/복원)
   /posts        전체 게시글 관리
 """
+
 from __future__ import annotations
 
 import ipaddress
@@ -110,6 +111,7 @@ def _verify_admin(
 
 # ── HTML 공통 레이아웃 ─────────────────────────────────────────────────────────
 
+
 def _base(title: str, body: str, path: str) -> str:
     return f"""<!DOCTYPE html>
 <html lang="ko">
@@ -162,6 +164,7 @@ def _action_btn(label: str, color: str, form_action: str, fields: dict) -> str:
 
 # ── 라우터 팩토리 (설정에서 prefix 읽음) ──────────────────────────────────────
 
+
 def create_admin_router() -> APIRouter:
     settings = get_settings()
     prefix = f"/{settings.admin_secret_path}"
@@ -207,7 +210,7 @@ def create_admin_router() -> APIRouter:
   </div>
   <div class="bg-gray-800 rounded-xl p-5 border border-gray-700">
     <h2 class="font-semibold mb-3 text-gray-200">서버 정보</h2>
-    <p class="text-sm text-gray-400">시각: {datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M UTC')}</p>
+    <p class="text-sm text-gray-400">시각: {datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")}</p>
     <p class="text-sm text-gray-400 mt-1">환경: {settings.app_env}</p>
   </div>
 </div>"""
@@ -225,9 +228,7 @@ def create_admin_router() -> APIRouter:
         PAGE_SIZE = 30
         stmt = select(User).order_by(User.created_at.desc())
         if q:
-            stmt = stmt.where(
-                (User.email.ilike(f"%{q}%")) | (User.nickname.ilike(f"%{q}%"))
-            )
+            stmt = stmt.where((User.email.ilike(f"%{q}%")) | (User.nickname.ilike(f"%{q}%")))
         if role:
             stmt = stmt.where(User.role == role)
         stmt = stmt.offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE)
@@ -235,20 +236,23 @@ def create_admin_router() -> APIRouter:
 
         role_colors = {"admin": "red", "moderator": "yellow", "user": "gray"}
 
-        rows = "".join(f"""
+        rows = "".join(
+            f"""
 <tr class="border-t border-gray-700 hover:bg-gray-750">
   <td class="px-4 py-3 text-sm">{u.id}</td>
   <td class="px-4 py-3 text-sm font-medium">{u.nickname}</td>
   <td class="px-4 py-3 text-sm text-gray-400">{u.email}</td>
   <td class="px-4 py-3 text-sm">{u.auth_provider}</td>
   <td class="px-4 py-3 text-sm">{_badge(u.role, role_colors.get(u.role, "gray"))}</td>
-  <td class="px-4 py-3 text-sm text-gray-400">{u.created_at.strftime('%y.%m.%d')}</td>
+  <td class="px-4 py-3 text-sm text-gray-400">{u.created_at.strftime("%y.%m.%d")}</td>
   <td class="px-4 py-3 text-sm">
     {_action_btn("관리자 승격", "purple", f"{prefix}/users/{u.id}/role", {"role": "admin"}) if u.role != "admin" else ""}
     {_action_btn("일반 강등", "gray", f"{prefix}/users/{u.id}/role", {"role": "user"}) if u.role == "admin" else ""}
     {_action_btn("계정 삭제", "red", f"{prefix}/users/{u.id}/delete", {}) if u.role != "admin" else ""}
   </td>
-</tr>""" for u in users)
+</tr>"""
+            for u in users
+        )
 
         body = f"""
 <div class="flex gap-3 mb-5">
@@ -257,9 +261,9 @@ def create_admin_router() -> APIRouter:
       class="flex-1 bg-gray-800 border border-gray-600 rounded-lg px-4 py-2 text-sm">
     <select name="role" class="bg-gray-800 border border-gray-600 rounded-lg px-3 py-2 text-sm">
       <option value="">전체 역할</option>
-      <option value="user" {"selected" if role=="user" else ""}>일반</option>
-      <option value="moderator" {"selected" if role=="moderator" else ""}>모더레이터</option>
-      <option value="admin" {"selected" if role=="admin" else ""}>관리자</option>
+      <option value="user" {"selected" if role == "user" else ""}>일반</option>
+      <option value="moderator" {"selected" if role == "moderator" else ""}>모더레이터</option>
+      <option value="admin" {"selected" if role == "admin" else ""}>관리자</option>
     </select>
     <button type="submit" class="px-4 py-2 bg-blue-600 rounded-lg text-sm font-semibold">검색</button>
   </form>
@@ -281,14 +285,16 @@ def create_admin_router() -> APIRouter:
   </table>
 </div>
 <div class="mt-4 flex gap-2 text-sm">
-  {"" if page <= 1 else f'<a href="?q={q}&role={role}&page={page-1}" class="px-3 py-1 bg-gray-700 rounded">← 이전</a>'}
+  {"" if page <= 1 else f'<a href="?q={q}&role={role}&page={page - 1}" class="px-3 py-1 bg-gray-700 rounded">← 이전</a>'}
   <span class="px-3 py-1 text-gray-400">{page} 페이지</span>
-  {"" if len(users) < PAGE_SIZE else f'<a href="?q={q}&role={role}&page={page+1}" class="px-3 py-1 bg-gray-700 rounded">다음 →</a>'}
+  {"" if len(users) < PAGE_SIZE else f'<a href="?q={q}&role={role}&page={page + 1}" class="px-3 py-1 bg-gray-700 rounded">다음 →</a>'}
 </div>"""
         return HTMLResponse(_base("유저 관리", body, prefix))
 
     @router.post("/users/{user_id}/role")
-    async def change_user_role(user_id: int, role: str = Form(...), db: DbSession = None) -> RedirectResponse:
+    async def change_user_role(
+        user_id: int, role: str = Form(...), db: DbSession = None
+    ) -> RedirectResponse:
         if role not in (UserRole.USER, UserRole.MODERATOR, UserRole.ADMIN):
             raise HTTPException(400, "잘못된 역할")
         await db.execute(update(User).where(User.id == user_id).values(role=role))
@@ -320,18 +326,21 @@ def create_admin_router() -> APIRouter:
             .subquery()
         )
         stmt = (
-            select(CommunityPost, User, func.coalesce(report_count_sq.c.cnt, 0).label("report_count"))
+            select(
+                CommunityPost, User, func.coalesce(report_count_sq.c.cnt, 0).label("report_count")
+            )
             .join(User, CommunityPost.user_id == User.id)
             .outerjoin(report_count_sq, CommunityPost.id == report_count_sq.c.post_id)
-            .where(
-                (report_count_sq.c.cnt > 0) | CommunityPost.is_hidden.is_(True)
+            .where((report_count_sq.c.cnt > 0) | CommunityPost.is_hidden.is_(True))
+            .order_by(
+                func.coalesce(report_count_sq.c.cnt, 0).desc(), CommunityPost.created_at.desc()
             )
-            .order_by(func.coalesce(report_count_sq.c.cnt, 0).desc(), CommunityPost.created_at.desc())
             .limit(100)
         )
         results = (await db.execute(stmt)).all()
 
-        rows = "".join(f"""
+        rows = "".join(
+            f"""
 <tr class="border-t border-gray-700 hover:bg-gray-750">
   <td class="px-4 py-3 text-sm">{post.id}</td>
   <td class="px-4 py-3 text-sm">
@@ -344,14 +353,16 @@ def create_admin_router() -> APIRouter:
   <td class="px-4 py-3 text-sm">
     {"🚫 숨김" if post.is_hidden else "✅ 정상"}
   </td>
-  <td class="px-4 py-3 text-sm text-gray-400">{post.created_at.strftime('%y.%m.%d %H:%M')}</td>
+  <td class="px-4 py-3 text-sm text-gray-400">{post.created_at.strftime("%y.%m.%d %H:%M")}</td>
   <td class="px-4 py-3 text-sm flex gap-1 flex-wrap">
     {_action_btn("숨김", "orange", f"{prefix}/posts/{post.id}/action", {"action": "hide"}) if not post.is_hidden else ""}
     {_action_btn("복원", "green", f"{prefix}/posts/{post.id}/action", {"action": "restore"}) if post.is_hidden else ""}
     {_action_btn("영구삭제", "red", f"{prefix}/posts/{post.id}/action", {"action": "delete"})}
     {_action_btn("신고초기화", "blue", f"{prefix}/posts/{post.id}/action", {"action": "reset_reports"})}
   </td>
-</tr>""" for post, author, report_count in results)
+</tr>"""
+            for post, author, report_count in results
+        )
 
         body = f"""
 <div class="mb-4 p-3 bg-yellow-900/30 border border-yellow-700 rounded-lg text-sm text-yellow-300">
@@ -398,7 +409,8 @@ def create_admin_router() -> APIRouter:
         stmt = stmt.offset((page - 1) * PAGE_SIZE).limit(PAGE_SIZE)
         results = (await db.execute(stmt)).all()
 
-        rows = "".join(f"""
+        rows = "".join(
+            f"""
 <tr class="border-t border-gray-700 hover:bg-gray-750">
   <td class="px-4 py-3 text-sm">{post.id}</td>
   <td class="px-4 py-3 text-sm">
@@ -409,13 +421,15 @@ def create_admin_router() -> APIRouter:
     ❤️ {post.like_count} · 🚩 {post.report_count}
   </td>
   <td class="px-4 py-3 text-sm">{"🚫 숨김" if post.is_hidden else "✅ 정상"}</td>
-  <td class="px-4 py-3 text-sm text-gray-400">{post.created_at.strftime('%y.%m.%d')}</td>
+  <td class="px-4 py-3 text-sm text-gray-400">{post.created_at.strftime("%y.%m.%d")}</td>
   <td class="px-4 py-3 text-sm flex gap-1 flex-wrap">
     {_action_btn("숨김", "orange", f"{prefix}/posts/{post.id}/action", {"action": "hide"}) if not post.is_hidden else ""}
     {_action_btn("복원", "green", f"{prefix}/posts/{post.id}/action", {"action": "restore"}) if post.is_hidden else ""}
     {_action_btn("삭제", "red", f"{prefix}/posts/{post.id}/action", {"action": "delete"})}
   </td>
-</tr>""" for post, author in results)
+</tr>"""
+            for post, author in results
+        )
 
         body = f"""
 <div class="flex gap-3 mb-5">
@@ -445,9 +459,9 @@ def create_admin_router() -> APIRouter:
   </table>
 </div>
 <div class="mt-4 flex gap-2 text-sm">
-  {"" if page <= 1 else f'<a href="?q={q}&hidden={hidden}&page={page-1}" class="px-3 py-1 bg-gray-700 rounded">← 이전</a>'}
+  {"" if page <= 1 else f'<a href="?q={q}&hidden={hidden}&page={page - 1}" class="px-3 py-1 bg-gray-700 rounded">← 이전</a>'}
   <span class="px-3 py-1 text-gray-400">{page} 페이지</span>
-  {"" if len(results) < PAGE_SIZE else f'<a href="?q={q}&hidden={hidden}&page={page+1}" class="px-3 py-1 bg-gray-700 rounded">다음 →</a>'}
+  {"" if len(results) < PAGE_SIZE else f'<a href="?q={q}&hidden={hidden}&page={page + 1}" class="px-3 py-1 bg-gray-700 rounded">다음 →</a>'}
 </div>"""
         return HTMLResponse(_base("게시글 관리", body, prefix))
 
@@ -457,7 +471,11 @@ def create_admin_router() -> APIRouter:
         action: str = Form(...),
         db: DbSession = None,
     ) -> RedirectResponse:
-        post = (await db.execute(select(CommunityPost).where(CommunityPost.id == post_id))).scalars().first()
+        post = (
+            (await db.execute(select(CommunityPost).where(CommunityPost.id == post_id)))
+            .scalars()
+            .first()
+        )
         if not post:
             raise HTTPException(404, "게시글을 찾을 수 없습니다.")
 
@@ -473,8 +491,14 @@ def create_admin_router() -> APIRouter:
         elif action == "reset_reports":
             # CommunityReport 테이블에서 해당 게시글의 신고 기록 삭제
             reports_to_del = (
-                await db.execute(select(CommunityReport).where(CommunityReport.post_id == post_id))
-            ).scalars().all()
+                (
+                    await db.execute(
+                        select(CommunityReport).where(CommunityReport.post_id == post_id)
+                    )
+                )
+                .scalars()
+                .all()
+            )
             for r in reports_to_del:
                 await db.delete(r)
             post.is_hidden = False

@@ -204,10 +204,7 @@ async def upsert_apple_user(
     )
     if existing:
         # full_name은 최초 로그인에만 넘어옴 — 기존 닉네임이 placeholder면 업데이트
-        if full_name and (
-            not existing.nickname
-            or existing.nickname.startswith("애플유저")
-        ):
+        if full_name and (not existing.nickname or existing.nickname.startswith("애플유저")):
             existing.nickname = full_name
             await db.flush()
         return existing
@@ -215,11 +212,7 @@ async def upsert_apple_user(
     # 2) 같은 email의 기존 사용자 → Apple로 연동
     email = profile.get("email")
     if email:
-        same_email = (
-            (await db.execute(select(User).where(User.email == email)))
-            .scalars()
-            .first()
-        )
+        same_email = (await db.execute(select(User).where(User.email == email))).scalars().first()
         if same_email:
             same_email.auth_provider = "apple"
             same_email.provider_user_id = pid

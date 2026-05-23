@@ -105,9 +105,7 @@ class RentalProvider(ABC):
     name: str
 
     @abstractmethod
-    async def search(
-        self, q: RentalCarSearchQuery, rental_days: int
-    ) -> list[RentalCarOffer]: ...
+    async def search(self, q: RentalCarSearchQuery, rental_days: int) -> list[RentalCarOffer]: ...
 
 
 class MockRentalProvider(RentalProvider):
@@ -115,9 +113,7 @@ class MockRentalProvider(RentalProvider):
 
     name = "mock"
 
-    async def search(
-        self, q: RentalCarSearchQuery, rental_days: int
-    ) -> list[RentalCarOffer]:
+    async def search(self, q: RentalCarSearchQuery, rental_days: int) -> list[RentalCarOffer]:
         return _mock_rental_offers(q, rental_days)
 
 

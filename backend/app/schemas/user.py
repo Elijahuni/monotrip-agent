@@ -58,6 +58,7 @@ class UserStatsResponse(BaseModel):
 
 # ── 게이미피케이션 ────────────────────────────────────────────────────────────
 
+
 class BadgeItem(BaseModel):
     badge_id: str
     name_ko: str
@@ -73,8 +74,8 @@ class GamificationResponse(BaseModel):
     level_title_ko: str
     level_title_en: str
     level_emoji: str
-    xp_current: int       # 현재 레벨 내 진행 XP
-    xp_required: int      # 다음 레벨까지 필요 총 XP (최고 레벨이면 0)
-    xp_percentage: int    # 0~100
-    badges: list[BadgeItem]          # 획득한 배지
-    locked_badges: list[BadgeItem]   # 미획득 배지
+    xp_current: int  # 현재 레벨 내 진행 XP
+    xp_required: int  # 다음 레벨까지 필요 총 XP (최고 레벨이면 0)
+    xp_percentage: int  # 0~100
+    badges: list[BadgeItem]  # 획득한 배지
+    locked_badges: list[BadgeItem]  # 미획득 배지
