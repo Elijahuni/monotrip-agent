@@ -86,6 +86,7 @@ export interface SavedPlace {
 export interface CommunityPost {
   id: number;
   user_id: number;
+  post_type: 'regular' | 'live';
   category: 'qna' | 'review' | 'photospot';
   city: string | null;
   title: string;
@@ -93,7 +94,42 @@ export interface CommunityPost {
   images: string[] | null;
   like_count: number;
   comment_count: number;
+  expires_at: string | null;   // live 게시글 만료 시각 (ISO datetime)
   created_at: string;
+}
+
+export interface TrendingPost extends CommunityPost {
+  nickname: string;
+  profile_image_url: string | null;
+}
+
+export interface UserStats {
+  trip_count: number;
+  saved_count: number;
+  post_count: number;
+  review_count: number;
+}
+
+export interface BadgeItem {
+  badge_id: string;
+  name_ko: string;
+  name_en: string;
+  description_ko: string;
+  emoji: string;
+  earned_at: string | null; // ISO string or null if locked
+}
+
+export interface Gamification {
+  xp: number;
+  level: number;
+  level_title_ko: string;
+  level_title_en: string;
+  level_emoji: string;
+  xp_current: number;
+  xp_required: number;
+  xp_percentage: number;
+  badges: BadgeItem[];
+  locked_badges: BadgeItem[];
 }
 
 export interface CommunityComment {
@@ -225,4 +261,167 @@ export interface DestinationGuide {
   top_areas: { name: string; description: string }[];
   must_eat: string[];
   tips: string[];
+}
+
+// ─── 공지사항 ─────────────────────────────────────────────────────────────────
+
+export type NoticeCategory = 'general' | 'event' | 'maintenance' | 'update';
+
+export interface NoticeListItem {
+  id: number;
+  category: NoticeCategory;
+  title: string;
+  is_pinned: boolean;
+  published_at: string;
+}
+
+export interface NoticeDetail extends NoticeListItem {
+  body: string;
+}
+
+// ─── 고객센터 FAQ ─────────────────────────────────────────────────────────────
+
+export type FaqCategory = 'general' | 'account' | 'booking' | 'payment' | 'travel' | 'etc';
+
+export interface FaqItem {
+  id: number;
+  category: FaqCategory;
+  question: string;
+  answer: string;
+}
+
+// ─── 쿠폰 ─────────────────────────────────────────────────────────────────────
+
+export type CouponDiscountType = 'percent' | 'amount';
+export type MyCouponStatus = 'available' | 'used' | 'expired';
+
+export interface AvailableCoupon {
+  id: number;
+  code: string;
+  title: string;
+  description: string | null;
+  discount_type: CouponDiscountType;
+  discount_value: number;
+  min_order_amount: number;
+  valid_until: string | null;
+  already_claimed: boolean;
+}
+
+export interface MyCoupon {
+  user_coupon_id: number;
+  coupon_id: number;
+  code: string;
+  title: string;
+  description: string | null;
+  discount_type: CouponDiscountType;
+  discount_value: number;
+  min_order_amount: number;
+  valid_until: string | null;
+  status: MyCouponStatus;
+  claimed_at: string;
+  used_at: string | null;
+}
+
+// ─── 오프라인 가이드 ───────────────────────────────────────────────────────────
+
+export interface OfflineGuideSection {
+  heading: string;
+  body: string;
+}
+
+export interface OfflineGuideListItem {
+  id: number;
+  city: string;
+  country: string;
+  title: string;
+  summary: string;
+  cover_image: string | null;
+  language: string;
+  file_size_kb: number;
+  version: number;
+  updated_at: string;
+}
+
+export interface OfflineGuideDetail extends OfflineGuideListItem {
+  sections: OfflineGuideSection[];
+}
+
+// ─── 투어·티켓 메타서치 ─────────────────────────────────────────────────────────
+
+export type TourCategory = 'activity' | 'attraction' | 'tour' | 'transport' | 'show' | 'food';
+
+export interface TourOffer {
+  id: string;
+  title: string;
+  category: TourCategory;
+  city: string;
+  price_krw: number;
+  currency: string;
+  duration_hours: number | null;
+  rating: number | null;
+  review_count: number | null;
+  thumbnail: string | null;
+  instant_confirmation: boolean;
+  free_cancellation: boolean;
+  deeplink: string;
+  affiliate_source: string;
+}
+
+export interface TourSearchResult {
+  offers: TourOffer[];
+  providers_succeeded: string[];
+  providers_failed: string[];
+  data_source: 'live' | 'mock';
+}
+
+// ─── 렌터카·보험 메타서치 ───────────────────────────────────────────────────────
+
+export type CarClass = 'economy' | 'compact' | 'midsize' | 'suv' | 'van' | 'luxury';
+export type InsuranceLevel = 'none' | 'basic' | 'full';
+
+export interface RentalCarOffer {
+  id: string;
+  vendor: string;
+  car_class: CarClass;
+  car_model: string;
+  transmission: string;
+  seats: number;
+  price_per_day_krw: number;
+  total_price_krw: number;
+  currency: string;
+  insurance_level: InsuranceLevel;
+  insurance_included: boolean;
+  insurance_price_krw: number;
+  free_cancellation: boolean;
+  unlimited_mileage: boolean;
+  deeplink: string;
+  affiliate_source: string;
+}
+
+export interface RentalCarSearchResult {
+  offers: RentalCarOffer[];
+  providers_succeeded: string[];
+  providers_failed: string[];
+  rental_days: number;
+  data_source: 'live' | 'mock';
+}
+
+// ─── 다이렉트 메시지 (DM) ──────────────────────────────────────────────────────
+
+export interface DmMessage {
+  id: number;
+  sender_id: number;
+  recipient_id: number;
+  body: string;
+  read_at: string | null;
+  created_at: string;
+}
+
+export interface DmConversation {
+  other_user_id: number;
+  other_nickname: string | null;
+  last_message: string;
+  last_at: string;
+  last_from_me: boolean;
+  unread_count: number;
 }

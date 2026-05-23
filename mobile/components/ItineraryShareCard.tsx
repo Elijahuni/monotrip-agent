@@ -11,7 +11,8 @@
 
 import { forwardRef, useImperativeHandle, useRef } from 'react';
 import { Share, StyleSheet, Text, View } from 'react-native';
-import ViewShot, { captureRef, type ViewShotRef } from 'react-native-view-shot';
+import ViewShot, { captureRef } from 'react-native-view-shot';
+import type ViewShotRef from 'react-native-view-shot';
 
 import { palette } from '@/lib/design-tokens';
 import type { Location, Trip } from '@/lib/types';

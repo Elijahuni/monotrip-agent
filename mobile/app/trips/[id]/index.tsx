@@ -19,13 +19,15 @@ import Toast from 'react-native-toast-message';
 
 import { ItineraryShareCard, type ItineraryShareCardRef } from '@/components/ItineraryShareCard';
 import { WeatherWidget } from '@/components/WeatherWidget';
+import { BottomSheet } from '@/components/ui';
+import { exportTripIcs, exportTripPdf } from '@/lib/export-itinerary';
 import { AddLocationModal, type LocForm } from '@/components/trips/AddLocationModal';
 import { BudgetCard } from '@/components/trips/BudgetCard';
 import { ChecklistSection } from '@/components/trips/ChecklistSection';
 import { DaySectionHeader } from '@/components/trips/DaySectionHeader';
 import { RichLocationCard } from '@/components/trips/RichLocationCard';
 import { api } from '@/lib/api';
-import { palette } from '@/lib/design-tokens';
+import { palette, useThemedColors } from '@/lib/design-tokens';
 import { openFlightSearch } from '@/lib/flight-links';
 import { queryKeys } from '@/lib/queries/client';
 import { useDeleteLocation, useDeleteTrip, useTrip } from '@/lib/queries';
@@ -53,6 +55,8 @@ export default function TripDetailScreen() {
   const loading = tripQuery.isPending;
 
   const [selectedDay, setSelectedDay] = useState<number | 'all'>('all');
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
   const [defaultDay, setDefaultDay] = useState(1);
   const [editingLoc, setEditingLoc] = useState<Location | null>(null);
@@ -116,11 +120,7 @@ export default function TripDetailScreen() {
     };
   }, [tripId, qc]);
 
-  const bgBase = isDark ? '#0D0D18' : '#F7F9FC';
-  const bgSurf = isDark ? '#141420' : '#FFFFFF';
-  const txP    = isDark ? '#ECEDEE' : '#1A1A1A';
-  const txSc   = isDark ? '#9BA7B5' : '#5A6474';
-  const bord   = isDark ? '#2A2A3E' : '#E8ECF2';
+  const colors = useThemedColors();
 
   function totalDays() {
     if (trip?.start_date && trip?.end_date) {
@@ -248,38 +248,17 @@ export default function TripDetailScreen() {
     } catch { Alert.alert(lang === 'ko' ? '공유 실패' : 'Share failed'); }
   }
 
-  async function handleInviteCollaborator() {
+  async function handleExport(kind: 'pdf' | 'ics') {
+    if (!trip) return;
+    setExporting(true);
     try {
-      const { share_url } = await api.collaboration.createInvite(tripId, 'edit');
-      const title = trip?.title?.trim() || (lang === 'ko' ? '여행' : 'Trip');
-      const period = trip?.start_date && trip?.end_date
-        ? `${formatDate(trip.start_date, lang)} ~ ${formatDate(trip.end_date, lang)}`
-        : '';
-      const locCount = locations.length;
-      const message = lang === 'ko'
-        ? [
-            `✈️ ${title} 함께 짜요`,
-            period && `📅 ${period}`,
-            locCount > 0 && `📍 ${locCount}곳 추가됨`,
-            '',
-            '👇 링크를 누르면 같이 편집할 수 있어요 (7일 후 만료)',
-            share_url,
-          ].filter(Boolean).join('\n')
-        : [
-            `✈️ Let's plan "${title}" together`,
-            period && `📅 ${period}`,
-            locCount > 0 && `📍 ${locCount} places added`,
-            '',
-            '👇 Tap to co-edit (expires in 7 days)',
-            share_url,
-          ].filter(Boolean).join('\n');
-      await Share.share({
-        message,
-        title: lang === 'ko' ? '여행 함께 짜기 초대' : 'Trip co-planning invite',
-      });
-    } catch (e: unknown) {
-      const err = e as { response?: { data?: { message?: string } }; message?: string };
-      Alert.alert(err?.response?.data?.message ?? '초대 링크 생성 실패');
+      if (kind === 'pdf') await exportTripPdf(trip, locations, lang);
+      else await exportTripIcs(trip, locations);
+      setExportOpen(false);
+    } catch {
+      Alert.alert(lang === 'ko' ? '내보내기 실패' : 'Export failed');
+    } finally {
+      setExporting(false);
     }
   }
 
@@ -294,9 +273,9 @@ export default function TripDetailScreen() {
 
   if (loading) {
     return (
-      <View style={[S.centered, { backgroundColor: bgBase, paddingTop: insets.top }]}>
+      <View style={[S.centered, { backgroundColor: colors.bgBase, paddingTop: insets.top }]}>
         <ActivityIndicator color={palette.coral500} size="large" />
-        <Text style={{ color: txSc, fontSize: 14, marginTop: 12 }}>
+        <Text style={{ color: colors.txSecondary, fontSize: 14, marginTop: 12 }}>
           {lang === 'ko' ? '여행 정보를 불러오는 중...' : 'Loading trip...'}
         </Text>
       </View>
@@ -305,9 +284,9 @@ export default function TripDetailScreen() {
 
   if (!trip) {
     return (
-      <View style={[S.centered, { backgroundColor: bgBase, paddingTop: insets.top }]}>
+      <View style={[S.centered, { backgroundColor: colors.bgBase, paddingTop: insets.top }]}>
         <Text style={{ fontSize: 48, marginBottom: 16 }}>🧭</Text>
-        <Text style={{ fontSize: 18, fontWeight: '700', color: txP, marginBottom: 8 }}>
+        <Text style={{ fontSize: 18, fontWeight: '700', color: colors.txPrimary, marginBottom: 8 }}>
           {lang === 'ko' ? '여행을 찾을 수 없어요' : 'Trip not found'}
         </Text>
         <TouchableOpacity
@@ -320,16 +299,16 @@ export default function TripDetailScreen() {
   }
 
   return (
-    <View style={[S.wrap, { backgroundColor: bgBase }]}>
+    <View style={[S.wrap, { backgroundColor: colors.bgBase }]}>
       {/* 헤더 */}
-      <View style={[S.hdr, { paddingTop: insets.top + 8, backgroundColor: bgSurf, borderBottomColor: bord }]}>
+      <View style={[S.hdr, { paddingTop: insets.top + 8, backgroundColor: colors.bgSurface, borderBottomColor: colors.lineDefault }]}>
         <TouchableOpacity onPress={() => router.back()} style={S.backBtn}>
-          <Ionicons name="chevron-back" size={24} color={txP} />
+          <Ionicons name="chevron-back" size={24} color={colors.txPrimary} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={[S.hdrTitle, { color: txP }]} numberOfLines={1}>{trip.title}</Text>
+          <Text style={[S.hdrTitle, { color: colors.txPrimary }]} numberOfLines={1}>{trip.title}</Text>
           {(trip.start_date || trip.end_date) && (
-            <Text style={{ color: txSc, fontSize: 12, marginTop: 2 }}>
+            <Text style={{ color: colors.txSecondary, fontSize: 12, marginTop: 2 }}>
               {formatDate(trip.start_date, lang)}{trip.end_date ? ` → ${formatDate(trip.end_date, lang)}` : ''}
             </Text>
           )}
@@ -343,7 +322,14 @@ export default function TripDetailScreen() {
           <Text style={{ fontSize: 18 }}>📸</Text>
         </TouchableOpacity>
         <TouchableOpacity onPress={handleShare} style={S.iconBtn}>
-          <Ionicons name="share-outline" size={20} color={txP} />
+          <Ionicons name="share-outline" size={20} color={colors.txPrimary} />
+        </TouchableOpacity>
+        <TouchableOpacity
+          onPress={() => setExportOpen(true)}
+          style={S.iconBtn}
+          accessibilityRole="button"
+          accessibilityLabel={lang === 'ko' ? '일정 내보내기' : 'Export itinerary'}>
+          <Ionicons name="download-outline" size={20} color={colors.txPrimary} />
         </TouchableOpacity>
         {/* presence — 나 외 활성 협업자 아바타 (있을 때만) */}
         <PresenceStack
@@ -352,8 +338,8 @@ export default function TripDetailScreen() {
           myUserId={myUserId}
           size={26}
         />
-        <TouchableOpacity onPress={handleInviteCollaborator} style={S.iconBtn}>
-          <Ionicons name="people-outline" size={20} color={txP} />
+        <TouchableOpacity onPress={() => router.push(`/trips/${tripId}/collaborators`)} style={S.iconBtn}>
+          <Ionicons name="people-outline" size={20} color={colors.txPrimary} />
         </TouchableOpacity>
         <TouchableOpacity onPress={handleDeleteTrip} style={S.iconBtn}>
           <Ionicons name="trash-outline" size={20} color="#E74C3C" />
@@ -405,20 +391,20 @@ export default function TripDetailScreen() {
             {days > 1 && (
               <ScrollView
                 horizontal showsHorizontalScrollIndicator={false}
-                style={[S.dayTabs, { backgroundColor: bgSurf, borderBottomColor: bord }]}
+                style={[S.dayTabs, { backgroundColor: colors.bgSurface, borderBottomColor: colors.lineDefault }]}
                 contentContainerStyle={{ paddingHorizontal: 16, gap: 8 }}>
                 <TouchableOpacity
                   onPress={() => setSelectedDay('all')}
-                  style={[S.dayTab, { backgroundColor: selectedDay === 'all' ? palette.coral500 : (isDark ? '#1E1E2E' : '#F0F4FF') }]}>
-                  <Text style={[S.dayTabTx, { color: selectedDay === 'all' ? '#fff' : txSc }]}>
+                  style={[S.dayTab, { backgroundColor: selectedDay === 'all' ? palette.coral500 : (colors.bgSubtle) }]}>
+                  <Text style={[S.dayTabTx, { color: selectedDay === 'all' ? '#fff' : colors.txSecondary }]}>
                     {lang === 'ko' ? '전체' : 'All'}
                   </Text>
                 </TouchableOpacity>
                 {Array.from({ length: days }, (_, i) => i + 1).map((d) => (
                   <TouchableOpacity
                     key={d} onPress={() => setSelectedDay(d)}
-                    style={[S.dayTab, { backgroundColor: selectedDay === d ? palette.coral500 : (isDark ? '#1E1E2E' : '#F0F4FF') }]}>
-                    <Text style={[S.dayTabTx, { color: selectedDay === d ? '#fff' : txSc }]}>Day {d}</Text>
+                    style={[S.dayTab, { backgroundColor: selectedDay === d ? palette.coral500 : (colors.bgSubtle) }]}>
+                    <Text style={[S.dayTabTx, { color: selectedDay === d ? '#fff' : colors.txSecondary }]}>Day {d}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -432,12 +418,12 @@ export default function TripDetailScreen() {
                 style={{
                   flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6,
                   borderRadius: 14, paddingVertical: 12,
-                  backgroundColor: isDark ? '#0D2040' : '#EBF4FF',
-                  borderWidth: 1, borderColor: isDark ? '#1A4070' : '#BAD8F8',
+                  backgroundColor: colors.accentBg,
+                  borderWidth: 1, borderColor: colors.accentText,
                 }}
                 activeOpacity={0.85}>
                 <Text style={{ fontSize: 16 }}>✈️</Text>
-                <Text style={{ color: isDark ? '#7EC8F8' : '#1A6EBB', fontWeight: '700', fontSize: 14 }}>
+                <Text style={{ color: colors.accentText, fontWeight: '700', fontSize: 14 }}>
                   {lang === 'ko' ? '항공권 최저가 검색' : 'Search Cheap Flights'}
                 </Text>
               </TouchableOpacity>
@@ -461,7 +447,7 @@ export default function TripDetailScreen() {
             <ChecklistSection tripId={tripId} isDark={isDark} lang={lang} />
 
             <View style={{ paddingHorizontal: 16, paddingTop: 16, paddingBottom: 4 }}>
-              <Text style={{ color: txP, fontSize: 16, fontWeight: '700' }}>
+              <Text style={{ color: colors.txPrimary, fontSize: 16, fontWeight: '700' }}>
                 {lang === 'ko' ? '📍 여행 일정' : '📍 Itinerary'}
               </Text>
             </View>
@@ -499,10 +485,10 @@ export default function TripDetailScreen() {
         ListEmptyComponent={() => (
           <View style={S.empty}>
             <Text style={{ fontSize: 48 }}>🗺️</Text>
-            <Text style={[S.emptyTitle, { color: txP }]}>
+            <Text style={[S.emptyTitle, { color: colors.txPrimary }]}>
               {lang === 'ko' ? '아직 장소가 없어요' : 'No places yet'}
             </Text>
-            <Text style={[S.emptyDesc, { color: txSc }]}>
+            <Text style={[S.emptyDesc, { color: colors.txSecondary }]}>
               {lang === 'ko' ? '+ 버튼을 눌러 첫 장소를 추가해보세요' : 'Tap + to add your first place'}
             </Text>
           </View>
@@ -550,6 +536,34 @@ export default function TripDetailScreen() {
 
       {/* 일정 이미지 공유 카드 (화면 밖 렌더링) */}
       <ItineraryShareCard ref={shareCardRef} trip={trip} locations={locations} />
+
+      {/* 내보내기 선택 시트 (PDF / 캘린더) */}
+      <BottomSheet
+        visible={exportOpen}
+        onClose={() => setExportOpen(false)}
+        title={lang === 'ko' ? '일정 내보내기' : 'Export itinerary'}
+        subtitle={lang === 'ko' ? '형식을 선택하세요' : 'Choose a format'}
+        dismissible={!exporting}>
+        {([
+          { kind: 'pdf' as const, icon: 'document-text-outline' as const, label: 'PDF', desc: lang === 'ko' ? '문서로 저장·공유' : 'Save / share as document' },
+          { kind: 'ics' as const, icon: 'calendar-outline' as const, label: lang === 'ko' ? '캘린더 (.ics)' : 'Calendar (.ics)', desc: lang === 'ko' ? '캘린더 앱으로 가져오기' : 'Import to calendar app' },
+        ]).map((opt) => (
+          <TouchableOpacity
+            key={opt.kind}
+            disabled={exporting}
+            onPress={() => handleExport(opt.kind)}
+            accessibilityRole="button"
+            accessibilityLabel={opt.label}
+            style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 14, borderBottomWidth: 1, borderBottomColor: colors.lineDefault, opacity: exporting ? 0.5 : 1 }}>
+            <Ionicons name={opt.icon} size={22} color={palette.coral500} style={{ marginRight: 14 }} />
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: colors.txPrimary, fontSize: 15, fontWeight: '700' }}>{opt.label}</Text>
+              <Text style={{ color: colors.txTertiary, fontSize: 12, marginTop: 2 }}>{opt.desc}</Text>
+            </View>
+            <Ionicons name="chevron-forward" size={18} color={colors.txTertiary} />
+          </TouchableOpacity>
+        ))}
+      </BottomSheet>
     </View>
   );
 }

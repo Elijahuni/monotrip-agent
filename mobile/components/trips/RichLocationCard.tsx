@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Image as ExpoImage } from 'expo-image';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-import { palette } from '@/lib/design-tokens';
+import { palette, useThemedColors } from '@/lib/design-tokens';
 import { categoryEmoji } from '@/lib/trip-utils';
 import type { Location } from '@/lib/types';
 
@@ -20,20 +20,18 @@ interface RichLocationCardProps {
 }
 
 export function RichLocationCard({
-  loc, isDark, onDelete, onEdit, onMoveUp, onMoveDown, canMoveUp, canMoveDown,
+  loc, isDark: _isDark, onDelete, onEdit, onMoveUp, onMoveDown, canMoveUp, canMoveDown,
   highlighted = false,
 }: RichLocationCardProps) {
-  const bgS  = isDark ? '#141420' : '#FFFFFF';
-  const txP  = isDark ? '#ECEDEE' : '#1A1A1A';
-  const txSc = isDark ? '#9BA7B5' : '#5A6474';
-  const bord = highlighted ? palette.coral500 : (isDark ? '#2A2A3E' : '#E8ECF2');
+  const colors = useThemedColors();
+  const bord = highlighted ? palette.coral500 : colors.lineDefault;
   const stars = loc.rating
     ? '★'.repeat(Math.round(loc.rating)) + '☆'.repeat(5 - Math.round(loc.rating))
     : null;
   const images = loc.images ?? [];
 
   return (
-    <View style={[S.locCard, { backgroundColor: bgS, borderColor: bord, borderWidth: highlighted ? 2 : 1 }]}>
+    <View style={[S.locCard, { backgroundColor: colors.bgSurface, borderColor: bord, borderWidth: highlighted ? 2 : 1 }]}>
       {/* 순서 배지 + 이동 */}
       <View style={{ alignItems: 'center', gap: 4, marginTop: 2 }}>
         <TouchableOpacity onPress={onMoveUp} disabled={!canMoveUp}
@@ -53,17 +51,17 @@ export function RichLocationCard({
       <View style={{ flex: 1 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
           <Text style={{ fontSize: 18 }}>{categoryEmoji(loc.category)}</Text>
-          <Text style={[S.locName, { color: txP }]} numberOfLines={1}>{loc.name}</Text>
+          <Text style={[S.locName, { color: colors.txPrimary }]} numberOfLines={1}>{loc.name}</Text>
         </View>
-        <Text style={[S.locAddr, { color: txSc }]} numberOfLines={1}>{loc.address}</Text>
+        <Text style={[S.locAddr, { color: colors.txSecondary }]} numberOfLines={1}>{loc.address}</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
           {stars && (
-            <View style={[S.badge, { backgroundColor: isDark ? '#1E1E2E' : '#FFF8E1' }]}>
+            <View style={[S.badge, { backgroundColor: colors.bgSubtle }]}>
               <Text style={{ color: '#F39C12', fontSize: 11 }}>{stars}</Text>
             </View>
           )}
           {loc.estimated_minutes != null && (
-            <View style={[S.badge, { backgroundColor: isDark ? '#1E1E2E' : '#FFF0F0' }]}>
+            <View style={[S.badge, { backgroundColor: colors.bgSubtle }]}>
               <Ionicons name="time-outline" size={11} color={palette.coral500} />
               <Text style={{ color: palette.coral500, fontSize: 11, marginLeft: 3 }}>
                 {loc.estimated_minutes >= 60
@@ -73,7 +71,7 @@ export function RichLocationCard({
             </View>
           )}
           {loc.budget_per_person != null && (
-            <View style={[S.badge, { backgroundColor: isDark ? '#1E1E2E' : '#EAFAF1' }]}>
+            <View style={[S.badge, { backgroundColor: colors.bgSubtle }]}>
               <Text style={{ color: '#27AE60', fontSize: 11 }}>₩{loc.budget_per_person.toLocaleString()}</Text>
             </View>
           )}
@@ -86,14 +84,14 @@ export function RichLocationCard({
               ))}
               {images.length > 4 && (
                 <View style={{ width: 56, height: 56, borderRadius: 8, backgroundColor: bord, justifyContent: 'center', alignItems: 'center' }}>
-                  <Text style={{ color: txSc, fontSize: 11, fontWeight: '700' }}>+{images.length - 4}</Text>
+                  <Text style={{ color: colors.txSecondary, fontSize: 11, fontWeight: '700' }}>+{images.length - 4}</Text>
                 </View>
               )}
             </View>
           </ScrollView>
         )}
         {loc.notes ? (
-          <Text style={[S.locNotes, { color: txSc }]} numberOfLines={2}>{loc.notes}</Text>
+          <Text style={[S.locNotes, { color: colors.txSecondary }]} numberOfLines={2}>{loc.notes}</Text>
         ) : null}
       </View>
 

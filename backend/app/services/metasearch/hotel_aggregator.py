@@ -6,11 +6,12 @@ import time
 
 from app.schemas.metasearch import HotelOffer, HotelSearchQuery, HotelSearchResult
 
-from .providers import HotelProvider, MockHotelProvider
+from .providers import HotelProvider, build_hotel_providers
 
 logger = logging.getLogger(__name__)
 
-_PROVIDERS: list[HotelProvider] = [MockHotelProvider()]
+# 실제 API 키가 있으면 BookingProvider 포함, 없으면 MockHotelProvider만 사용.
+_PROVIDERS: list[HotelProvider] = build_hotel_providers()
 _CACHE: dict[str, tuple[float, HotelSearchResult]] = {}
 _CACHE_TTL = 15 * 60
 

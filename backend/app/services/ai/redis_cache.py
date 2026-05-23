@@ -27,18 +27,52 @@ try:
 except ImportError:
     _REDIS_LIB = False
 
+# 프로세스 전역 공유 클라이언트 — redis.asyncio.from_url 은 내부적으로 커넥션 풀을
+# 갖는다. 호출마다 새로 만들고 닫으면 연결 churn이 발생하므로 한 번만 생성해 재사용한다.
+_client: "aioredis.Redis | None" = None
+_init_attempted = False
+
 
 def _get_client() -> "aioredis.Redis | None":
+    global _client, _init_attempted
     from app.config import get_settings
 
     settings = get_settings()
     if not settings.redis_url or not _REDIS_LIB:
         return None
-    try:
-        return aioredis.from_url(settings.redis_url, decode_responses=True)
-    except Exception as exc:
-        logger.warning("Redis 연결 실패: %s", exc)
-        return None
+    if _client is None and not _init_attempted:
+        _init_attempted = True
+        try:
+            _client = aioredis.from_url(
+                settings.redis_url,
+                decode_responses=True,
+                max_connections=10,
+            )
+        except Exception as exc:
+            logger.warning("Redis 연결 실패: %s", exc)
+            _client = None
+    return _client
+
+
+def get_shared_redis() -> "aioredis.Redis | None":
+    """프로세스 공유 Redis 클라이언트 반환(미설정 시 None).
+
+    AI 캐시 외에 분산 락 등 다른 Redis 유틸리티가 동일 풀을 재사용하도록 공개.
+    """
+    return _get_client()
+
+
+async def aclose_cache_client() -> None:
+    """앱 종료 시 공유 Redis 클라이언트/풀을 정리. 미연결이면 no-op."""
+    global _client, _init_attempted
+    if _client is not None:
+        try:
+            await _client.aclose()
+        except Exception as exc:
+            logger.warning("Redis 종료 실패: %s", exc)
+        finally:
+            _client = None
+            _init_attempted = False
 
 
 def _prompt_key(prompt: str) -> str:
@@ -67,8 +101,6 @@ async def get_cached_response(prompt: str) -> str | None:
     except Exception as exc:
         logger.warning("AI 캐시 get 실패: %s", exc)
         return None
-    finally:
-        await client.aclose()
 
 
 async def set_cached_response(prompt: str, response: str) -> None:
@@ -81,8 +113,6 @@ async def set_cached_response(prompt: str, response: str) -> None:
         await client.setex(key, _RESPONSE_TTL, response)
     except Exception as exc:
         logger.warning("AI 캐시 set 실패: %s", exc)
-    finally:
-        await client.aclose()
 
 
 # ─── 사용자 최근 추천 캐시 ───────────────────────────────────────────────────
@@ -102,8 +132,6 @@ async def get_recent_recommendations(user_id: int) -> list[str]:
     except Exception as exc:
         logger.warning("recent_recs get 실패 (user=%s): %s", user_id, exc)
         return []
-    finally:
-        await client.aclose()
 
 
 async def push_recent_recommendation(
@@ -123,5 +151,3 @@ async def push_recent_recommendation(
         await client.setex(key, _RECENT_REC_TTL, json.dumps(recent, ensure_ascii=False))
     except Exception as exc:
         logger.warning("recent_recs push 실패 (user=%s): %s", user_id, exc)
-    finally:
-        await client.aclose()

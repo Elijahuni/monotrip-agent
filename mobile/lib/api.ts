@@ -1,4 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as SecureStore from 'expo-secure-store';
+import { Platform } from 'react-native';
 import axios, { AxiosError, AxiosInstance, InternalAxiosRequestConfig } from 'axios';
 
 // allow _retry flag on request config without TypeScript complaints
@@ -19,15 +21,38 @@ import {
   userSchema,
   type PlaceSearchResult,
 } from '@/lib/schemas';
-import type { ChecklistItem, CommunityComment, CommunityPost, CuratedPlace, DestinationGuide, FlightSearchResult, HotelSearchResult, Location, SavedPlace, Trip, UserCache, WeatherDestination } from '@/lib/types';
+import type { AvailableCoupon, BadgeItem, ChecklistItem, CommunityComment, CommunityPost, CuratedPlace, DestinationGuide, DmConversation, DmMessage, FaqItem, FlightSearchResult, Gamification, HotelSearchResult, Location, MyCoupon, NoticeDetail, NoticeListItem, OfflineGuideDetail, OfflineGuideListItem, RentalCarSearchResult, SavedPlace, TourSearchResult, Trip, TrendingPost, UserCache, UserStats, WeatherDestination } from '@/lib/types';
 import { z } from 'zod';
 
 // ─── 환경 변수 ────────────────────────────────────────────────────────────────
 
 const BASE_URL = process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000';
 
-export const TOKEN_KEY = '@triple/access_token';
-export const REFRESH_TOKEN_KEY = '@triple/refresh_token';
+// SecureStore 키 — 영숫자/./-/_ 만 허용되므로 AsyncStorage 시절의 '@triple/...' 키와 다름.
+const SECURE_TOKEN_KEY = 'triple_access_token';
+const SECURE_REFRESH_KEY = 'triple_refresh_token';
+
+// 구버전(AsyncStorage 평문 저장) 키 — 1회 마이그레이션 후 제거.
+const LEGACY_TOKEN_KEY = '@triple/access_token';
+const LEGACY_REFRESH_KEY = '@triple/refresh_token';
+
+// SecureStore는 웹에서 사용 불가 → 웹에서는 AsyncStorage로 폴백.
+const useSecure = Platform.OS !== 'web';
+
+async function secureSet(key: string, value: string): Promise<void> {
+  if (useSecure) await SecureStore.setItemAsync(key, value);
+  else await AsyncStorage.setItem(key, value);
+}
+
+async function secureGet(key: string): Promise<string | null> {
+  if (useSecure) return SecureStore.getItemAsync(key);
+  return AsyncStorage.getItem(key);
+}
+
+async function secureDelete(key: string): Promise<void> {
+  if (useSecure) await SecureStore.deleteItemAsync(key);
+  else await AsyncStorage.removeItem(key);
+}
 
 // ─── 공용 응답 타입 ────────────────────────────────────────────────────────────
 
@@ -109,7 +134,7 @@ const client: AxiosInstance = axios.create({
 
 // 요청 인터셉터: AsyncStorage에서 토큰을 읽어 Authorization 헤더 주입
 client.interceptors.request.use(async (config: InternalAxiosRequestConfig) => {
-  const token = await AsyncStorage.getItem(TOKEN_KEY);
+  const token = await getStoredToken();
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -126,10 +151,12 @@ client.interceptors.response.use(
   async (error: AxiosError) => {
     const status = error.response?.status;
     const url = error.config?.url ?? '';
-    const isAuthEndpoint = /\/auth\/(login|register|refresh)/.test(url);
+    // logout 도 제외 — 만료 토큰으로 로그아웃 시 401 → refresh 실패 → logout() 재호출
+    // → 다시 /auth/logout 401 … 무한 루프를 끊는다. (로그아웃은 401이어도 로컬 정리만 하면 됨)
+    const isAuthEndpoint = /\/auth\/(login|register|refresh|logout)/.test(url);
 
     if (status === 401 && !isAuthEndpoint && !error.config?._retry) {
-      const refreshToken = await AsyncStorage.getItem(REFRESH_TOKEN_KEY);
+      const refreshToken = await getStoredRefreshToken();
       if (refreshToken) {
         try {
           // 별도 axios 인스턴스로 호출 — 인터셉터 재진입 방지
@@ -156,8 +183,7 @@ client.interceptors.response.use(
         const { useAuthStore } = await import('@/store');
         await useAuthStore.getState().logout();
       } catch {
-        await AsyncStorage.removeItem(TOKEN_KEY);
-        await AsyncStorage.removeItem(REFRESH_TOKEN_KEY);
+        await clearToken();
       }
     }
 
@@ -214,6 +240,14 @@ export const api = {
     async kakao(body: { access_token?: string; code?: string }): Promise<TokenResponse> {
       const res = await client.post<ApiResponse<TokenResponse>>('/auth/kakao', body);
       return parseResp(tokenSchema, res.data.data, 'auth.kakao');
+    },
+    async google(body: { id_token: string }): Promise<TokenResponse> {
+      const res = await client.post<ApiResponse<TokenResponse>>('/auth/google', body);
+      return parseResp(tokenSchema, res.data.data, 'auth.google');
+    },
+    async apple(body: { identity_token: string; full_name?: string | null }): Promise<TokenResponse> {
+      const res = await client.post<ApiResponse<TokenResponse>>('/auth/apple', body);
+      return parseResp(tokenSchema, res.data.data, 'auth.apple');
     },
   },
 
@@ -502,6 +536,125 @@ export const api = {
     },
   },
 
+  // ─── 공지사항 ─────────────────────────────────────────────────────────────────
+  notices: {
+    async list(params: {
+      category?: 'general' | 'event' | 'maintenance' | 'update';
+      limit?: number;
+      cursor?: number;
+    } = {}): Promise<NoticeListItem[]> {
+      const res = await client.get<ApiResponse<NoticeListItem[]>>('/notices', { params });
+      return res.data.data ?? [];
+    },
+    async get(noticeId: number): Promise<NoticeDetail> {
+      const res = await client.get<ApiResponse<NoticeDetail>>(`/notices/${noticeId}`);
+      return res.data.data;
+    },
+  },
+
+  // ─── 렌터카·보험 메타서치 ───────────────────────────────────────────────────────
+  rentalCars: {
+    async search(params: {
+      city: string;
+      pickup_date: string;   // YYYY-MM-DD
+      return_date: string;
+      driver_age?: number;
+      insurance_level?: 'none' | 'basic' | 'full';
+    }): Promise<RentalCarSearchResult> {
+      const res = await client.get<ApiResponse<RentalCarSearchResult>>('/rental-cars/search', {
+        params,
+        timeout: 12_000,
+      });
+      return res.data.data;
+    },
+  },
+
+  // ─── 투어·티켓 메타서치 ─────────────────────────────────────────────────────────
+  tours: {
+    async search(params: {
+      city: string;
+      category?: 'activity' | 'attraction' | 'tour' | 'transport' | 'show' | 'food';
+      travel_date?: string;
+      travelers?: number;
+    }): Promise<TourSearchResult> {
+      const res = await client.get<ApiResponse<TourSearchResult>>('/tours/search', {
+        params,
+        timeout: 12_000,
+      });
+      return res.data.data;
+    },
+  },
+
+  // ─── 오프라인 가이드 ───────────────────────────────────────────────────────────
+  offlineGuides: {
+    async list(params: { city?: string } = {}): Promise<OfflineGuideListItem[]> {
+      const res = await client.get<ApiResponse<OfflineGuideListItem[]>>('/offline-guides', { params });
+      return res.data.data ?? [];
+    },
+    async get(guideId: number): Promise<OfflineGuideDetail> {
+      const res = await client.get<ApiResponse<OfflineGuideDetail>>(`/offline-guides/${guideId}`);
+      return res.data.data;
+    },
+  },
+
+  // ─── 다이렉트 메시지 (DM) ──────────────────────────────────────────────────────
+  dm: {
+    async conversations(): Promise<DmConversation[]> {
+      const res = await client.get<ApiResponse<DmConversation[]>>('/dm/conversations');
+      return res.data.data ?? [];
+    },
+    async unreadCount(): Promise<number> {
+      const res = await client.get<ApiResponse<{ unread: number }>>('/dm/unread-count');
+      return res.data.data?.unread ?? 0;
+    },
+    async thread(otherUserId: number, params: { limit?: number; cursor?: number } = {}): Promise<DmMessage[]> {
+      const res = await client.get<ApiResponse<DmMessage[]>>(`/dm/${otherUserId}`, { params });
+      return res.data.data ?? [];
+    },
+    async send(otherUserId: number, body: string): Promise<DmMessage> {
+      const res = await client.post<ApiResponse<DmMessage>>(`/dm/${otherUserId}`, { body });
+      return res.data.data;
+    },
+  },
+
+  // ─── 쿠폰 ─────────────────────────────────────────────────────────────────────
+  coupons: {
+    /** 발급 가능한 혜택 목록 (already_claimed 포함) */
+    async available(): Promise<AvailableCoupon[]> {
+      const res = await client.get<ApiResponse<AvailableCoupon[]>>('/coupons/available');
+      return res.data.data ?? [];
+    },
+    /** 쿠폰 발급 */
+    async claim(couponId: number): Promise<MyCoupon> {
+      const res = await client.post<ApiResponse<MyCoupon>>(`/coupons/${couponId}/claim`);
+      return res.data.data;
+    },
+    /** 내 쿠폰함 */
+    async mine(): Promise<MyCoupon[]> {
+      const res = await client.get<ApiResponse<MyCoupon[]>>('/coupons/me');
+      return res.data.data ?? [];
+    },
+    /** 쿠폰 사용 처리 */
+    async use(userCouponId: number): Promise<MyCoupon> {
+      const res = await client.post<ApiResponse<MyCoupon>>(`/coupons/me/${userCouponId}/use`);
+      return res.data.data;
+    },
+  },
+
+  // ─── 고객센터 FAQ ─────────────────────────────────────────────────────────────
+  faqs: {
+    async list(params: {
+      category?: 'general' | 'account' | 'booking' | 'payment' | 'travel' | 'etc';
+    } = {}): Promise<FaqItem[]> {
+      const res = await client.get<ApiResponse<FaqItem[]>>('/faqs', { params });
+      return res.data.data ?? [];
+    },
+    async get(faqId: number): Promise<FaqItem> {
+      const res = await client.get<ApiResponse<FaqItem>>(`/faqs/${faqId}`);
+      return res.data.data;
+    },
+  },
+
   // ─── 푸시 알림 토큰 관리 ───────────────────────────────────────────────────────
   notifications: {
     /** Expo Push Token을 서버에 등록 / 갱신 */
@@ -563,11 +716,35 @@ export const api = {
       );
       return res.data.data;
     },
-    async listCollaborators(tripId: number): Promise<Array<{ user_id: number; role: string; joined_at: string }>> {
-      const res = await client.get<ApiResponse<Array<{ user_id: number; role: string; joined_at: string }>>>(
+    async listCollaborators(tripId: number): Promise<Array<{ user_id: number; role: string; joined_at: string; nickname: string | null }>> {
+      const res = await client.get<ApiResponse<Array<{ user_id: number; role: string; joined_at: string; nickname: string | null }>>>(
         `/trips/${tripId}/collaborators`,
       );
       return res.data.data ?? [];
+    },
+    /** 협업자 역할 변경 (여행 소유자만). */
+    async updateCollaboratorRole(
+      tripId: number,
+      userId: number,
+      role: 'edit' | 'view',
+    ): Promise<{ user_id: number; role: string; joined_at: string }> {
+      const res = await client.patch<ApiResponse<{ user_id: number; role: string; joined_at: string }>>(
+        `/trips/${tripId}/collaborators/${userId}`,
+        { role },
+      );
+      return res.data.data;
+    },
+    /** 협업자 제거 (여행 소유자만). */
+    async removeCollaborator(tripId: number, userId: number): Promise<void> {
+      await client.delete(`/trips/${tripId}/collaborators/${userId}`);
+    },
+    async getInviteInfo(token: string): Promise<{
+      trip_title: string; inviter_nickname: string; expires_at: string;
+    }> {
+      const res = await client.get<ApiResponse<{
+        trip_title: string; inviter_nickname: string; expires_at: string;
+      }>>(`/trips/invite/info/${token}`);
+      return res.data.data;
     },
   },
 
@@ -599,14 +776,47 @@ export const api = {
       });
       return res.data.data;
     },
+
+    async subscribeFlightAlert(params: {
+      from_iata: string;
+      to_iata: string;
+      depart_date: string;      // YYYY-MM-DD
+      return_date?: string;
+      cabin?: string;
+      adults?: number;
+      drop_threshold_pct?: number;
+    }): Promise<{ id: number; from_iata: string; to_iata: string; depart_date: string; is_active: boolean }> {
+      const res = await client.post<ApiResponse<{
+        id: number; from_iata: string; to_iata: string; depart_date: string; is_active: boolean;
+      }>>('/metasearch/alerts/flights', params);
+      return res.data.data;
+    },
+
+    async unsubscribeFlightAlert(alertId: number): Promise<void> {
+      await client.delete(`/metasearch/alerts/flights/${alertId}`);
+    },
+
+    async listFlightAlerts(): Promise<Array<{
+      id: number; from_iata: string; to_iata: string; depart_date: string; is_active: boolean;
+    }>> {
+      const res = await client.get<ApiResponse<Array<{
+        id: number; from_iata: string; to_iata: string; depart_date: string; is_active: boolean;
+      }>>>('/metasearch/alerts/flights');
+      return res.data.data ?? [];
+    },
   },
 
   community: {
-    async feed(params: { city?: string; category?: string; limit?: number; cursor?: number } = {}): Promise<CommunityPost[]> {
+    async feed(params: { city?: string; category?: string; post_type?: 'regular' | 'live'; limit?: number; cursor?: number } = {}): Promise<CommunityPost[]> {
       const res = await client.get<ApiResponse<CommunityPost[]>>('/community/feed', { params });
       return res.data.data ?? [];
     },
+    async liveFeed(params: { city?: string; limit?: number } = {}): Promise<CommunityPost[]> {
+      const res = await client.get<ApiResponse<CommunityPost[]>>('/community/feed/live', { params });
+      return res.data.data ?? [];
+    },
     async createPost(body: {
+      post_type?: 'regular' | 'live';
       category: 'qna' | 'review' | 'photospot';
       city?: string;
       title: string;
@@ -637,6 +847,35 @@ export const api = {
     },
     async report(postId: number, body: { reason: 'spam' | 'hate' | 'sexual' | 'other'; detail?: string }): Promise<void> {
       await client.post(`/community/posts/${postId}/report`, body);
+    },
+    async trending(params: { period?: '1d' | '7d' | '30d'; limit?: number } = {}): Promise<TrendingPost[]> {
+      const res = await client.get<ApiResponse<TrendingPost[]>>('/community/trending', { params });
+      return res.data.data ?? [];
+    },
+  },
+
+  users: {
+    async stats(): Promise<UserStats> {
+      const res = await client.get<ApiResponse<UserStats>>('/auth/me/stats');
+      return res.data.data;
+    },
+    async gamification(): Promise<Gamification> {
+      const res = await client.get<ApiResponse<Gamification>>('/auth/me/gamification');
+      return res.data.data;
+    },
+    async updateProfile(body: { nickname?: string; profile_image_url?: string }): Promise<{
+      id: number;
+      email: string;
+      nickname: string;
+      profile_image_url: string | null;
+    }> {
+      const res = await client.patch<ApiResponse<{
+        id: number;
+        email: string;
+        nickname: string;
+        profile_image_url: string | null;
+      }>>('/auth/me', body);
+      return res.data.data;
     },
   },
 
@@ -675,18 +914,49 @@ export const api = {
 
 export async function saveToken(accessToken: string, refreshToken: string): Promise<void> {
   await Promise.all([
-    AsyncStorage.setItem(TOKEN_KEY, accessToken),
-    AsyncStorage.setItem(REFRESH_TOKEN_KEY, refreshToken),
+    secureSet(SECURE_TOKEN_KEY, accessToken),
+    secureSet(SECURE_REFRESH_KEY, refreshToken),
   ]);
 }
 
 export async function clearToken(): Promise<void> {
   await Promise.all([
-    AsyncStorage.removeItem(TOKEN_KEY),
-    AsyncStorage.removeItem(REFRESH_TOKEN_KEY),
+    secureDelete(SECURE_TOKEN_KEY),
+    secureDelete(SECURE_REFRESH_KEY),
+    // 구버전 잔여 토큰도 정리
+    AsyncStorage.removeItem(LEGACY_TOKEN_KEY),
+    AsyncStorage.removeItem(LEGACY_REFRESH_KEY),
   ]);
 }
 
+/**
+ * 구버전 AsyncStorage 평문 토큰을 SecureStore로 1회 이전.
+ * 이전 후 AsyncStorage에서 제거하여 평문 잔여물을 남기지 않음.
+ */
+async function migrateLegacyTokens(): Promise<void> {
+  const [legacyAccess, legacyRefresh] = await Promise.all([
+    AsyncStorage.getItem(LEGACY_TOKEN_KEY),
+    AsyncStorage.getItem(LEGACY_REFRESH_KEY),
+  ]);
+  if (legacyAccess && legacyRefresh) {
+    await saveToken(legacyAccess, legacyRefresh);
+  }
+  if (legacyAccess || legacyRefresh) {
+    await Promise.all([
+      AsyncStorage.removeItem(LEGACY_TOKEN_KEY),
+      AsyncStorage.removeItem(LEGACY_REFRESH_KEY),
+    ]);
+  }
+}
+
 export async function getStoredToken(): Promise<string | null> {
-  return AsyncStorage.getItem(TOKEN_KEY);
+  const token = await secureGet(SECURE_TOKEN_KEY);
+  if (token) return token;
+  // SecureStore가 비어 있으면 구버전 토큰 마이그레이션 시도
+  await migrateLegacyTokens();
+  return secureGet(SECURE_TOKEN_KEY);
+}
+
+export async function getStoredRefreshToken(): Promise<string | null> {
+  return secureGet(SECURE_REFRESH_KEY);
 }

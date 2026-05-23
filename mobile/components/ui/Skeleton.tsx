@@ -61,3 +61,33 @@ export function SkeletonLines({ lines = 2, gap = 8 }: { lines?: number; gap?: nu
     </View>
   );
 }
+
+/** 카드 한 장 형태의 스켈레톤 (리스트 아이템 모양) */
+export function SkeletonCard() {
+  return (
+    <View
+      className="bg-bg-surface border border-line-default"
+      style={{ borderRadius: 12, padding: 16, marginBottom: 10 }}
+    >
+      <Skeleton height={12} width="40%" rounded="sm" />
+      <View style={{ height: 10 }} />
+      <Skeleton height={16} width="80%" />
+      <View style={{ height: 8 }} />
+      <SkeletonLines lines={2} />
+    </View>
+  );
+}
+
+/**
+ * 리스트 로딩 스켈레톤 — 스피너 대신 콘텐츠 모양으로 N개 카드 표시.
+ * 신규 목록 화면(공지·FAQ·쿠폰·가이드·투어·렌터카)의 로딩 상태에 사용.
+ */
+export function ListSkeleton({ count = 6 }: { count?: number }) {
+  return (
+    <View style={{ padding: 16 }}>
+      {Array.from({ length: count }).map((_, i) => (
+        <SkeletonCard key={i} />
+      ))}
+    </View>
+  );
+}

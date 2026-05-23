@@ -22,6 +22,8 @@ import Toast from 'react-native-toast-message';
 
 import { api } from '@/lib/api';
 import { useThemedColors } from '@/lib/design-tokens';
+import { localizeVibeTag } from '@/components/VibeChips';
+import { useSettings } from '@/lib/settings-context';
 import type { CuratedPlace, Trip } from '@/lib/types';
 
 interface Props {
@@ -35,6 +37,7 @@ interface Props {
 export function CuratedPlaceModal({ visible, place, onClose, onAdded }: Props) {
   const colors = useThemedColors();
   const { width } = useWindowDimensions();
+  const { t, lang } = useSettings();
   const [trips, setTrips] = useState<Trip[] | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
@@ -208,14 +211,24 @@ export function CuratedPlaceModal({ visible, place, onClose, onAdded }: Props) {
 
           <View style={{ padding: 20, gap: 12 }}>
             <View>
+              {/* 영어 모드: name_en 우선, 없으면 name. 한국어 모드: name 고정 */}
               <Text style={{ fontSize: 22, fontWeight: '800', color: colors.txPrimary }}>
-                {place.name}
+                {lang === 'en' && place.name_en ? place.name_en : place.name}
               </Text>
-              {place.name_en ? (
-                <Text style={{ fontSize: 13, color: colors.txTertiary, marginTop: 2 }}>
-                  {place.name_en}
-                </Text>
-              ) : null}
+              {/* 서브 타이틀: 언어 반전 방향으로 표시 */}
+              {lang === 'en' ? (
+                place.name ? (
+                  <Text style={{ fontSize: 13, color: colors.txTertiary, marginTop: 2 }}>
+                    {place.name}
+                  </Text>
+                ) : null
+              ) : (
+                place.name_en ? (
+                  <Text style={{ fontSize: 13, color: colors.txTertiary, marginTop: 2 }}>
+                    {place.name_en}
+                  </Text>
+                ) : null
+              )}
               {place.region ? (
                 <Text style={{ fontSize: 13, color: colors.txSecondary, marginTop: 4 }}>
                   📍 {place.region}
@@ -237,12 +250,12 @@ export function CuratedPlaceModal({ visible, place, onClose, onAdded }: Props) {
               ) : null}
               {place.women_friendly ? (
                 <Text style={{ fontSize: 13, color: colors.brandSecondary, fontWeight: '700' }}>
-                  👩 여성 친화
+                  👩 {t('curated', 'womenFriendly')}
                 </Text>
               ) : null}
               {place.tax_free ? (
                 <Text style={{ fontSize: 13, color: colors.brandPrimary, fontWeight: '700' }}>
-                  💸 면세
+                  💸 {t('curated', 'taxFree')}
                 </Text>
               ) : null}
             </View>
@@ -260,7 +273,7 @@ export function CuratedPlaceModal({ visible, place, onClose, onAdded }: Props) {
                       backgroundColor: colors.bgSubtle,
                     }}>
                     <Text style={{ fontSize: 12, color: colors.txSecondary, fontWeight: '600' }}>
-                      #{tag}
+                      #{localizeVibeTag(tag, lang)}
                     </Text>
                   </View>
                 ))}
@@ -295,7 +308,7 @@ export function CuratedPlaceModal({ visible, place, onClose, onAdded }: Props) {
                 }}>
                 <Text style={{ fontSize: 22 }}>📷</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 11, color: colors.txTertiary }}>인스타그램에서 보기</Text>
+                  <Text style={{ fontSize: 11, color: colors.txTertiary }}>{t('curated', 'instagramLabel')}</Text>
                   <Text style={{ fontSize: 14, fontWeight: '800', color: colors.txPrimary, marginTop: 2 }}>
                     {place.instagram_hashtag.startsWith('#') ? place.instagram_hashtag : '#' + place.instagram_hashtag}
                   </Text>
@@ -306,9 +319,9 @@ export function CuratedPlaceModal({ visible, place, onClose, onAdded }: Props) {
 
             {/* 빠른 액션 버튼 */}
             <View style={{ flexDirection: 'row', gap: 8, marginTop: 4, flexWrap: 'wrap' }}>
-              <ActionButton label="🗺️ 지도" onPress={openMap} colors={colors} />
+              <ActionButton label={t('curated', 'mapBtn')} onPress={openMap} colors={colors} />
               {place.website ? (
-                <ActionButton label="🔗 홈페이지" onPress={openWebsite} colors={colors} />
+                <ActionButton label={t('curated', 'websiteBtn')} onPress={openWebsite} colors={colors} />
               ) : null}
             </View>
 
@@ -316,7 +329,7 @@ export function CuratedPlaceModal({ visible, place, onClose, onAdded }: Props) {
             {similar.length > 0 ? (
               <View style={{ marginTop: 16 }}>
                 <Text style={{ fontSize: 15, fontWeight: '700', color: colors.txPrimary, marginBottom: 8 }}>
-                  비슷한 분위기
+                  {t('curated', 'similar')}
                 </Text>
                 <ScrollView
                   horizontal
@@ -349,7 +362,7 @@ export function CuratedPlaceModal({ visible, place, onClose, onAdded }: Props) {
                       <Text
                         numberOfLines={1}
                         style={{ fontSize: 12, fontWeight: '700', color: colors.txPrimary, marginTop: 4 }}>
-                        {s.name}
+                        {lang === 'en' && s.name_en ? s.name_en : s.name}
                       </Text>
                       <Text style={{ fontSize: 10, color: colors.txTertiary }} numberOfLines={1}>
                         {s.region ?? s.city}
@@ -372,7 +385,7 @@ export function CuratedPlaceModal({ visible, place, onClose, onAdded }: Props) {
                 gap: 12,
               }}>
               <Text style={{ fontSize: 15, fontWeight: '700', color: colors.txPrimary }}>
-                내 여행에 추가
+                {t('curated', 'addToTrip')}
               </Text>
 
               {/* 여행 선택 버튼 */}
@@ -387,7 +400,7 @@ export function CuratedPlaceModal({ visible, place, onClose, onAdded }: Props) {
                   borderColor: colors.lineDefault,
                 }}>
                 <Text style={{ fontSize: 14, color: selectedTrip ? colors.txPrimary : colors.txTertiary }}>
-                  {selectedTrip ? selectedTrip.title : '여행을 선택해주세요'}
+                  {selectedTrip ? selectedTrip.title : t('curated', 'selectTrip')}
                 </Text>
               </TouchableOpacity>
 
@@ -447,7 +460,7 @@ export function CuratedPlaceModal({ visible, place, onClose, onAdded }: Props) {
                   <ActivityIndicator color="#FFFFFF" />
                 ) : (
                   <Text style={{ color: '#FFFFFF', fontWeight: '800', fontSize: 15 }}>
-                    여행에 추가
+                    {t('curated', 'addBtn')}
                   </Text>
                 )}
               </TouchableOpacity>
@@ -483,7 +496,7 @@ export function CuratedPlaceModal({ visible, place, onClose, onAdded }: Props) {
                   paddingHorizontal: 20,
                   marginBottom: 12,
                 }}>
-                여행 선택
+                {t('curated', 'selectTripTitle')}
               </Text>
               <ScrollView>
                 {trips === null ? (
@@ -493,7 +506,7 @@ export function CuratedPlaceModal({ visible, place, onClose, onAdded }: Props) {
                 ) : trips.length === 0 ? (
                   <Text
                     style={{ padding: 24, textAlign: 'center', color: colors.txTertiary }}>
-                    먼저 여행을 만들어주세요
+                    {t('curated', 'noTrips')}
                   </Text>
                 ) : (
                   trips.map((t) => (

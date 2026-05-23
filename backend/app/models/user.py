@@ -6,6 +6,15 @@ from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
 
+
+class UserRole:
+    """사용자 역할 상수. Enum 대신 str 상수 — Alembic/JSON 직렬화 호환."""
+
+    USER = "user"
+    MODERATOR = "moderator"  # 콘텐츠 검토 전용 (향후 확장)
+    ADMIN = "admin"
+
+
 _EMBEDDING_DIM = 768
 
 
@@ -30,6 +39,8 @@ class User(Base):
     preference_embedding: Mapped[list[float] | None] = mapped_column(
         Vector(_EMBEDDING_DIM), nullable=True
     )
+    # 역할 — "user" | "moderator" | "admin"
+    role: Mapped[str] = mapped_column(String(20), default=UserRole.USER, nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(default=func.now(), nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         default=func.now(), onupdate=func.now(), nullable=False

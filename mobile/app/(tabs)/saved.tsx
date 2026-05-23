@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { api } from '@/lib/api';
+import { shadow, useThemedColors } from '@/lib/design-tokens';
 import { deleteSavedPlace, getSavedPlaces, syncSavedPlaces } from '@/lib/local-trips';
 import { getUserCache, type CachedUser } from '@/lib/local-user';
 import { useSettings } from '@/lib/settings-context';
@@ -36,27 +37,19 @@ function AddToTripModal({
   place,
   onClose,
   onAdded,
-  isDark,
 }: {
   visible: boolean;
   place: SavedPlace | null;
   onClose: () => void;
   onAdded: () => void;
-  isDark: boolean;
 }) {
   const { t } = useSettings();
+  const colors = useThemedColors();
   const [trips, setTrips] = useState<Trip[]>([]);
   const [selectedTrip, setSelectedTrip] = useState<Trip | null>(null);
   const [selectedDay, setSelectedDay] = useState(1);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
-
-  const bgBase  = isDark ? '#0D0D18' : '#FFFFFF';
-  const bgSurf  = isDark ? '#13131F' : '#F8FAFB';
-  const txPri   = isDark ? '#E8EEF4' : '#1A2E44';
-  const txSec   = isDark ? '#9BA7B5' : '#5A6474';
-  const txTer   = isDark ? '#6B7785' : '#9BA7B5';
-  const border  = isDark ? '#2A2A3E' : '#E8ECF2';
 
   useEffect(() => {
     if (!visible) return;
@@ -90,27 +83,27 @@ function AddToTripModal({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' }}>
-        <View style={{ backgroundColor: bgBase, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '80%' }}>
+        <View style={{ backgroundColor: colors.bgSurface, borderTopLeftRadius: 24, borderTopRightRadius: 24, padding: 24, maxHeight: '80%' }}>
           {/* 핸들 */}
-          <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: border, alignSelf: 'center', marginBottom: 20 }} />
+          <View style={{ width: 40, height: 4, borderRadius: 2, backgroundColor: colors.lineStrong, alignSelf: 'center', marginBottom: 20 }} />
 
-          <Text style={{ fontSize: 18, fontWeight: '800', color: txPri, marginBottom: 4 }}>
+          <Text style={{ fontSize: 18, fontWeight: '800', color: colors.txPrimary, marginBottom: 4 }}>
             {t('savedTab', 'addToTrip')}
           </Text>
           {place && (
-            <Text style={{ fontSize: 13, color: txSec, marginBottom: 20 }}>{place.name}</Text>
+            <Text style={{ fontSize: 13, color: colors.txSecondary, marginBottom: 20 }}>{place.name}</Text>
           )}
 
           {loading ? (
-            <ActivityIndicator color="#3DC3EE" style={{ marginVertical: 24 }} />
+            <ActivityIndicator color={colors.brandSecondary} style={{ marginVertical: 24 }} />
           ) : (
             <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: 300 }}>
               {/* 여행 선택 */}
-              <Text style={{ fontSize: 12, fontWeight: '700', color: txTer, marginBottom: 10 }}>
+              <Text style={{ fontSize: 12, fontWeight: '700', color: colors.txTertiary, marginBottom: 10 }}>
                 {t('savedTab', 'selectTrip')}
               </Text>
               {trips.length === 0 ? (
-                <Text style={{ color: txTer, fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>여행이 없습니다.</Text>
+                <Text style={{ color: colors.txTertiary, fontSize: 13, textAlign: 'center', paddingVertical: 12 }}>여행이 없습니다.</Text>
               ) : (
                 trips.map((tr) => (
                   <TouchableOpacity
@@ -118,14 +111,14 @@ function AddToTripModal({
                     onPress={() => setSelectedTrip(tr)}
                     style={{
                       padding: 14, borderRadius: 12, marginBottom: 8, borderWidth: 2,
-                      backgroundColor: selectedTrip?.id === tr.id ? '#E8F8FD' : bgSurf,
-                      borderColor: selectedTrip?.id === tr.id ? '#3DC3EE' : border,
+                      backgroundColor: selectedTrip?.id === tr.id ? colors.accentBg : colors.bgSubtle,
+                      borderColor: selectedTrip?.id === tr.id ? colors.accentText : colors.lineDefault,
                     }}>
-                    <Text style={{ color: selectedTrip?.id === tr.id ? '#3DC3EE' : txPri, fontWeight: '700', fontSize: 14 }}>
+                    <Text style={{ color: selectedTrip?.id === tr.id ? colors.accentText : colors.txPrimary, fontWeight: '700', fontSize: 14 }}>
                       {tr.title}
                     </Text>
                     {tr.start_date && (
-                      <Text style={{ color: txTer, fontSize: 11, marginTop: 2 }}>{tr.start_date}</Text>
+                      <Text style={{ color: colors.txTertiary, fontSize: 11, marginTop: 2 }}>{tr.start_date}</Text>
                     )}
                   </TouchableOpacity>
                 ))
@@ -134,7 +127,7 @@ function AddToTripModal({
               {/* 날짜 선택 */}
               {selectedTrip && (
                 <>
-                  <Text style={{ fontSize: 12, fontWeight: '700', color: txTer, marginTop: 16, marginBottom: 10 }}>
+                  <Text style={{ fontSize: 12, fontWeight: '700', color: colors.txTertiary, marginTop: 16, marginBottom: 10 }}>
                     {t('savedTab', 'selectDay')}
                   </Text>
                   <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -145,10 +138,10 @@ function AddToTripModal({
                           onPress={() => setSelectedDay(d)}
                           style={{
                             width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5,
-                            backgroundColor: selectedDay === d ? '#3DC3EE' : bgSurf,
-                            borderColor: selectedDay === d ? '#3DC3EE' : border,
+                            backgroundColor: selectedDay === d ? colors.accentText : colors.bgSubtle,
+                            borderColor: selectedDay === d ? colors.accentText : colors.lineDefault,
                           }}>
-                          <Text style={{ color: selectedDay === d ? '#fff' : txSec, fontWeight: '700', fontSize: 13 }}>{d}</Text>
+                          <Text style={{ color: selectedDay === d ? '#fff' : colors.txSecondary, fontWeight: '700', fontSize: 13 }}>{d}</Text>
                         </TouchableOpacity>
                       ))}
                     </View>
@@ -163,18 +156,18 @@ function AddToTripModal({
             disabled={!selectedTrip || saving}
             style={{
               marginTop: 20, borderRadius: 14, paddingVertical: 16, alignItems: 'center',
-              backgroundColor: selectedTrip && !saving ? '#3DC3EE' : (isDark ? '#1E1E2E' : '#E8ECF2'),
+              backgroundColor: selectedTrip && !saving ? colors.brandSecondary : colors.bgStrong,
             }}>
             {saving
               ? <ActivityIndicator color="#fff" />
-              : <Text style={{ color: selectedTrip ? '#fff' : txTer, fontWeight: '800', fontSize: 15 }}>
+              : <Text style={{ color: selectedTrip ? '#fff' : colors.txTertiary, fontWeight: '800', fontSize: 15 }}>
                   {t('savedTab', 'addToTrip')}
                 </Text>
             }
           </TouchableOpacity>
 
           <TouchableOpacity onPress={onClose} style={{ marginTop: 10, alignItems: 'center', paddingVertical: 12 }}>
-            <Text style={{ color: txSec, fontWeight: '600' }}>{t('common', 'cancel')}</Text>
+            <Text style={{ color: colors.txSecondary, fontWeight: '600' }}>{t('common', 'cancel')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -188,52 +181,44 @@ function SavedPlaceCard({
   place,
   onAddToTrip,
   onRemove,
-  isDark,
 }: {
   place: SavedPlace;
   onAddToTrip: (p: SavedPlace) => void;
   onRemove: (p: SavedPlace) => void;
-  isDark: boolean;
 }) {
   const { t } = useSettings();
-  const bgBase  = isDark ? '#13131F' : '#FFFFFF';
-  const txPri   = isDark ? '#E8EEF4' : '#1A2E44';
-  const txSec   = isDark ? '#9BA7B5' : '#5A6474';
-  const txTer   = isDark ? '#6B7785' : '#9BA7B5';
-  const border  = isDark ? '#2A2A3E' : '#E8ECF2';
-  const shadow  = isDark
-    ? { shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.4, shadowRadius: 8, elevation: 2 }
-    : { shadowColor: '#1A2E44', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.06, shadowRadius: 8, elevation: 2 };
+  const colors = useThemedColors();
+  const cardShadow = { ...shadow.card, shadowColor: colors.shadowColor };
 
   return (
-    <View style={{ backgroundColor: bgBase, borderRadius: 16, marginHorizontal: 16, marginBottom: 12, padding: 16, ...shadow }}>
+    <View style={{ backgroundColor: colors.bgSurface, borderRadius: 16, marginHorizontal: 16, marginBottom: 12, padding: 16, ...cardShadow }}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
         {/* 카테고리 아이콘 */}
-        <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: '#E8F8FD', alignItems: 'center', justifyContent: 'center' }}>
+        <View style={{ width: 44, height: 44, borderRadius: 22, backgroundColor: colors.accentBg, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ fontSize: 20 }}>{categoryIcon(place.category)}</Text>
         </View>
 
         {/* 정보 */}
         <View style={{ flex: 1 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-            <Text style={{ fontSize: 11, color: txTer }}>{place.category}</Text>
+            <Text style={{ fontSize: 11, color: colors.txTertiary }}>{place.category}</Text>
             {place.rating != null && (
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 2 }}>
-                <Text style={{ fontSize: 10, color: '#F39C12' }}>★</Text>
-                <Text style={{ fontSize: 11, color: txTer }}>{place.rating.toFixed(1)}</Text>
+                <Text style={{ fontSize: 10, color: '#F59E0B' }}>★</Text>
+                <Text style={{ fontSize: 11, color: colors.txTertiary }}>{place.rating.toFixed(1)}</Text>
               </View>
             )}
           </View>
-          <Text style={{ fontSize: 15, fontWeight: '700', color: txPri, marginBottom: 2 }}>{place.name}</Text>
-          <Text style={{ fontSize: 12, color: txTer }} numberOfLines={1}>📍 {place.address}</Text>
+          <Text style={{ fontSize: 15, fontWeight: '700', color: colors.txPrimary, marginBottom: 2 }}>{place.name}</Text>
+          <Text style={{ fontSize: 12, color: colors.txTertiary }} numberOfLines={1}>📍 {place.address}</Text>
           {place.notes && (
-            <Text style={{ fontSize: 12, color: txSec, marginTop: 4 }} numberOfLines={2}>{place.notes}</Text>
+            <Text style={{ fontSize: 12, color: colors.txSecondary, marginTop: 4 }} numberOfLines={2}>{place.notes}</Text>
           )}
           {/* 시간/예산 배지 */}
           {place.estimated_minutes != null && (
             <View style={{ flexDirection: 'row', gap: 6, marginTop: 6 }}>
-              <View style={{ backgroundColor: isDark ? '#1E1E2E' : '#E8F8FD', borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
-                <Text style={{ color: '#3DC3EE', fontSize: 11 }}>
+              <View style={{ backgroundColor: colors.accentBg, borderRadius: 8, paddingHorizontal: 8, paddingVertical: 3 }}>
+                <Text style={{ color: colors.accentText, fontSize: 11 }}>
                   ⏱ {place.estimated_minutes >= 60 ? `${Math.floor(place.estimated_minutes / 60)}h` : `${place.estimated_minutes}m`}
                 </Text>
               </View>
@@ -243,16 +228,16 @@ function SavedPlaceCard({
       </View>
 
       {/* 액션 버튼 */}
-      <View style={{ flexDirection: 'row', gap: 8, marginTop: 14, borderTopWidth: 1, borderTopColor: border, paddingTop: 12 }}>
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 14, borderTopWidth: 1, borderTopColor: colors.lineDefault, paddingTop: 12 }}>
         <TouchableOpacity
           onPress={() => onAddToTrip(place)}
-          style={{ flex: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center', backgroundColor: '#3DC3EE' }}>
+          style={{ flex: 1, borderRadius: 10, paddingVertical: 10, alignItems: 'center', backgroundColor: colors.brandSecondary }}>
           <Text style={{ color: '#fff', fontWeight: '700', fontSize: 13 }}>✈️ {t('savedTab', 'addToTrip')}</Text>
         </TouchableOpacity>
         <TouchableOpacity
           onPress={() => onRemove(place)}
-          style={{ borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', backgroundColor: isDark ? '#1E1E2E' : '#FFF0F0', borderWidth: 1, borderColor: isDark ? '#2A2A3E' : '#FFDDD9' }}>
-          <Text style={{ color: '#E74C3C', fontWeight: '700', fontSize: 13 }}>🗑</Text>
+          style={{ borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10, alignItems: 'center', backgroundColor: colors.bgSubtle, borderWidth: 1, borderColor: colors.lineDefault }}>
+          <Text style={{ color: colors.txDanger, fontWeight: '700', fontSize: 13 }}>🗑</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -263,7 +248,8 @@ function SavedPlaceCard({
 
 export default function SavedScreen() {
   const insets = useSafeAreaInsets();
-  const { t, isDark } = useSettings();
+  const { t } = useSettings();
+  const colors = useThemedColors();
 
   const [cachedUser, setCachedUser] = useState<CachedUser | null>(null);
   const [places, setPlaces]       = useState<SavedPlace[]>([]);
@@ -275,12 +261,6 @@ export default function SavedScreen() {
   useEffect(() => {
     getUserCache().then(setCachedUser);
   }, []);
-
-  const bgBase  = isDark ? '#0D0D18' : '#F8FAFB';
-  const bgSurf  = isDark ? '#13131F' : '#FFFFFF';
-  const txPri   = isDark ? '#E8EEF4' : '#1A2E44';
-  const txTer   = isDark ? '#6B7785' : '#9BA7B5';
-  const border  = isDark ? '#2A2A3E' : '#E8ECF2';
 
   const loadLocal = useCallback(async () => {
     const cu = cachedUser ?? await getUserCache();
@@ -339,22 +319,22 @@ export default function SavedScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: bgBase, paddingTop: insets.top }}>
+    <View style={{ flex: 1, backgroundColor: colors.bgBase, paddingTop: insets.top }}>
       {/* 헤더 */}
-      <View style={{ backgroundColor: bgSurf, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: border }}>
-        <Text style={{ fontSize: 20, fontWeight: '800', color: txPri }}>{t('savedTab', 'title')}</Text>
-        <Text style={{ fontSize: 12, color: txTer, marginTop: 2 }}>{t('savedTab', 'subtitle')}</Text>
+      <View style={{ backgroundColor: colors.bgSurface, paddingHorizontal: 20, paddingTop: 16, paddingBottom: 16, borderBottomWidth: 1, borderBottomColor: colors.lineDefault }}>
+        <Text style={{ fontSize: 20, fontWeight: '800', color: colors.txPrimary }}>{t('savedTab', 'title')}</Text>
+        <Text style={{ fontSize: 12, color: colors.txTertiary, marginTop: 2 }}>{t('savedTab', 'subtitle')}</Text>
       </View>
 
       {loading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
-          <ActivityIndicator size="large" color="#3DC3EE" />
+          <ActivityIndicator size="large" color={colors.brandSecondary} />
         </View>
       ) : places.length === 0 ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 40 }}>
           <Text style={{ fontSize: 48, marginBottom: 16 }}>🗂️</Text>
-          <Text style={{ fontSize: 17, fontWeight: '700', color: txPri, marginBottom: 8, textAlign: 'center' }}>{t('savedTab', 'empty')}</Text>
-          <Text style={{ fontSize: 13, color: txTer, textAlign: 'center', lineHeight: 20 }}>{t('savedTab', 'emptySub')}</Text>
+          <Text style={{ fontSize: 17, fontWeight: '700', color: colors.txPrimary, marginBottom: 8, textAlign: 'center' }}>{t('savedTab', 'empty')}</Text>
+          <Text style={{ fontSize: 13, color: colors.txTertiary, textAlign: 'center', lineHeight: 20 }}>{t('savedTab', 'emptySub')}</Text>
         </View>
       ) : (
         <FlatList
@@ -366,8 +346,7 @@ export default function SavedScreen() {
             <RefreshControl
               refreshing={refreshing}
               onRefresh={handleRefresh}
-              tintColor="#3DC3EE"
-              title={isDark ? undefined : '업데이트 중...'}
+              tintColor={colors.brandSecondary}
             />
           }
           renderItem={({ item }) => (
@@ -375,7 +354,6 @@ export default function SavedScreen() {
               place={item}
               onAddToTrip={handleAddToTrip}
               onRemove={handleRemove}
-              isDark={isDark}
             />
           )}
         />
@@ -386,7 +364,6 @@ export default function SavedScreen() {
         place={selected}
         onClose={() => setModalVisible(false)}
         onAdded={() => {}}
-        isDark={isDark}
       />
     </View>
   );

@@ -62,7 +62,7 @@ export const palette = {
  */
 export const lightColors: ThemedColors = {
   // brand
-  brandPrimary: palette.coral500,
+  brandPrimary:   palette.coral500,
   brandSecondary: palette.teal500,
 
   // text
@@ -80,11 +80,28 @@ export const lightColors: ThemedColors = {
   bgSubtle:  palette.ink50,
   bgStrong:  palette.ink100,
 
+  // input / card
+  inputBg:   palette.ink50,
+  cardBg:    palette.white,
+
   // line
   lineDefault: palette.ink100,
   lineStrong:  palette.ink200,
 
-  // 그림자 색(다크에서는 더 진하게)
+  // 화살표(›) — 라이트에서 mid-gray
+  chevron:   palette.ink400,
+
+  // 경고/충돌 카드 — 라이트
+  warnBg:     '#FFF1E6',
+  warnBorder: '#FFB07A',
+  warnText:   '#7A3700',
+  warnSub:    '#9A5A2A',
+
+  // 선택 강조 (보관함 여행/날짜 선택)
+  accentBg:   '#E8F8FD',
+  accentText: '#3DC3EE',
+
+  // 그림자 색
   shadowColor: palette.ink800,
 };
 
@@ -92,22 +109,43 @@ export const darkColors: ThemedColors = {
   brandPrimary:   palette.coral500,
   brandSecondary: palette.teal500,
 
-  txPrimary:   palette.ink50,
-  txSecondary: palette.ink300,
-  txTertiary:  '#94A3B8',
-  txDisabled:  palette.ink600,
+  // 다크모드 텍스트 — 대비 강화
+  txPrimary:   '#F1F5F9',          // 순백 대신 약간 부드러운 흰색
+  txSecondary: '#CBD5E1',          // 확실히 보이는 회색
+  txTertiary:  '#94A3B8',          // 보조 텍스트 (충분히 밝음)
+  txDisabled:  '#475569',
   txInverse:   palette.ink900,
   txBrand:     palette.coral500,
-  txDanger:    palette.danger500,
+  txDanger:    '#F87171',          // 다크에서 더 밝은 빨강
 
-  bgBase:    palette.ink900,
-  bgSurface: palette.ink700,
-  bgSubtle:  '#334155',
-  bgStrong:  palette.ink600,
+  // 다크모드 배경 — ink 시스템 통일
+  bgBase:    '#0F172A',            // 최하단 (ink900)
+  bgSurface: '#1E293B',            // 카드/모달 (ink700)
+  bgSubtle:  '#334155',            // 입력/뱃지 배경
+  bgStrong:  '#475569',            // 강조 배경
 
+  // input / card
+  inputBg:   '#1E293B',
+  cardBg:    '#1E293B',
+
+  // line
   lineDefault: '#334155',
-  lineStrong:  palette.ink600,
+  lineStrong:  '#475569',
 
+  // 화살표(›) — 다크에서 명확하게 밝게
+  chevron:   '#94A3B8',            // txTertiary보다 확실히 밝음
+
+  // 경고/충돌 카드 — 다크
+  warnBg:     '#2D1A0A',
+  warnBorder: '#92400E',
+  warnText:   '#FCD34D',
+  warnSub:    '#FCA5A5',
+
+  // 선택 강조
+  accentBg:   '#0F3044',
+  accentText: '#38BDF8',
+
+  // 그림자
   shadowColor: palette.black,
 };
 
@@ -128,8 +166,17 @@ export type ThemedColors = {
   bgSurface: string;
   bgSubtle: string;
   bgStrong: string;
+  inputBg: string;
+  cardBg: string;
   lineDefault: string;
   lineStrong: string;
+  chevron: string;
+  warnBg: string;
+  warnBorder: string;
+  warnText: string;
+  warnSub: string;
+  accentBg: string;
+  accentText: string;
   shadowColor: string;
 };
 

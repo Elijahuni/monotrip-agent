@@ -14,7 +14,7 @@ import { useState } from 'react';
 import { ActionSheetIOS, ActivityIndicator, Alert, Platform, Text, TouchableOpacity, View } from 'react-native';
 
 import { api } from '@/lib/api';
-import { palette } from '@/lib/design-tokens';
+import { palette, useThemedColors } from '@/lib/design-tokens';
 
 interface Props {
   /** 현재 등록된 이미지 URL 목록 */
@@ -29,10 +29,7 @@ interface Props {
 
 export function PhotoPicker({ urls, onChange, max = 5, isDark = false, lang = 'ko' }: Props) {
   const [uploading, setUploading] = useState(false);
-
-  const bgSurf = isDark ? '#1E1E2E' : '#F0F4F8';
-  const bord   = isDark ? '#2A2A3E' : '#E8ECF2';
-  const txSc   = isDark ? '#9BA7B5' : '#5A6474';
+  const colors = useThemedColors();
 
   async function pickFromGallery() {
     const perm = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -147,8 +144,8 @@ export function PhotoPicker({ urls, onChange, max = 5, isDark = false, lang = 'k
             disabled={uploading}
             style={{
               width: 72, height: 72, borderRadius: 12,
-              borderWidth: 1.5, borderColor: bord, borderStyle: 'dashed',
-              backgroundColor: bgSurf,
+              borderWidth: 1.5, borderColor: colors.lineDefault, borderStyle: 'dashed',
+              backgroundColor: colors.bgSubtle,
               justifyContent: 'center', alignItems: 'center',
               opacity: uploading ? 0.5 : 1,
             }}>
@@ -157,7 +154,7 @@ export function PhotoPicker({ urls, onChange, max = 5, isDark = false, lang = 'k
             ) : (
               <>
                 <Ionicons name="camera-outline" size={22} color={palette.coral500} />
-                <Text style={{ color: txSc, fontSize: 10, marginTop: 2 }}>{urls.length}/{max}</Text>
+                <Text style={{ color: colors.txSecondary, fontSize: 10, marginTop: 2 }}>{urls.length}/{max}</Text>
               </>
             )}
           </TouchableOpacity>

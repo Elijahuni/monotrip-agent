@@ -6,12 +6,12 @@ import time
 
 from app.schemas.metasearch import FlightOffer, FlightSearchQuery, FlightSearchResult
 
-from .providers import FlightProvider, MockFlightProvider
+from .providers import FlightProvider, build_flight_providers
 
 logger = logging.getLogger(__name__)
 
-# 활성 Provider 목록. 실제 어필리에이트 통합 시 여기에 추가.
-_PROVIDERS: list[FlightProvider] = [MockFlightProvider()]
+# 실제 API 키가 있으면 SkyscannerProvider 포함, 없으면 MockFlightProvider만 사용.
+_PROVIDERS: list[FlightProvider] = build_flight_providers()
 
 # 단순 인메모리 캐시 — 15분 TTL.
 # 키: 검색 파라미터 직렬화. 값: (timestamp, FlightSearchResult)

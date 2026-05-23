@@ -32,10 +32,15 @@ class AcceptInviteBody(BaseModel):
     token: str = Field(min_length=10, max_length=128)
 
 
+class RoleUpdateBody(BaseModel):
+    role: Literal["edit", "view"]
+
+
 class CollaboratorResponse(BaseModel):
     user_id: int
     role: str
     joined_at: datetime
+    nickname: str | None = None  # 목록 조회 시 채워짐 (수락 응답에선 None)
     model_config = {"from_attributes": True}
 
 
@@ -95,5 +100,54 @@ async def list_collaborators(
 ) -> ApiResponse[list[CollaboratorResponse]]:
     # 협업자 목록은 owner와 협업자만 조회 가능
     await _service.assert_can_invite(db, trip_id, current_user.id)
-    rows = await _service.list_collaborators(db, trip_id)
-    return ApiResponse(data=[CollaboratorResponse.model_validate(r) for r in rows])
+    rows = await _service.list_collaborators_with_nicknames(db, trip_id)
+    return ApiResponse(
+        data=[
+            CollaboratorResponse(
+                user_id=c.user_id,
+                role=c.role,
+                joined_at=c.joined_at,
+                nickname=nickname,
+            )
+            for c, nickname in rows
+        ]
+    )
+
+
+@router.patch(
+    "/trips/{trip_id}/collaborators/{user_id}",
+    response_model=ApiResponse[CollaboratorResponse],
+)
+async def update_collaborator_role(
+    trip_id: int,
+    user_id: int,
+    body: RoleUpdateBody,
+    current_user: CurrentUser,
+    db: DbSession,
+) -> ApiResponse[CollaboratorResponse]:
+    """협업자 역할(edit/view) 변경 — 여행 소유자만 가능."""
+    collab = await _service.update_collaborator_role(
+        db,
+        trip_id=trip_id,
+        owner_id=current_user.id,
+        target_user_id=user_id,
+        role=body.role,
+    )
+    return ApiResponse(data=CollaboratorResponse.model_validate(collab))
+
+
+@router.delete(
+    "/trips/{trip_id}/collaborators/{user_id}",
+    response_model=ApiResponse[None],
+)
+async def remove_collaborator(
+    trip_id: int,
+    user_id: int,
+    current_user: CurrentUser,
+    db: DbSession,
+) -> ApiResponse[None]:
+    """협업자 제거 — 여행 소유자만 가능."""
+    await _service.remove_collaborator(
+        db, trip_id=trip_id, owner_id=current_user.id, target_user_id=user_id
+    )
+    return ApiResponse(data=None, message="협업자가 제거되었습니다.")

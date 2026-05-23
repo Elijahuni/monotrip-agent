@@ -14,6 +14,7 @@ from slowapi.errors import RateLimitExceeded
 
 from app.config import get_settings
 from app.limiter import limiter
+from app.routes.admin import create_admin_router
 from app.routes.ai import router as ai_router
 from app.routes.auth import router as auth_router
 from app.routes.checklist import router as checklist_router
@@ -24,7 +25,14 @@ from app.routes.trips import router as trips_router
 from app.routes.uploads import router as uploads_router
 from app.routes.collaboration import router as collaboration_router
 from app.routes.community import router as community_router
+from app.routes.coupons import router as coupons_router
+from app.routes.direct_messages import router as direct_messages_router
+from app.routes.faqs import router as faqs_router
 from app.routes.metasearch import router as metasearch_router
+from app.routes.notices import router as notices_router
+from app.routes.offline_guides import router as offline_guides_router
+from app.routes.rental_cars import router as rental_cars_router
+from app.routes.tours import router as tours_router
 from app.routes.realtime import router as realtime_router
 from app.routes.utils import router as utils_router
 from app.services.notification_scheduler import get_scheduler, setup_scheduler
@@ -87,6 +95,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     if scheduler.running:
         scheduler.shutdown(wait=False)
         logger.info("notification_scheduler_stopped")
+
+    # 종료: 공유 Redis 연결(캐시 + 실시간 pub/sub) 정리
+    from app.services.ai.redis_cache import aclose_cache_client
+    from app.services.realtime import manager as realtime_manager
+
+    await aclose_cache_client()
+    await realtime_manager.aclose()
+    logger.info("redis_connections_closed")
 
 
 # ─── 앱 초기화 ────────────────────────────────────────────────────────────────
@@ -181,6 +197,16 @@ app.include_router(metasearch_router)
 app.include_router(collaboration_router)
 app.include_router(realtime_router)
 app.include_router(community_router)
+app.include_router(notices_router)
+app.include_router(faqs_router)
+app.include_router(coupons_router)
+app.include_router(offline_guides_router)
+app.include_router(tours_router)
+app.include_router(rental_cars_router)
+app.include_router(direct_messages_router)
+
+# 관리자 패널 — 숨겨진 URL, 설정에서 prefix 동적 생성
+app.include_router(create_admin_router())
 
 
 # ─── 헬스체크 ────────────────────────────────────────────────────────────────

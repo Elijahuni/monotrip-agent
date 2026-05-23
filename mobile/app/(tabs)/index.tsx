@@ -4,29 +4,31 @@ import { useEffect, useMemo, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
-  FlatList,
   Platform,
-  RefreshControl,
+  ScrollView,
   Text,
-  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { TripCard } from '@/components/TripCard';
+import { PersonalBanner } from '@/components/PersonalBanner';
+import { QuickActionBar } from '@/components/QuickActionBar';
+import { TrendingPostCard } from '@/components/TrendingPostCard';
 import { TripCardSkeleton } from '@/components/TripCardSkeleton';
-import { BottomSheet, Button, EmptyState, TextField } from '@/components/ui';
-import { palette, placeholderColor, shadow } from '@/lib/design-tokens';
-import { handleApiError, showSuccess } from '@/lib/error-handler';
+import { BottomSheet, Button, TextField } from '@/components/ui';
+import { api } from '@/lib/api';
+import { palette, shadow, useThemedColors } from '@/lib/design-tokens';
+import { handleApiError } from '@/lib/error-handler';
 import { cancelTripNotifications, scheduleTripNotifications } from '@/lib/notifications';
-import { useCreateTrip, useDeleteTrip, useDuplicateTrip, usePendingCount, useTrips, useUpdateTrip } from '@/lib/queries';
-import { useIsFlushing, useIsOnline } from '@/store';
-import type { Trip } from '@/lib/types';
+import { useCreateTrip, useDeleteTrip, usePendingCount, useTrips, useUpdateTrip } from '@/lib/queries';
+import { useSettings } from '@/lib/settings-context';
+import { useIsFlushing } from '@/store';
+import type { TrendingPost, Trip } from '@/lib/types';
+import { useQuery } from '@tanstack/react-query';
 
 // ─── 유틸 ──────────────────────────────────────────────────────────────────────
 
-/** Date → 'YYYY-MM-DD' (UTC 변환 없이 로컬 기준) */
 function toDateStr(d: Date): string {
   const y = d.getFullYear();
   const m = String(d.getMonth() + 1).padStart(2, '0');
@@ -34,7 +36,6 @@ function toDateStr(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-/** 'YYYY-MM-DD' → 'YYYY. MM. DD' 표시용 */
 function displayDate(s: string | null): string {
   if (!s) return '날짜 선택';
   const [y, m, d] = s.split('-');
@@ -213,7 +214,6 @@ function TripFormSheet({ visible, initial = {}, mode, onClose, onSubmit }: TripF
         </TouchableOpacity>
       )}
 
-      {/* 인원 스텝퍼 */}
       <Text className="text-xs font-semibold text-tx-secondary mb-1.5 ml-1">인원</Text>
       <View className="flex-row items-center bg-bg-subtle rounded-xl px-4 py-2 mb-4">
         <TouchableOpacity
@@ -243,120 +243,43 @@ function TripFormSheet({ visible, initial = {}, mode, onClose, onSubmit }: TripF
   );
 }
 
-// ─── 검색바 ────────────────────────────────────────────────────────────────────
-
-function SearchBar({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  return (
-    <View className="mx-4 my-3 flex-row items-center bg-bg-surface border border-line-default rounded-xl px-3 gap-2">
-      <Text className="text-base text-tx-tertiary">🔍</Text>
-      <TextInput
-        className="flex-1 py-3 text-sm text-tx-primary"
-        placeholder="여행 이름으로 검색"
-        placeholderTextColor={placeholderColor}
-        value={value}
-        onChangeText={onChange}
-        returnKeyType="search"
-      />
-      {value.length > 0 && (
-        <TouchableOpacity onPress={() => onChange('')} activeOpacity={0.7} className="p-1">
-          <View className="w-4 h-4 rounded-full bg-tx-tertiary items-center justify-center">
-            <Text className="text-tx-inverse text-xs leading-none">✕</Text>
-          </View>
-        </TouchableOpacity>
-      )}
-    </View>
-  );
-}
-
-// ─── 홈 화면 ───────────────────────────────────────────────────────────────────
+// ─── 홈 화면 (디스커버리) ─────────────────────────────────────────────────────
 
 export default function HomeScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const colors = useThemedColors();
+  const { t } = useSettings();
 
   const tripsQuery = useTrips();
   const createTrip = useCreateTrip();
   const updateTrip = useUpdateTrip();
-  const deleteTrip = useDeleteTrip();
-  const duplicateTrip = useDuplicateTrip();
 
-  // ── 오프라인 큐 상태 ──────────────────────────────────────────────────────────
   const pendingCount = usePendingCount();
   const isFlushing = useIsFlushing();
-  const isOnline = useIsOnline();
 
-  const [searchQuery, setSearchQuery] = useState('');
   const [showCreate, setShowCreate] = useState(false);
   const [editTarget, setEditTarget] = useState<Trip | null>(null);
 
-  // 무한 쿼리 — 모든 페이지를 단일 배열로 펼치기
   const allTrips: Trip[] = useMemo(
     () => tripsQuery.data?.pages.flatMap((p) => p.items) ?? [],
     [tripsQuery.data],
   );
-  // SQLite hydrate된 캐시가 있으면 isPending=false. 캐시 없을 때만 진짜 로딩.
-  const showSkeleton = tripsQuery.isPending && allTrips.length === 0;
-  const syncing = tripsQuery.isRefetching && !tripsQuery.isFetchingNextPage;
 
-  const filteredTrips = useMemo(() => {
-    const q = searchQuery.trim().toLowerCase();
-    if (!q) return allTrips;
-    return allTrips.filter(
-      (t) => t.title.toLowerCase().includes(q) || (t.description ?? '').toLowerCase().includes(q),
-    );
-  }, [allTrips, searchQuery]);
+  // 인기 여행기
+  const trendingQuery = useQuery<TrendingPost[]>({
+    queryKey: ['trending'],
+    queryFn: () => api.community.trending({ limit: 10 }),
+    staleTime: 5 * 60 * 1000,
+  });
 
-  function handleLongPress(trip: Trip) {
-    Alert.alert(trip.title, '이 여행에 대한 작업을 선택하세요', [
-      { text: '✏️ 정보 수정', onPress: () => setEditTarget(trip) },
-      {
-        text: '📋 복제하기',
-        onPress: () => {
-          duplicateTrip.mutate(trip.id, {
-            onSuccess: (newTrip) => {
-              showSuccess(`"${newTrip.title}"이 생성됐어요.`, '여행 복제 완료');
-            },
-            onError: (e) => handleApiError(e, '여행 복제에 실패했습니다.'),
-          });
-        },
-      },
-      { text: '🗑️ 삭제', style: 'destructive', onPress: () => confirmDelete(trip) },
-      { text: '취소', style: 'cancel' },
-    ]);
-  }
-
-  function confirmDelete(trip: Trip) {
-    Alert.alert(
-      '여행 삭제',
-      `"${trip.title}" 여행을 삭제하시겠어요?\n장소 정보도 모두 삭제됩니다.`,
-      [
-        { text: '취소', style: 'cancel' },
-        {
-          text: '삭제',
-          style: 'destructive',
-          onPress: () => {
-            deleteTrip.mutate(trip.id, {
-              onSuccess: () => {
-                cancelTripNotifications(trip.id).catch(() => {});
-              },
-              onError: (e) => handleApiError(e, '여행 삭제에 실패했습니다.'),
-            });
-          },
-        },
-      ],
-    );
-  }
+  const trendingPosts = trendingQuery.data ?? [];
 
   async function handleCreate(data: TripFormData) {
     try {
       const trip = await createTrip.mutateAsync(data);
-      // 출발일이 있으면 알림 스케줄
       if (trip.start_date) {
-        scheduleTripNotifications({
-          tripId: trip.id,
-          tripTitle: trip.title,
-          startDate: trip.start_date,
-        }).catch(() => {});
+        scheduleTripNotifications({ tripId: trip.id, tripTitle: trip.title, startDate: trip.start_date }).catch(() => {});
       }
     } catch (e) {
       handleApiError(e, '여행 생성에 실패했습니다.');
@@ -368,159 +291,138 @@ export default function HomeScreen() {
     if (!editTarget) return;
     try {
       const trip = await updateTrip.mutateAsync({ id: editTarget.id, body: data });
-      // 날짜 변경 시 알림 재스케줄
       if (trip.start_date) {
-        scheduleTripNotifications({
-          tripId: trip.id,
-          tripTitle: trip.title,
-          startDate: trip.start_date,
-        }).catch(() => {});
+        scheduleTripNotifications({ tripId: trip.id, tripTitle: trip.title, startDate: trip.start_date }).catch(() => {});
       } else {
         cancelTripNotifications(trip.id).catch(() => {});
       }
     } catch (e) {
       handleApiError(e, '수정에 실패했습니다.');
       throw e;
-    } finally { setEditTarget(null); }
+    } finally {
+      setEditTarget(null);
+    }
   }
 
   return (
     <View className="flex-1 bg-bg-surface" style={{ paddingTop: insets.top }}>
       {/* ── 헤더 ── */}
-      <View className="bg-bg-base px-5 pt-4 pb-4 border-b border-line-default flex-row items-center justify-between">
-        <View>
-          <Text className="text-xl font-bold text-tx-primary">내 여행</Text>
-          <Text className="text-xs text-tx-tertiary mt-0.5">나만의 여행을 계획해보세요</Text>
-        </View>
-        <View className="flex-row items-center gap-2">
-          <View className="w-9 h-9 rounded-full bg-brand-primary items-center justify-center">
+      <View className="bg-bg-base px-5 pt-4 pb-3 border-b border-line-default flex-row items-center justify-between">
+        <Text className="text-xl font-bold text-tx-primary">triple</Text>
+        <View className="flex-row items-center gap-3">
+          {(isFlushing || pendingCount > 0) && (
+            <ActivityIndicator size="small" color={palette.coral500} />
+          )}
+          <TouchableOpacity
+            className="w-9 h-9 rounded-full bg-brand-primary items-center justify-center"
+            onPress={() => router.push('/profile' as any)}
+            activeOpacity={0.8}
+          >
             <Text className="text-tx-inverse text-sm font-bold">T</Text>
-          </View>
+          </TouchableOpacity>
         </View>
       </View>
 
-      {/* ── 검색바 ── */}
-      <SearchBar value={searchQuery} onChange={setSearchQuery} />
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: insets.bottom + 100 }}
+      >
+        {/* ── 퀵액션 바 ── */}
+        <QuickActionBar />
 
-      {/* ── 오프라인 / 동기화 배너 ── */}
-      {(!isOnline || isFlushing || pendingCount > 0) && (
-        <View
-          className={`mx-4 mb-2 px-4 py-2.5 rounded-xl flex-row items-center gap-2 ${
-            isFlushing
-              ? 'bg-blue-50 border border-blue-200'
-              : !isOnline
-                ? 'bg-amber-50 border border-amber-200'
-                : 'bg-green-50 border border-green-200'
-          }`}>
-          {isFlushing ? (
-            <ActivityIndicator size="small" color="#3B82F6" />
-          ) : (
-            <Text className="text-base">
-              {!isOnline ? '📡' : pendingCount > 0 ? '🔄' : '✅'}
-            </Text>
-          )}
-          <Text
-            className={`text-xs font-medium flex-1 ${
-              isFlushing ? 'text-blue-700' : !isOnline ? 'text-amber-700' : 'text-green-700'
-            }`}>
-            {isFlushing
-              ? `동기화 중... (${pendingCount}건 남음)`
-              : !isOnline
-                ? pendingCount > 0
-                  ? `오프라인 — ${pendingCount}건 대기 중`
-                  : '오프라인 모드'
-                : `동기화 완료`}
-          </Text>
-        </View>
-      )}
+        {/* ── 개인화 배너 ── */}
+        <PersonalBanner />
 
-      {/* ── 여행 목록 ── */}
-      {showSkeleton ? (
-        <View className="pt-1">
-          <TripCardSkeleton />
-          <TripCardSkeleton />
-          <TripCardSkeleton />
-        </View>
-      ) : (
-        <FlatList
-          data={filteredTrips}
-          keyExtractor={(item) => String(item.id)}
-          renderItem={({ item }) => {
-            // 첫 번째 장소의 첫 번째 이미지를 썸네일로 활용
-            const images: string[] | null = (item as any).locations?.[0]?.images ?? null;
-            const thumbnail = Array.isArray(images) && images.length > 0 ? images[0] : null;
-            return (
-              <TripCard
-                trip={item}
-                thumbnail={thumbnail}
-                onPress={() => router.push(`/trips/${item.id}` as never)}
-                onLongPress={() => handleLongPress(item)}
-              />
-            );
-          }}
-          ListEmptyComponent={
-            searchQuery ? (
-              <EmptyState
-                icon="🔍"
-                title="검색 결과가 없어요"
-                description={`"${searchQuery}"에 대한 여행을 찾을 수 없어요`}
-              />
-            ) : (
-              <EmptyState
-                icon="✈️"
-                title="아직 여행이 없어요"
-                description={'+ 버튼을 눌러\n첫 번째 여행을 시작해보세요'}
-                ctaLabel="새 여행 만들기"
-                onCtaPress={() => setShowCreate(true)}
-              />
-            )
-          }
-          ListHeaderComponent={<View className="h-1" />}
-          ListFooterComponent={
-            <View style={{ height: insets.bottom + 96 }}>
-              {tripsQuery.isFetchingNextPage && (
-                <View className="py-4 items-center">
-                  <ActivityIndicator size="small" color={palette.coral500} />
-                  <Text className="text-xs text-tx-tertiary mt-1">더 불러오는 중...</Text>
+        {/* ── 내 여행 링크 — 여행 목록으로 이동 ── */}
+        {allTrips.length > 0 && (
+          <View style={{ marginHorizontal: 16, marginBottom: 20 }}>
+            {allTrips.slice(0, 3).map((trip) => (
+              <TouchableOpacity
+                key={trip.id}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: colors.bgBase,
+                  borderRadius: 12,
+                  paddingHorizontal: 16,
+                  paddingVertical: 12,
+                  marginBottom: 6,
+                  borderWidth: 1,
+                  borderColor: colors.lineDefault,
+                }}
+                onPress={() => router.push(`/trips/${trip.id}` as any)}
+                activeOpacity={0.8}
+              >
+                <Text style={{ fontSize: 20, marginRight: 12 }}>✈️</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: colors.txPrimary }} numberOfLines={1}>
+                    {trip.title}
+                  </Text>
+                  {trip.destination && (
+                    <Text style={{ fontSize: 12, color: colors.txTertiary, marginTop: 2 }}>
+                      {trip.destination}
+                    </Text>
+                  )}
                 </View>
-              )}
-            </View>
-          }
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={{ flexGrow: 1 }}
-          refreshControl={
-            <RefreshControl
-              refreshing={syncing}
-              onRefresh={() => tripsQuery.refetch()}
-              tintColor={palette.coral500}
-              title="업데이트 중..."
-              titleColor={placeholderColor}
-            />
-          }
-          onEndReached={() => {
-            const lastPage = tripsQuery.data?.pages[tripsQuery.data.pages.length - 1];
-            if (lastPage?.has_more && !tripsQuery.isFetchingNextPage) {
-              tripsQuery.fetchNextPage();
-            }
-          }}
-          onEndReachedThreshold={0.3}
-          removeClippedSubviews
-          maxToRenderPerBatch={10}
-          windowSize={5}
-          initialNumToRender={8}
-        />
-      )}
+                <Text style={{ fontSize: 13, color: colors.txTertiary }}>›</Text>
+              </TouchableOpacity>
+            ))}
+            {allTrips.length > 3 && (
+              <Text style={{ fontSize: 12, color: colors.txTertiary, textAlign: 'center', marginTop: 4 }}>
+                +{allTrips.length - 3}개 더
+              </Text>
+            )}
+          </View>
+        )}
 
-      {/* ── FAB ── */}
+        {/* ── 인기 여행기 섹션 ── */}
+        <View style={{ marginHorizontal: 16, marginBottom: 8 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+            <Text style={{ fontSize: 17, fontWeight: '700', color: colors.txPrimary }}>
+              {t('home', 'trending')}
+            </Text>
+            <TouchableOpacity onPress={() => router.push('/community' as any)} activeOpacity={0.7}>
+              <Text style={{ fontSize: 13, color: colors.brandPrimary, fontWeight: '600' }}>
+                {t('home', 'trendingMore')}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {trendingQuery.isLoading ? (
+            <>
+              <TripCardSkeleton />
+              <TripCardSkeleton />
+            </>
+          ) : trendingPosts.length === 0 ? (
+            <View style={{ paddingVertical: 32, alignItems: 'center' }}>
+              <Text style={{ fontSize: 32, marginBottom: 8 }}>✈️</Text>
+              <Text style={{ fontSize: 14, color: colors.txTertiary }}>
+                {t('home', 'trendingEmpty')}
+              </Text>
+            </View>
+          ) : (
+            trendingPosts.map((post) => (
+              <TrendingPostCard
+                key={post.id}
+                post={post}
+                onPress={() => router.push('/community' as any)}
+              />
+            ))
+          )}
+        </View>
+      </ScrollView>
+
+      {/* ── FAB — 새 여행 만들기 ── */}
       <TouchableOpacity
         className="absolute right-5 w-14 h-14 rounded-full bg-brand-primary items-center justify-center"
         style={{ bottom: insets.bottom + 20, ...shadow.fab }}
         onPress={() => setShowCreate(true)}
-        activeOpacity={0.85}>
+        activeOpacity={0.85}
+      >
         <Text className="text-tx-inverse text-3xl font-light leading-none mb-0.5">+</Text>
       </TouchableOpacity>
 
-      {/* ── 새 여행 생성 시트 ── */}
+      {/* ── 여행 생성 시트 ── */}
       <TripFormSheet
         visible={showCreate}
         mode="create"

@@ -23,6 +23,7 @@ from app.database import AsyncSessionLocal
 from app.models.trip import Trip
 from app.models.user import User
 from app.services.push_notification_service import PushMessage, send_push_notifications
+from app.services.redis_lock import single_flight
 
 logger = logging.getLogger(__name__)
 
@@ -71,13 +72,30 @@ def setup_scheduler(enabled: bool = True) -> None:
         minute=0,
         id="daily_trip_reminders",
         replace_existing=True,
-        misfire_grace_time=3600,  # 1시간 내에 실행 못 했으면 그냥 넘김
+        misfire_grace_time=3600,
+    )
+
+    # 항공권 가격 알림 — 매일 UTC 01:00 (KST 10:00)
+    from app.services.jobs.price_alert import run_price_alert_job
+
+    _scheduler.add_job(
+        run_price_alert_job,
+        trigger="cron",
+        hour=1,
+        minute=0,
+        id="flight_price_alerts",
+        replace_existing=True,
+        misfire_grace_time=3600,
     )
     logger.info("notification_scheduler_registered")
 
 
+@single_flight("lock:job:daily_trip_reminders", ttl_seconds=3600)
 async def send_daily_trip_reminders() -> None:
-    """매일 실행: D-7/D-3/D-1/D-0 해당 여행의 사용자에게 알림 전송."""
+    """매일 실행: D-7/D-3/D-1/D-0 해당 여행의 사용자에게 알림 전송.
+
+    멀티 워커에서도 1회만 실행되도록 Redis 분산 락으로 보호.
+    """
     today = date.today()
     logger.info("trip_reminder_job_started", date=today.isoformat())
 

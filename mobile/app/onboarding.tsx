@@ -16,6 +16,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
+import { useThemedColors } from '@/lib/design-tokens';
 import { useSettings } from '@/lib/settings-context';
 
 const { width: SW } = Dimensions.get('window');
@@ -91,8 +92,7 @@ const SLIDES: Slide[] = [
 // ─── 슬라이드 아이템 ────────────────────────────────────────────────────────────
 
 function SlideItem({ slide, isDark, lang }: { slide: Slide; isDark: boolean; lang: string }) {
-  const txPri = isDark ? '#ECEDEE' : '#1A1A1A';
-  const txSec = isDark ? '#9BA7B5' : '#5A6474';
+  const colors = useThemedColors();
   const bg    = isDark ? slide.darkBg : slide.bgColor;
 
   return (
@@ -156,7 +156,7 @@ function SlideItem({ slide, isDark, lang }: { slide: Slide; isDark: boolean; lan
         style={{
           fontSize: 28,
           fontWeight: '800',
-          color: txPri,
+          color: colors.txPrimary,
           textAlign: 'center',
           lineHeight: 38,
           letterSpacing: -0.5,
@@ -167,7 +167,7 @@ function SlideItem({ slide, isDark, lang }: { slide: Slide; isDark: boolean; lan
       <Text
         style={{
           fontSize: 15,
-          color: txSec,
+          color: colors.txSecondary,
           textAlign: 'center',
           lineHeight: 24,
           paddingHorizontal: 12,
@@ -213,10 +213,7 @@ export default function OnboardingScreen() {
   const isLast = currentIndex === SLIDES.length - 1;
   const currentSlide = SLIDES[currentIndex];
 
-  const bgBase  = isDark ? '#0D0D18' : '#FFFFFF';
-  const txPri   = isDark ? '#ECEDEE' : '#1A1A1A';
-  const txTer   = isDark ? '#6B7785' : '#9BA7B5';
-  const borderC = isDark ? '#2A2A3E' : '#E8ECF2';
+  const colors2 = useThemedColors(); // outer screen tokens
 
   const viewabilityConfig = { viewAreaCoveragePercentThreshold: 50 };
 
@@ -240,7 +237,7 @@ export default function OnboardingScreen() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: bgBase, paddingTop: insets.top }}>
+    <View style={{ flex: 1, backgroundColor: colors2.bgBase, paddingTop: insets.top }}>
       {/* ── 상단: 스킵 버튼 ── */}
       <View className="flex-row justify-between items-center px-6 pt-4 pb-2">
         {/* 앱 로고 */}
@@ -250,14 +247,14 @@ export default function OnboardingScreen() {
               alignItems: 'center', justifyContent: 'center' }}>
             <Text style={{ color: '#fff', fontWeight: '800', fontSize: 14 }}>T</Text>
           </View>
-          <Text style={{ color: txPri, fontWeight: '700', fontSize: 16 }}>Triple</Text>
+          <Text style={{ color: colors2.txPrimary, fontWeight: '700', fontSize: 16 }}>Triple</Text>
         </View>
 
         {!isLast && (
           <TouchableOpacity onPress={finishOnboarding} activeOpacity={0.7}
             style={{ paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20,
-              backgroundColor: isDark ? '#1E1E2E' : '#F7F9FC' }}>
-            <Text style={{ color: txTer, fontSize: 13, fontWeight: '600' }}>
+              backgroundColor: colors2.bgSubtle }}>
+            <Text style={{ color: colors2.txTertiary, fontSize: 13, fontWeight: '600' }}>
               {lang === 'ko' ? '건너뛰기' : 'Skip'}
             </Text>
           </TouchableOpacity>
@@ -287,8 +284,8 @@ export default function OnboardingScreen() {
           paddingTop: 24,
           paddingBottom: Math.max(insets.bottom, 24) + 8,
           borderTopWidth: 1,
-          borderTopColor: borderC,
-          backgroundColor: bgBase,
+          borderTopColor: colors2.lineDefault,
+          backgroundColor: colors2.bgBase,
           gap: 24,
           alignItems: 'center',
         }}>
@@ -323,7 +320,7 @@ export default function OnboardingScreen() {
 
         {isLast && (
           <TouchableOpacity onPress={finishOnboarding} activeOpacity={0.7}>
-            <Text style={{ color: txTer, fontSize: 13, fontWeight: '500' }}>
+            <Text style={{ color: colors2.txTertiary, fontSize: 13, fontWeight: '500' }}>
               {lang === 'ko' ? '이미 계정이 있어요' : 'I already have an account'}
             </Text>
           </TouchableOpacity>

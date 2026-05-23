@@ -21,10 +21,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 
 import { CuratedPlaceModal } from '@/components/CuratedPlaceModal';
-import { VibeChips } from '@/components/VibeChips';
+import { VibeChips, localizeVibeTag } from '@/components/VibeChips';
 import { api } from '@/lib/api';
 import { useThemedColors } from '@/lib/design-tokens';
 import { readCuratedCache, writeCuratedCache } from '@/lib/local-curated';
+import { useSettings } from '@/lib/settings-context';
 import { useIsOnline } from '@/store';
 import type { CuratedPlace } from '@/lib/types';
 import Toast from 'react-native-toast-message';
@@ -32,25 +33,17 @@ import Toast from 'react-native-toast-message';
 const JAPAN_CITIES = new Set(['tokyo', 'osaka', 'kyoto', 'fukuoka']);
 const KOREA_CITIES = new Set(['seoul', 'busan', 'jeju', 'gangneung']);
 
-// ─── 상단 도시 / 카테고리 필터 옵션 ──────────────────────────────────────────
-const CITIES: { key: string; label: string }[] = [
-  { key: 'tokyo', label: '도쿄' },
-  { key: 'osaka', label: '오사카' },
-  { key: 'kyoto', label: '교토' },
-  { key: 'fukuoka', label: '후쿠오카' },
-  { key: 'seoul', label: '서울' },
-  { key: 'jeju', label: '제주' },
-  { key: 'busan', label: '부산' },
-  { key: 'gangneung', label: '강릉' },
-];
+// ─── 도시·카테고리 슬러그 목록 (라벨은 i18n으로 런타임에 결정됨) ─────────────
+const CITY_KEYS = ['tokyo', 'osaka', 'kyoto', 'fukuoka', 'seoul', 'jeju', 'busan', 'gangneung'] as const;
+type CityKey = (typeof CITY_KEYS)[number];
 
-const CATEGORIES: { key: string; label: string; emoji: string }[] = [
-  { key: '', label: '전체', emoji: '✨' },
-  { key: 'cafe', label: '카페', emoji: '☕' },
-  { key: 'dessert', label: '디저트', emoji: '🍰' },
-  { key: 'photospot', label: '포토스팟', emoji: '📸' },
-  { key: 'shopping', label: '쇼핑', emoji: '🛍️' },
-  { key: 'restaurant', label: '맛집', emoji: '🍜' },
+const CATEGORY_OPTIONS: { key: string; emoji: string }[] = [
+  { key: '',           emoji: '✨' },
+  { key: 'cafe',       emoji: '☕' },
+  { key: 'dessert',    emoji: '🍰' },
+  { key: 'photospot',  emoji: '📸' },
+  { key: 'shopping',   emoji: '🛍️' },
+  { key: 'restaurant', emoji: '🍜' },
 ];
 
 // 카테고리별 카드 비율 (Pinterest 풍 staggered 효과). 1.0=정사각, 1.4=세로형
@@ -66,6 +59,7 @@ export default function CuratedTab() {
   const insets = useSafeAreaInsets();
   const colors = useThemedColors();
   const { width } = useWindowDimensions();
+  const { t, lang } = useSettings();
 
   const [city, setCity] = useState<string>('tokyo');
   const [category, setCategory] = useState<string>('');
@@ -104,7 +98,7 @@ export default function CuratedTab() {
     if (!isOnline) {
       setLoading(false);
       setRefreshing(false);
-      if (!cached) setErrorMsg('오프라인 상태이고 저장된 캐시도 없어요');
+      if (!cached) setErrorMsg(t('curated', 'offlineNoCache'));
       return;
     }
 
@@ -174,10 +168,10 @@ export default function CuratedTab() {
       {/* 헤더 */}
       <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 4 }}>
         <Text style={{ fontSize: 24, fontWeight: '800', color: colors.txPrimary }}>
-          오늘의 큐레이션
+          {t('curated', 'title')}
         </Text>
         <Text style={{ fontSize: 13, color: colors.txTertiary, marginTop: 2 }}>
-          취향에 맞는 감성 스팟을 모아봤어요
+          {t('curated', 'subtitle')}
         </Text>
       </View>
 
@@ -187,12 +181,12 @@ export default function CuratedTab() {
         showsHorizontalScrollIndicator={false}
         style={{ flexGrow: 0, flexShrink: 0 }}
         contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 8, gap: 8 }}>
-        {CITIES.map((c) => {
-          const active = c.key === city;
+        {CITY_KEYS.map((key) => {
+          const active = key === city;
           return (
             <TouchableOpacity
-              key={c.key}
-              onPress={() => setCity(c.key)}
+              key={key}
+              onPress={() => setCity(key)}
               style={{
                 flexShrink: 0,
                 paddingHorizontal: 14,
@@ -210,7 +204,7 @@ export default function CuratedTab() {
                   fontWeight: '700',
                   color: active ? colors.bgBase : colors.txSecondary,
                 }}>
-                {c.label}
+                {t('cities', key)}
               </Text>
             </TouchableOpacity>
           );
@@ -223,8 +217,9 @@ export default function CuratedTab() {
         showsHorizontalScrollIndicator={false}
         style={{ flexGrow: 0, flexShrink: 0 }}
         contentContainerStyle={{ paddingHorizontal: 16, paddingVertical: 6, gap: 8 }}>
-        {CATEGORIES.map((c) => {
+        {CATEGORY_OPTIONS.map((c) => {
           const active = c.key === category;
+          const catKey = (c.key || 'all') as 'all' | 'cafe' | 'dessert' | 'photospot' | 'shopping' | 'restaurant';
           return (
             <TouchableOpacity
               key={c.key || 'all'}
@@ -250,7 +245,7 @@ export default function CuratedTab() {
                   fontWeight: '600',
                   color: active ? '#FFFFFF' : colors.txSecondary,
                 }}>
-                {c.label}
+                {t('categoryFilter', catKey)}
               </Text>
             </TouchableOpacity>
           );
@@ -261,16 +256,16 @@ export default function CuratedTab() {
       {JAPAN_CITIES.has(city) ? (
         <ToolkitBanner
           flag="🇯🇵"
-          title="일본 여행 도구"
-          subtitle="환율 · 회화 · JR 패스 · 면세"
+          title={t('curated', 'japanTitle')}
+          subtitle={t('curated', 'japanSub')}
           color={colors.brandSecondary}
           onPress={() => router.push({ pathname: '/japan-toolkit', params: { city } })}
         />
       ) : KOREA_CITIES.has(city) ? (
         <ToolkitBanner
           flag="🇰🇷"
-          title="한국 여행 도구"
-          subtitle="환율 · 회화 · T-money · 면세"
+          title={t('curated', 'koreaTitle')}
+          subtitle={t('curated', 'koreaSub')}
           color={colors.brandPrimary}
           onPress={() => router.push({ pathname: '/korea-toolkit', params: { city } })}
         />
@@ -280,13 +275,13 @@ export default function CuratedTab() {
       <View style={{ flexDirection: 'row', gap: 8, paddingHorizontal: 16, marginTop: 8 }}>
         <SearchPill
           emoji="✈️"
-          label="항공권 가격비교"
+          label={t('curated', 'flightSearch')}
           colors={colors}
           onPress={() => router.push('/search/flights')}
         />
         <SearchPill
           emoji="🏨"
-          label="숙소 가격비교"
+          label={t('curated', 'hotelSearch')}
           colors={colors}
           onPress={() => router.push({ pathname: '/search/hotels', params: { city } })}
         />
@@ -311,7 +306,7 @@ export default function CuratedTab() {
               fontWeight: '600',
               color: womenOnly ? '#FFFFFF' : colors.txSecondary,
             }}>
-            👩 여성 친화만
+            {t('curated', 'womenOnly')}
           </Text>
         </TouchableOpacity>
       </View>
@@ -325,10 +320,10 @@ export default function CuratedTab() {
       ) : items.length === 0 ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
           <Text style={{ fontSize: 16, fontWeight: '600', color: colors.txSecondary }}>
-            {errorMsg ? '불러오기에 실패했어요' : '아직 큐레이션이 없어요'}
+            {errorMsg ? t('curated', 'loadFail') : t('curated', 'empty')}
           </Text>
           <Text style={{ fontSize: 13, color: colors.txTertiary, marginTop: 8, textAlign: 'center' }}>
-            {errorMsg ?? '다른 도시나 카테고리를 선택해보세요'}
+            {errorMsg ?? t('curated', 'emptySub')}
           </Text>
           {errorMsg ? (
             <TouchableOpacity
@@ -340,7 +335,7 @@ export default function CuratedTab() {
                 borderRadius: 8,
                 backgroundColor: colors.brandPrimary,
               }}>
-              <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>다시 시도</Text>
+              <Text style={{ color: '#FFFFFF', fontWeight: '700' }}>{t('curated', 'retry')}</Text>
             </TouchableOpacity>
           ) : null}
         </View>
@@ -355,12 +350,12 @@ export default function CuratedTab() {
             <View style={{ flexDirection: 'row', gap: 12 }}>
               <View style={{ flex: 1, gap: 12 }}>
                 {left.map((p) => (
-                  <CuratedCard key={p.id} place={p} width={cardWidth} colors={colors} onPress={setSelectedPlace} />
+                  <CuratedCard key={p.id} place={p} width={cardWidth} colors={colors} lang={lang} onPress={setSelectedPlace} />
                 ))}
               </View>
               <View style={{ flex: 1, gap: 12 }}>
                 {right.map((p) => (
-                  <CuratedCard key={p.id} place={p} width={cardWidth} colors={colors} onPress={setSelectedPlace} />
+                  <CuratedCard key={p.id} place={p} width={cardWidth} colors={colors} lang={lang} onPress={setSelectedPlace} />
                 ))}
               </View>
             </View>
@@ -375,7 +370,7 @@ export default function CuratedTab() {
         onAdded={() => {
           Toast.show({
             type: 'success',
-            text1: '여행에 추가되었어요',
+            text1: t('curated', 'addedToast'),
             visibilityTime: 2000,
             position: 'bottom',
           });
@@ -466,15 +461,20 @@ function CuratedCard({
   place,
   width,
   colors,
+  lang,
   onPress,
 }: {
   place: CuratedPlace;
   width: number;
   colors: ReturnType<typeof useThemedColors>;
+  lang: 'ko' | 'en';
   onPress: (place: CuratedPlace) => void;
 }) {
   const aspect = ASPECT_BY_CATEGORY[place.category] ?? 1.2;
   const imgHeight = width * aspect;
+
+  // 영어 모드에서는 name_en 우선, 없으면 name 폴백
+  const displayName = lang === 'en' && place.name_en ? place.name_en : place.name;
 
   return (
     <TouchableOpacity
@@ -511,7 +511,7 @@ function CuratedCard({
         <Text
           numberOfLines={1}
           style={{ fontSize: 14, fontWeight: '700', color: colors.txPrimary }}>
-          {place.name}
+          {displayName}
         </Text>
         {place.region ? (
           <Text style={{ fontSize: 11, color: colors.txTertiary, marginTop: 2 }}>
@@ -529,7 +529,7 @@ function CuratedCard({
                 backgroundColor: colors.bgSubtle,
               }}>
               <Text style={{ fontSize: 10, color: colors.txSecondary, fontWeight: '600' }}>
-                #{tag}
+                #{localizeVibeTag(tag, lang)}
               </Text>
             </View>
           ))}
